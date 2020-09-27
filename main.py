@@ -63,6 +63,7 @@ def main():
     client.load_extension('bot.commands.background')
     client.load_extension('bot.commands.ciphers')
     client.load_extension('bot.commands.embedtools')
+    client.load_extension('bot.commands.games')
     client.load_extension('bot.commands.info')
     client.load_extension('bot.commands.nocategory')
     client.load_extension('bot.commands.mathematics')

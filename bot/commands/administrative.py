@@ -292,7 +292,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
             # BUG: this revision breaks when there are an odd number of colons
             # NOTE: After this, `message` will no longer contain
-            # the original message 
+            # the original message
             parts = []
             while message:
                 search = partition_emoji(message)
@@ -355,9 +355,18 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         """Reload an extension.
 https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
         logger = discordlogger.get_logger()
+
         def reload(ext):
+            # Unload extension if possible then load extension
             try:
                 self.bot.unload_extension(ext)
+            except commands.errors.ExtensionNotFound:
+                return 'Could not find the extension.'
+            except commands.errors.NoEntryPointError:
+                return 'This extension is missing a setup.'
+            except commands.errors.ExtensionNotLoaded:
+                pass
+            try:
                 self.bot.load_extension(ext)
             except commands.errors.ExtensionNotFound:
                 return 'Could not find the extension.'

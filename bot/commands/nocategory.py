@@ -69,7 +69,7 @@ https://stackoverflow.com/q/64080277/"""
         aliases=('say',))
     async def client_echo(self, ctx, *, content):
         """Repeats what you say."""
-        await ctx.send(content)
+        await ctx.send(discord.utils.escape_mentions(content))
 
 
 
@@ -130,7 +130,7 @@ List of words comes from dwyl/english-words github."""
                 month[i] = '+ ' + line
                 found = True
         month = '\n'.join(month).rstrip()  # Remove trailing newline
-                
+
         date += month + '```'
         await ctx.send(date)
 
