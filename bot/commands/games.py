@@ -20,6 +20,7 @@ class Games(commands.Cog):
 
     @commands.command(name='testpages')
     async def client_testpages(self, ctx):
+        "Create a simple paginator."
         embeds = [
             discord.Embed(title="test page 1",
                 description="This is just some test content!", color=0x115599),
@@ -38,11 +39,15 @@ class Games(commands.Cog):
 
 
     @commands.command(name='multimath')
-    async def client_multimath(self, ctx):
-        "Answer simple multiple-choice math expressions."
+    async def client_multimath(self, ctx, allow_all: bool = False):
+        """Answer simple multiple-choice math expressions.
+
+allow_all: If yes, allows any member to participate."""
         game = multimath.BotMultimathGame(ctx)
 
-        await game.run()
+        users = True if allow_all else None
+
+        await game.run(users=users)
 
 
 
