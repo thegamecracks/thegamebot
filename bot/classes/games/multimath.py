@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import math
 import operator
 import random
 
@@ -80,13 +81,24 @@ class MultimathGame:
         self.b = random.randint(1, 10)
         self.op = random.choice(OPERATORS)
         self.ans = round(self.op.func(self.a, self.b), self.precision)
+        if self.ans == int(self.ans):
+            # no decimal, turn to integer
+            self.ans = int(self.ans)
 
         return self.a, self.b, self.op, self.ans
 
     def generate_false_answers(self, amount: int = 1, deviation: int = 20):
-        "Generate one-place numbers close to self.ans."
+        "Generate numbers close to self.ans."
+        is_decimal = isinstance(self.ans, float)
         rounder = 10 ** self.precision
-        middle = random.randint(0, deviation)
+
+        if is_decimal and self.op.symbol == '/':
+            # Decimal answer from division; make small lower/upper bounds
+            # so answers are harder to figure out
+            deviation = 1
+            middle = random.random()
+        else:
+            middle = random.randint(0, deviation)
         lower, upper = self.ans - middle, self.ans + deviation - middle
         # Generate `amount + 1` non-colliding answers so if it generates
         # the answer, it can be ignored in the loop, and otherwise the extra
@@ -95,8 +107,10 @@ class MultimathGame:
             n / rounder
             for n in random.sample(
                 range(
-                    round(lower * rounder),
-                    round(upper * rounder)
+                    round(math.copysign(lower * rounder, self.ans))
+                    if is_decimal else round(lower * rounder),
+                    round(math.copysign(upper * rounder, self.ans))
+                    if is_decimal else round(upper * rounder),
                 ), amount + 1
             ) if n != self.ans * rounder
         ]
@@ -104,16 +118,16 @@ class MultimathGame:
             # Extra generated number
             del answers[-1]
 
-        # Max amount of potential integers
-        integers = amount // 2
-
-        # 50% chance to round number to integer
-        for i, n in enumerate(answers):
-            if not integers:
-                break
-            elif random.randint(0, 1) and round(n) not in answers:
-                answers[i] = round(n)
-                integers -= 1
+        if not is_decimal:
+            # Max amount of potential integers
+            integers = amount // 2
+            # 50% chance to round number to integer
+            for i, n in enumerate(answers):
+                if not integers:
+                    break
+                elif random.randint(0, 1) and round(n) not in answers:
+                    answers[i] = round(n)
+                    integers -= 1
 
         return answers
 
@@ -158,7 +172,7 @@ class BotMultimathGame:
         time_to_answer = 10
         time_intermission = 3
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(2)
 
         # Begin playing
         while True:
@@ -213,5 +227,11 @@ class BotMultimathGame:
                 time_to_answer = round(max(3, time_to_answer - 1), 2)
                 time_intermission = max(1, time_intermission - 0.15)
             else:
+                response = 'Expression: {} {} {}\n{}'.format(
+                    self.game.a,
+                    self.game.op.symbol,
+                    self.game.b,
+                    response
+                )
                 await finish_and_show_score(response)
                 return
