@@ -3,6 +3,8 @@ import asyncio
 import discord
 import disputils
 
+from bot.classes.get_reaction import get_reaction
+
 
 class RemovableReactEmbedPaginator(disputils.EmbedPaginator):
     """A paginator that also reacts to removing reactions,
@@ -10,15 +12,15 @@ class RemovableReactEmbedPaginator(disputils.EmbedPaginator):
 
     The page is deleted when the user(s) take too long to respond."""
 
-    async def run(self, users, channel=None):
+    async def run(self, users=None, channel=None):
         """
         Runs the paginator.
 
         Args:
-            users (List[discord.User]):
-                A list of :class:`discord.User` that can control
-                the pagination. Passing an empty list will grant access
-                to all users. (Not recommended.)
+            users (Optional[List[discord.User]]):
+                A list of `discord.User` that can control the pagination.
+                If None or an empty list, any user can control the pagination
+                (not recommended).
         channel (Optional[discord.TextChannel]):
             The text channel to send the embed to.
             Must only be specified if `self.message` is `None`.
@@ -42,38 +44,23 @@ class RemovableReactEmbedPaginator(disputils.EmbedPaginator):
         for emoji in self.control_emojis:
             await self.message.add_reaction(emoji)
 
-        def check(r: discord.Reaction, u: discord.User):
-            result = (
-                r.message.id == self.message.id
-                and r.emoji in self.control_emojis
-            )
-
-            if users:
-                result = result and u.id in (u1.id for u1 in users)
-
-            return result
-
         while True:
-            # React to both reaction_add and reaction_remove
-            # See https://stackoverflow.com/a/59433241 on
-            # awaiting multiple events
-            pending_tasks = [
-                self._client.wait_for('reaction_add', check=check, timeout=20),
-                self._client.wait_for('reaction_remove', check=check, timeout=20),
-            ]
             try:
-                completed_tasks, pending_tasks = await asyncio.wait(
-                    pending_tasks, return_when=asyncio.FIRST_COMPLETED)
+                reaction, user = await get_reaction(
+                    self._client, self.message,
+                    self.control_emojis,
+                    users, timeout=20
+                )
             except asyncio.TimeoutError:
-                if (not isinstance(channel, discord.channel.DMChannel)
-                        and not isinstance(channel, discord.channel.GroupChannel)):
-                    await self.message.delete()
+                # Timed out!
+                if not isinstance(channel, discord.channel.GroupChannel):
+                    await self.message.edit(
+                        content='This page has expired.',
+                        embed=None,
+                        delete_after=10
+                    )
                 return
-            finally:
-                for task in pending_tasks:
-                    task.cancel()
 
-            reaction, user = completed_tasks.pop().result()
             emoji = reaction.emoji
             max_index = len(self.pages) - 1  # index for the last page
 
@@ -100,4 +87,4 @@ class RemovableReactEmbedPaginator(disputils.EmbedPaginator):
 
 class RemovableReactBotEmbedPaginator(disputils.BotEmbedPaginator,
                                       RemovableReactEmbedPaginator):
-    pass
+    "Implements the BotEmbedPaginator interface."

@@ -3,6 +3,7 @@ import asyncio
 import discord
 from discord.ext import commands
 
+from bot.classes.games import multimath
 from bot.classes import paginator
 
 
@@ -28,8 +29,20 @@ class Games(commands.Cog):
                 description="Why are you still here?", color=0x191638)
         ]
 
-        pages = paginator.RemovableReactBotEmbedPaginator(ctx, embeds)
+        pages = paginator.RemovableReactBotEmbedPaginator(
+            ctx, embeds)
         await pages.run()
+
+
+
+
+
+    @commands.command(name='multimath')
+    async def client_multimath(self, ctx):
+        "Answer simple multiple-choice math expressions."
+        game = multimath.BotMultimathGame(ctx)
+
+        await game.run()
 
 
 
