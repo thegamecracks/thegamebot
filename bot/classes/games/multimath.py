@@ -63,7 +63,7 @@ class MultimathGame:
         )
 
     def embed_question(self, answers: dict, time_to_answer):
-        description = (f'Time to answer: {time_to_answer:,g}\n'
+        description = (f'Time to answer: {time_to_answer:,g}s\n'
                        f'What is {self.a} {self.op.symbol} {self.b}?\n')
         description += '\n'.join(
             f'{emoji}: {ans:g}' for emoji, ans in answers.items())
@@ -88,15 +88,21 @@ class MultimathGame:
         rounder = 10 ** self.precision
         middle = random.randint(0, deviation)
         lower, upper = self.ans - middle, self.ans + deviation - middle
+        # Generate `amount + 1` non-colliding answers so if it generates
+        # the answer, it can be ignored in the loop, and otherwise the extra
+        # number can be thrown away
         answers = [
             n / rounder
             for n in random.sample(
                 range(
                     round(lower * rounder),
                     round(upper * rounder)
-                ), amount
-            )
+                ), amount + 1
+            ) if n != self.ans * rounder
         ]
+        if len(answers) > amount:
+            # Extra generated number
+            del answers[-1]
 
         # Max amount of potential integers
         integers = amount // 2
