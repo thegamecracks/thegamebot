@@ -104,7 +104,7 @@
         },
         {
             "activity": "playing",
-            "title": "game_battleplayervsAI.py"
+            "title": "dueturn.py"
         },
         {
             "activity": "playing",
