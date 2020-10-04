@@ -21,12 +21,7 @@ def main():
 
     settings.setup()
 
-    intents = discord.Intents.default()
-
-    client = commands.Bot(
-        command_prefix=settings.get_setting('prefix'),
-        intents=intents
-    )
+    client = commands.Bot(command_prefix=settings.get_setting('prefix'))
 
 
     @client.event
