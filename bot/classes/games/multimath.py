@@ -5,8 +5,11 @@ import operator
 import random
 
 import discord
+import inflect
 
 from bot.classes.get_reaction import get_reaction
+
+inflector = inflect.engine()
 
 Operator = collections.namedtuple('Operator', ['symbol', 'func'])
 
@@ -47,11 +50,40 @@ class MultimathGame:
         return False, (f'{user_answer:g} was incorrect; '
                        f'the answer was {self.ans:g}!')
 
-    def embed_begin(self, user: discord.User):
-        "Return an Embed to be used as the beginning of the game."
+    def embed_begin(self, ctx, users):
+        """Return an Embed to be used as the beginning of the game.
+
+        Args:
+            ctx (commands.Context): The command context.
+                This is used to know who started the game.
+            users (Optional[List[discord.User]]):
+                A list of users to show in the beginning message.
+                If None, everyone is allowed.
+
+        Returns:
+            discord.Embed
+
+        """
+        description = ['React to the emojis to answer the question!']
+        if users is None:
+            title = f'Multimath started by {ctx.author.name}'
+            description.append('Allowed users: everyone')
+        else:
+            users = [u for u in users if u.bot]
+            if len(users) == 1 and users[0] == ctx.author:
+                title = f'Multimath started for {users[0].name}'
+                description.append(f'Allowed users: {users[0].name}')
+            else:
+                title = f'Multimath started by {ctx.author.name}'
+                description.append(
+                    'Allowed users: {}'.format(
+                        inflector.join([u.name for u in users])
+                    )
+                )
+
         return discord.Embed(
-            title=f'Multimath started for {user.name}',
-            description='React to the emojis to answer the question!',
+            title=title,
+            description='\n'.join(description),
             color=self.color
         )
 
@@ -170,7 +202,7 @@ class BotMultimathGame:
             channel = self._ctx.channel
 
         message = await channel.send(
-            embed=self.game.embed_begin(self._ctx.author)
+            embed=self.game.embed_begin(self._ctx, users)
         )
 
         for emoji in self.options:
