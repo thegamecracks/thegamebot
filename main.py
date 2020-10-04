@@ -13,6 +13,18 @@ import time
 from bot import settings
 from bot.other import discordlogger
 
+cogs = [
+    'bot.commands.administrative',
+    'bot.commands.background',
+    'bot.commands.ciphers',
+    'bot.commands.embedtools',
+    'bot.commands.games',
+    'bot.commands.info',
+    'bot.commands.nocategory',
+    'bot.commands.mathematics',
+    'bot.commands.randomization',
+]
+
 
 def main():
     TOKEN = os.environ['PyDiscordBotToken']
@@ -59,15 +71,8 @@ def main():
         print('Resuming session.')
 
 
-    client.load_extension('bot.commands.administrative')
-    client.load_extension('bot.commands.background')
-    client.load_extension('bot.commands.ciphers')
-    client.load_extension('bot.commands.embedtools')
-    client.load_extension('bot.commands.games')
-    client.load_extension('bot.commands.info')
-    client.load_extension('bot.commands.nocategory')
-    client.load_extension('bot.commands.mathematics')
-    client.load_extension('bot.commands.randomization')
+    for name in cogs:
+        client.load_extension(name)
 
     loop = asyncio.get_event_loop()
     bot_args = [TOKEN]
