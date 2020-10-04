@@ -64,6 +64,10 @@ def setup():
     SETTINGS_DEFAULT = {
         'admin_ids': [153551102443257856, ],
         'bgtask_ListGuildsDelay': 600,
+        'bgtask_RandomPresenceMinDelay': 120,
+        'bgtask_RandomPresenceMaxDelay': 600,
+        'bgtask_RandomPresenceOnStartup': True,
+        'bgtask_RandomPresenceRandomStatusChance': 30,
         'bgtask_RandomPresences': [
             {'activity': 'watching',
              'title': 'my existential crisis'},
@@ -112,7 +116,7 @@ def setup():
             {'activity': 'playing',
              'title': 'on a computer'},
             {'activity': 'playing',
-             'title': 'game_battleplayervsAI.py'},
+             'title': 'dueturn.py'},
             {'activity': 'playing',
              'title': 'with an arm'},
             {'activity': 'watching',
@@ -128,10 +132,6 @@ def setup():
             # {'status': 'online', 'activity': 'playing',
             #  'title': ''},
         ],
-        'bgtask_RandomPresenceMinDelay': 120,
-        'bgtask_RandomPresenceMaxDelay': 600,
-        'bgtask_RandomPresenceOnStartup': True,
-        'bgtask_RandomPresenceRandomStatusChance': 30,
         'bgtask_TimestampDelay': 300,
         'default_StreamingURL': 'https://www.twitch.tv/thegamecracks',
         'deniedmessages': [
