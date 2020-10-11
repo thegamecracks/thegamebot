@@ -42,7 +42,7 @@ Format referenced from the Ayana bot."""
         roles = guild.roles
 
         embed = discord.Embed(
-            color=ctx.author.color,
+            color=utils.get_user_color(ctx.author),
             timestamp=datetime.datetime.utcnow()
         )
 
@@ -135,7 +135,7 @@ Format referenced from the Ayana bot."""
         )
 
         embed = discord.Embed(
-            color=user.color,
+            color=utils.get_user_color(user),
             description=description,
             timestamp=datetime.datetime.utcnow()
         )

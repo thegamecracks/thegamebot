@@ -153,7 +153,7 @@ To remove only one note, use the removenote command."""
             await ctx.send(embed=discord.Embed(
                 title=f'Note #{index:,}',
                 description=note['content'],
-                color=ctx.author.color,
+                color=utils.get_user_color(ctx.author),
                 timestamp=datetime.datetime.fromisoformat(
                     note['time_of_entry'])
             ))
@@ -184,14 +184,10 @@ To remove only one note, use the removenote command."""
             utils.truncate_message(note['content'], 140, size_lines=5)
             for note in note_list
         ]
-
-        # Use user's role color if called in a server
-        color = (ctx.author.color
-                 if isinstance(ctx.author, discord.Member)
-                 else 0xFF8002)
+        color = utils.get_user_color(ctx.author)
 
         embed = discord.Embed(
-            title='Your Notes',
+            title=f"{ctx.author.display_name}'s Notes",
             color=color,
             timestamp=datetime.datetime.now().astimezone()
         )

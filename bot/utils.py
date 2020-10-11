@@ -151,6 +151,14 @@ def gcd(a, b='high'):
     return a
 
 
+def get_user_color(user, default_color=0xFF8002):
+    "Return a user's role color if they are in a guild, else default_color."
+    return (
+        user.color if isinstance(user, discord.Member)
+        else default_color
+    )
+
+
 # This function is not done and is not currently in use.
 ##def message_snip(message):
 ##    """Returns a list of messages split by maximum message size in settings.
