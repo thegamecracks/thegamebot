@@ -143,7 +143,7 @@ These are the limits set by Discord:
         if fields:
             embed_dict['fields'] = list(fields.values())
         embed = discord.Embed.from_dict(embed_dict)
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now().astimezone()
         await ctx.send(embed=embed)
 
 
