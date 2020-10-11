@@ -10,6 +10,7 @@ import asyncio
 import os
 import time
 
+from bot import database
 from bot import settings
 from bot.other import discordlogger
 
@@ -21,12 +22,16 @@ cogs = [
     'bot.commands.games',
     'bot.commands.info',
     'bot.commands.nocategory',
+    'bot.commands.notes',
     'bot.commands.mathematics',
     'bot.commands.randomization',
 ]
 
 
 def main():
+    # Set up database
+    database.main()
+    # Set up client
     TOKEN = os.environ['PyDiscordBotToken']
 
     logger = discordlogger.get_logger()
