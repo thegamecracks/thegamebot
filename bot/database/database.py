@@ -2,6 +2,7 @@ import asyncio
 import sqlite3
 import threading
 
+DATABASE_USERS = './data/userdb.db'
 TABLE_USERS = """
 CREATE TABLE IF NOT EXISTS Users (
     id INTEGER UNIQUE
@@ -11,11 +12,11 @@ CREATE TABLE IF NOT EXISTS Users (
 """
 TABLE_NOTES = """
 CREATE TABLE IF NOT EXISTS Notes (
-    note_id INTEGER PRIMARY KEY
-                    NOT NULL,
-    user_id INTEGER REFERENCES Users (id) 
-                    NOT NULL,
-    content TEXT    NOT NULL
+    note_id INTEGER PRIMARY KEY NOT NULL,
+    user_id INTEGER NOT NULL,
+    time_of_entry TIMESTAMP,
+    content TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES Users(id)
 );
 """
 
@@ -42,7 +43,11 @@ class DatabaseConnection:
     def __enter__(self):
         if self.lock.acquire(self.blocking, self.timeout):
             self.conn = sqlite3.connect(self.database_path)
+            # Enter the context manager for conn
             self.conn.__enter__()
+            # Enable foreign key checks
+            # https://stackoverflow.com/q/29420910
+            self.conn.execute('PRAGMA foreign_keys = 1')
             return self.conn
         raise asyncio.TimeoutError(
             f'Timed out trying to connect to {self.database_path!r}')
@@ -52,6 +57,14 @@ class DatabaseConnection:
         self.conn.close()
         self.conn = None
         self.lock.release()
+
+    def __repr__(self):
+        return '{}({!r}, blocking={!r}, timeout={!r})'.format(
+            self.__class__.__name__,
+            self.database_path,
+            self.blocking,
+            self.timeout
+        )
 
 
 class Database:
@@ -76,6 +89,9 @@ class Database:
         """
         self.conn = database_connection
 
+    def __repr__(self):
+        return '{}({!r})'.format(self.__class__.__name__, self.conn)
+
     def add_row(self, table: str, row: dict):
         "Add a row to a table."
 
@@ -97,14 +113,35 @@ class Database:
         keys, placeholders, values = create_keys(row)
         with self.conn as conn:
             conn.execute(
-                f'INSERT INTO {table}({keys}) VALUES ({placeholders})',
+                f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
                 values
             )
 
-    def delete_rows(self, table: str, *, where: str):
-        "Delete one or more rows from a table."
+    def delete_rows(self, table: str, *, where: str, pop=False):
+        """Delete one or more rows from a table.
+
+        This method requires a where parameter unlike get_rows.
+
+        Args:
+            table (str)
+            where (str)
+            pop (bool):
+                If True, gets the rows and returns them before
+                deleting the rows.
+
+        Returns:
+            None
+            List[sqlite3.Row]: A list of deleted entries if pop is True.
+
+        """
+        if pop:
+            rows = self.get_rows(table, where=where)
+
         with self.conn as conn:
             conn.execute(f'DELETE FROM {table} WHERE {where}')
+
+        if pop:
+            return rows
 
     def get_one(self, table: str, *, where: str, as_Row=True):
         """Get one row from a table.
@@ -125,11 +162,21 @@ class Database:
 
         return row
 
-    def get_rows(self, table: str, *, where: str, as_Row=True):
+    def get_rows(self, table: str, *, where: str = None, as_Row=True):
         """Get/yield a list of rows from a table.
 
-        If as_Row, rows will be returned as sqlite3.Row objects.
-        Otherwise, rows are returned as tuples.
+        Args:
+            table (str)
+            where (Optional[str]):
+                An optional parameter specifying a filter.
+                If left as None, returns all rows in the table.
+            as_Row (bool):
+                If True, rows will be returned as sqlite3.Row objects.
+                Otherwise, rows are returned as tuples.
+
+        Returns:
+            List[sqlite3.Row]
+            List[tuple]
 
         """
         with self.conn as conn:
@@ -137,7 +184,10 @@ class Database:
                 conn.row_factory = sqlite3.Row
 
             c = conn.cursor()
-            c.execute(f'SELECT * FROM {table} WHERE {where}')
+            if where is not None:
+                c.execute(f'SELECT * FROM {table} WHERE {where}')
+            else:
+                c.execute(f'SELECT * FROM {table}')
 
             rows = list(c)
             c.close()
@@ -181,13 +231,14 @@ class Database:
         return d
 
 
-dbconnection_users = DatabaseConnection('./data/userdb.db')
+dbconnection_users = DatabaseConnection(DATABASE_USERS)
 
 
 def main():
     with dbconnection_users as conn:
         conn.execute(TABLE_USERS)
         conn.execute(TABLE_NOTES)
+    print('Verified', DATABASE_USERS)
 
 
 if __name__ == '__main__':

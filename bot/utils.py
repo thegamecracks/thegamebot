@@ -151,35 +151,36 @@ def gcd(a, b='high'):
     return a
 
 
-def message_snip(message):
-    """Returns a list of messages split by maximum message size in settings.
-
-    If the amount of messages exceeds message_limit, raises an OverflowError.
-
-    """
-    message_size
-    if len(message) > message_size:
-        max_length = message_size * message_limit
-        # If too many messages are required, return error message and True
-        if len(message) > max_length:
-            raise OverflowError(
-                f'The message is too long to print \
-({len(message)} > {max_length}).')
-
-        message_list = []  # The list containing each new message
-        message_extra = ' '  # Variable to store extra data
-
-        # Split the message into blocks of message_size characters
-        while len(message_extra):
-            message_extra = message[message_size:]
-            message_list.append(message[:message_size])
-            message = message_extra
-
-        # Send messages
-        return message_list
-
-    # If message is not over message_size characters
-    return [message]
+# This function is not done and is not currently in use.
+##def message_snip(message):
+##    """Returns a list of messages split by maximum message size in settings.
+##
+##    If the amount of messages exceeds message_limit, raises an OverflowError.
+##
+##    """
+##    message_size
+##    if len(message) > message_size:
+##        max_length = message_size * message_limit
+##        # If too many messages are required, return error message and True
+##        if len(message) > max_length:
+##            raise OverflowError(
+##                f'The message is too long to print \
+##({len(message)} > {max_length}).')
+##
+##        message_list = []  # The list containing each new message
+##        message_extra = ' '  # Variable to store extra data
+##
+##        # Split the message into blocks of message_size characters
+##        while len(message_extra):
+##            message_extra = message[message_size:]
+##            message_list.append(message[:message_size])
+##            message = message_extra
+##
+##        # Send messages
+##        return message_list
+##
+##    # If message is not over message_size characters
+##    return [message]
 
 
 def num(x):
@@ -236,6 +237,78 @@ Uses CLIENT_EVALUATE_WHITELIST as the filter."""
     return num(eval(
         ''.join([char for char in x if char in CLIENT_EVALUATE_WHITELIST])
     ))
+
+
+def truncate_message(
+        message, size=2000, size_lines=None, placeholder='[...]'):
+    """Truncate a message to a given amount of characters or lines.
+
+    This should be used when whitespace needs to be retained as
+    `textwrap.shorten` will collapse whitespace.
+
+    Message is stripped of whitespace.
+
+    """
+    message = message.strip()
+
+    in_code_block = 0
+
+    lines = message.split('\n')
+    chars = 0
+    for line_i, line in enumerate(lines):
+        if size_lines is not None and line_i == size_lines:
+            # Reached maximum lines
+            break
+
+        in_code_block = (in_code_block + line.count('```')) % 2
+
+        new_chars = chars + len(line)
+        if new_chars > size:
+            # This line exceeds max size; truncate it by word
+            words = line.split(' ')
+            last_word = len(words) - 1  # for compensating space split
+            line_chars = chars
+
+            for word_i, word in enumerate(words):
+                new_line_chars = line_chars + len(word)
+
+                if new_line_chars > (
+                        size - len(placeholder)
+                        - in_code_block * 3):
+                    # This word exceeds the max size; truncate to here
+                    break
+
+                if word_i != last_word:
+                    new_line_chars += 1
+
+                line_chars = new_line_chars
+            else:
+                raise RuntimeError(f'line {line_i:,} exceeded max size but '
+                                   'failed to determine where to '
+                                   'truncate the line')
+
+            if word_i == 0:
+                # Line becomes empty; go back to last line
+                # and add placeholder
+                break
+            else:
+                # Truncate line and return new message
+                line = ' '.join(words[:word_i] + [placeholder])
+                return (
+                    '\n'.join(lines[:line_i] + [line])
+                    + '```' * in_code_block
+                )
+        else:
+            chars = new_chars
+    else:
+        # Message did not exceed max size or lines; no truncation
+        return message
+    # Message exceeded max lines but not max size; truncate to line
+    return (
+        '\n'.join(lines[:line_i])
+        + f' {placeholder}'
+        + '```' * in_code_block
+    )
 
 
 # Decorators
