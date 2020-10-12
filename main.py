@@ -29,8 +29,9 @@ cogs = [
 
 
 def main():
-    # Set up database
-    database.main()
+    # Set up databases
+    database.setup()
+
     # Set up client
     TOKEN = os.environ['PyDiscordBotToken']
 

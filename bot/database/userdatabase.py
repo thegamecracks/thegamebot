@@ -1,4 +1,17 @@
+"""A database for storing user IDs.
+
+Table dependencies:
+    None
+"""
 from . import database as db
+
+TABLE_USERS = """
+CREATE TABLE IF NOT EXISTS Users (
+    id INTEGER UNIQUE
+             NOT NULL
+             PRIMARY KEY
+);
+"""
 
 
 class UserDatabase(db.Database):
@@ -34,3 +47,9 @@ class UserDatabase(db.Database):
 
         """
         self.delete_rows('Users', where=f'id={user_id}')
+
+
+def setup(dbconn):
+    "Set up the Users table for a DatabaseConnection."
+    with dbconn as conn:
+        conn.execute(TABLE_USERS)

@@ -2,24 +2,6 @@ import asyncio
 import sqlite3
 import threading
 
-DATABASE_USERS = './data/userdb.db'
-TABLE_USERS = """
-CREATE TABLE IF NOT EXISTS Users (
-    id INTEGER UNIQUE
-             NOT NULL
-             PRIMARY KEY
-);
-"""
-TABLE_NOTES = """
-CREATE TABLE IF NOT EXISTS Notes (
-    note_id INTEGER PRIMARY KEY NOT NULL,
-    user_id INTEGER NOT NULL,
-    time_of_entry TIMESTAMP,
-    content TEXT NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES Users(id)
-);
-"""
-
 
 class DatabaseConnection:
     """Provide a connection to a database safeguarding it with
@@ -229,20 +211,3 @@ class Database:
         for k, v in zip(Row.keys(), Row):
             d[k] = v
         return d
-
-
-dbconnection_users = DatabaseConnection(DATABASE_USERS)
-
-
-def main():
-    with dbconnection_users as conn:
-        conn.execute(TABLE_USERS)
-        conn.execute(TABLE_NOTES)
-    print('Verified', DATABASE_USERS)
-
-
-if __name__ == '__main__':
-    # File being executed directly; change path of database so it goes in
-    # the correct directory
-    dbconnection_users = DatabaseConnection('../../data/userdb.db')
-    main()

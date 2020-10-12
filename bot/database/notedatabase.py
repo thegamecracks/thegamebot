@@ -1,4 +1,19 @@
+"""A database for storing user's notes.
+
+Table dependencies:
+    Users
+"""
 from . import userdatabase as user_db
+
+TABLE_NOTES = """
+CREATE TABLE IF NOT EXISTS Notes (
+    note_id INTEGER PRIMARY KEY NOT NULL,
+    user_id INTEGER NOT NULL,
+    time_of_entry TIMESTAMP,
+    content TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES Users(id)
+);
+"""
 
 
 class NoteDatabase(user_db.UserDatabase):
@@ -63,3 +78,9 @@ class NoteDatabase(user_db.UserDatabase):
         """
         return self.get_rows(
             'Notes', where=f'user_id={user_id}', as_Row=as_Row)
+
+
+def setup(dbconn):
+    "Set up the Notes table for a DatabaseConnection."
+    with dbconn as conn:
+        conn.execute(TABLE_NOTES)
