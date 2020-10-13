@@ -35,9 +35,9 @@ class Mathematics(commands.Cog):
     @client_add.error
     @utils.print_error
     async def client_add_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
 
 
@@ -56,9 +56,9 @@ class Mathematics(commands.Cog):
     @client_subtract.error
     @utils.print_error
     async def client_subtract_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
 
 
@@ -77,9 +77,9 @@ class Mathematics(commands.Cog):
     @client_multiply.error
     @utils.print_error
     async def client_multiply_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
 
 
@@ -98,9 +98,9 @@ class Mathematics(commands.Cog):
     @client_divide.error
     @utils.print_error
     async def client_divide_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
 
 
@@ -119,9 +119,9 @@ class Mathematics(commands.Cog):
     @client_exponent.error
     @utils.print_error
     async def client_exponent_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
 
 
@@ -140,9 +140,9 @@ class Mathematics(commands.Cog):
     @client_sqrt.error
     @utils.print_error
     async def client_sqrt_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
 
 
@@ -200,22 +200,22 @@ To reveal the evaluation of your expression, add --debug to your expression."""
 
     @client_evaluate.error
     async def client_evaluate_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, SyntaxError):
-            await ctx.send(f'Undefined Syntax Error occurred: {exception}')
+        error = getattr(error, 'original', error)
+        if isinstance(error, SyntaxError):
+            await ctx.send(f'Undefined Syntax Error occurred: {error}')
             return
-        elif isinstance(exception, ZeroDivisionError):
+        elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
             return
-        elif isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
+        elif isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
             return
-        elif isinstance(exception, ValueError):
-            await ctx.send(str(exception))
-        elif isinstance(exception, TypeError):
-            await ctx.send(str(exception))
+        elif isinstance(error, ValueError):
+            await ctx.send(str(error))
+        elif isinstance(error, TypeError):
+            await ctx.send(str(error))
         else:
-            raise exception from RuntimeError('Unhandled exception type')
+            raise error from RuntimeError('Unhandled exception type')
 
 
 
@@ -273,14 +273,11 @@ Results may be spread apart multiple messages."""
     @client_fibonacci.error
     @utils.print_error
     async def client_fibonacci_error(self, ctx, error):
-        if hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, ValueError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, OverflowError):
-                await ctx.send(str(exception))
-                return
+        error = getattr(error, 'original', error)
+        if isinstance(error, ValueError):
+            await ctx.send(str(error))
+        elif isinstance(error, OverflowError):
+            await ctx.send(str(error))
 
 
 
@@ -408,17 +405,13 @@ The maximum number to check factors is 10000."""
     @client_factors.error
     @utils.print_error
     async def client_factors_error(self, ctx, error):
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             await ctx.send('An integer must be given.')
-            return
-        elif hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, ValueError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, TypeError):
-                await ctx.send(str(exception))
-                return
+        elif isinstance(error, ValueError):
+            await ctx.send(str(error))
+        elif isinstance(exception, TypeError):
+            await ctx.send(str(error))
 
 
 
@@ -497,17 +490,13 @@ Temperature conversions:
     @client_convertunit.error
     @utils.print_error
     async def client_convertunit_error(self, ctx, error):
-        if hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, pint.DimensionalityError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, pint.OffsetUnitCalculusError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, pint.UndefinedUnitError):
-                await ctx.send(str(exception))
-                return
+        error = getattr(error, 'original', error)
+        if isinstance(error, pint.DimensionalityError):
+            await ctx.send(str(error))
+        elif isinstance(error, pint.OffsetUnitCalculusError):
+            await ctx.send(str(error))
+        elif isinstance(error, pint.UndefinedUnitError):
+            await ctx.send(str(error))
 
 
 
@@ -537,24 +526,23 @@ n - The number to convert."""
     @client_numberbase.error
     @utils.print_error
     async def client_numberbase_error(self, ctx, error):
-        if hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, ValueError):
-                msg = str(exception)
-                if msg == 'substring not found':
-                    msg = 'There is an unknown character(s) in the number.'
-                elif 'invalid literal for int()' in msg:
-                    # Find the first number in message; it should be the base
-                    # n[:-1] - Remove the colon next to the number
-                    num = [n[:-1] for n in msg.split() if n[:-1].isnumeric()][0]
-                    msg = ('There is a character within the number not part of'
-                        f' base {num}.')
-                await ctx.send(msg)
-                return
-            elif isinstance(exception, TypeError):
-                await ctx.send(str(exception))
-                return
-        await ctx.send('An unspecified error has occurred.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, ValueError):
+            msg = str(error)
+            if msg == 'substring not found':
+                msg = 'There is an unknown character(s) in the number.'
+            elif 'invalid literal for int()' in msg:
+                # Find the first number in message; it should be the base
+                # n[:-1] - Remove the colon next to the number
+                num = [n[:-1] for n in msg.split() if n[:-1].isnumeric()][0]
+                msg = ('There is a character within the number not part of'
+                    f' base {num}.')
+            await ctx.send(msg)
+            return
+        elif isinstance(error, TypeError):
+            await ctx.send(str(error))
+        else:
+            await ctx.send('An unspecified error has occurred.')
 
 
 

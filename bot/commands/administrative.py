@@ -329,20 +329,15 @@ BUG (2020/06/21): An uneven amount of colons will prevent
     @client_sendmessage.error
     @utils.print_error
     async def client_sendmessage_error(self, ctx, error):
+        error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotAdmin):
             await ctx.send(get_denied_message())
             return
-        elif hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, AttributeError):
-                if "'NoneType' object has no attribute" in str(exception):
-                    await ctx.send(
-                        'I cannot find the given channel.')
-                    return
-            elif isinstance(exception, discord.Forbidden):
-                await ctx.send(
-                    'I cannot access this given channel.')
-                return
+        elif isinstance(error, AttributeError):
+            if "'NoneType' object has no attribute" in str(error):
+                await ctx.send('I cannot find the given channel.')
+        elif isinstance(error, discord.Forbidden):
+            await ctx.send('I cannot access this given channel.')
 
 
 
@@ -414,11 +409,9 @@ analysis via manual connection deriving out of the primary specialist.')
     @commands.command(
         name='dmtest')
     async def client_dmtest(self, ctx):
-        bans = await ctx.guild.bans()
-        print(bans)
-##        await ctx.author.send(
-##            'This command is designated for administrative validative \
-##analysis via manual connection deriving out of the primary specialist.')
+        await ctx.author.send(
+            'This command is designated for administrative validative \
+analysis via manual connection deriving out of the primary specialist.')
 
 
 

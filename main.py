@@ -50,22 +50,22 @@ def main():
     @client.event
     async def on_connect():
         print(time.strftime(
-            'Connection: Connected to Discord, %c UTC',
-            time.gmtime()))
+            'Connection: Connected to Discord, %c',
+            time.localtime()))
 
 
     @client.event
     async def on_disconnect():
         print(time.strftime(
-            'Connection: Lost connection to Discord, %c UTC',
-            time.gmtime()))
+            'Connection: Lost connection to Discord, %c',
+            time.localtime()))
 
 
     @client.event
     async def on_ready():
         print(time.strftime(
-            'Bot is ready, %c UTC',
-            time.gmtime()))
+            'Bot is ready, %c',
+            time.localtime()))
         username = 'Logged in as ' + client.user.name
         user_id = client.user.id
         print(

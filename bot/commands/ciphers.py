@@ -522,9 +522,9 @@ Other characters will be passed through."""
     @client_morsecode.error
     @utils.print_error
     async def client_morsecode_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, ValueError):
-            await ctx.send(str(exception))
+        error = getattr(error, 'original', error)
+        if isinstance(error, ValueError):
+            await ctx.send(str(error))
             return
 
 
@@ -595,9 +595,9 @@ text: The text to encrypt/decrypt."""
     @client_vigenerecipher.error
     @utils.print_error
     async def client_vigenerecipher_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, ValueError):
-            await ctx.send(str(exception))
+        error = getattr(error, 'original', error)
+        if isinstance(error, ValueError):
+            await ctx.send(str(error))
             return
 
 

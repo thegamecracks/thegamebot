@@ -31,8 +31,8 @@ class BackgroundTasks(commands.Cog):
     def timestamp():
         """Show the current time."""
         return time.strftime(
-            'Timestamp: %c UTC',
-            time.gmtime()
+            'Timestamp: %c',
+            time.localtime()
         )
 
 
