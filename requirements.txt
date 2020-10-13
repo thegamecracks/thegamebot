@@ -1,4 +1,5 @@
 aiohttp==3.6.2
+aiosqlite==0.15.0
 async-timeout==3.0.1
 attrs==19.3.0
 chardet==3.0.4
@@ -12,4 +13,5 @@ Pint==0.14
 pyparsing==2.4.7
 python-dateutil==2.8.1
 six==1.15.0
+typing-extensions==3.7.4.3
 yarl==1.5.1
