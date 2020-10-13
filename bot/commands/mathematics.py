@@ -33,7 +33,6 @@ class Mathematics(commands.Cog):
 
 
     @client_add.error
-    @utils.print_error
     async def client_add_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
@@ -54,7 +53,6 @@ class Mathematics(commands.Cog):
 
 
     @client_subtract.error
-    @utils.print_error
     async def client_subtract_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
@@ -75,7 +73,6 @@ class Mathematics(commands.Cog):
 
 
     @client_multiply.error
-    @utils.print_error
     async def client_multiply_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
@@ -96,7 +93,6 @@ class Mathematics(commands.Cog):
 
 
     @client_divide.error
-    @utils.print_error
     async def client_divide_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
@@ -110,14 +106,13 @@ class Mathematics(commands.Cog):
     @commands.command(
         name='power',
         brief='Raises x to the power of y.',
-        aliases=('exp', 'exponent', 'raise'))
+        aliases=('exp', 'exponent', 'pow', 'raise'))
     async def client_exponent(self, ctx, x, y):
         """Returns x raised to the power of y."""
         await ctx.send(utils.dec_pow(x, y))
 
 
     @client_exponent.error
-    @utils.print_error
     async def client_exponent_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
@@ -138,7 +133,6 @@ class Mathematics(commands.Cog):
 
 
     @client_sqrt.error
-    @utils.print_error
     async def client_sqrt_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
@@ -266,12 +260,10 @@ Results may be spread apart multiple messages."""
             message = linecache.getline(FILE_FIBONACCI, n)[:-1]
 
         # Print message
-        for snippet in message_snip(message)[0]:
-            await ctx.send(snippet)
+        await ctx.send(utils.truncate_message(message, 140))
 
 
     @client_fibonacci.error
-    @utils.print_error
     async def client_fibonacci_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):
@@ -403,14 +395,13 @@ The maximum number to check factors is 10000."""
 
 
     @client_factors.error
-    @utils.print_error
     async def client_factors_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             await ctx.send('An integer must be given.')
         elif isinstance(error, ValueError):
             await ctx.send(str(error))
-        elif isinstance(exception, TypeError):
+        elif isinstance(error, TypeError):
             await ctx.send(str(error))
 
 
@@ -488,7 +479,6 @@ Temperature conversions:
 
 
     @client_convertunit.error
-    @utils.print_error
     async def client_convertunit_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, pint.DimensionalityError):
@@ -519,12 +509,11 @@ letters are case-insensitive but will print out capitalized.
 base_in - The number's base.
 base_out - The base to output as.
 n - The number to convert."""
-        await ctx.send(convert_base(base_in, base_out, n,
+        await ctx.send(utils.convert_base(base_in, base_out, n,
             mapping[:max(base_in, base_out)]))
 
 
     @client_numberbase.error
-    @utils.print_error
     async def client_numberbase_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):

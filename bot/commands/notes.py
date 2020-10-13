@@ -51,9 +51,8 @@ You can have a maximum of 20 notes."""
 
 
     @client_addnote.error
-    @utils.print_error
     async def client_addnote_error(self, ctx, error):
-        await ctx.send('An error has occurred.')
+        error = getattr(error, 'original', error)
 
 
 
@@ -83,9 +82,8 @@ To remove several notes, use the removenotes command."""
 
 
     @client_removenote.error
-    @utils.print_error
     async def client_removenote_error(self, ctx, error):
-        await ctx.send('An error has occurred.')
+        error = getattr(error, 'original', error)
 
 
 
@@ -126,9 +124,8 @@ To remove only one note, use the removenote command."""
 
 
     @client_removenotes.error
-    @utils.print_error
     async def client_removenotes_error(self, ctx, error):
-        await ctx.send('An error has occurred.')
+        error = getattr(error, 'original', error)
 
 
 
@@ -160,9 +157,8 @@ To remove only one note, use the removenote command."""
 
 
     @client_shownote.error
-    @utils.print_error
     async def client_shownote_error(self, ctx, error):
-        await ctx.send('An error has occurred.')
+        error = getattr(error, 'original', error)
 
 
 
@@ -199,9 +195,8 @@ To remove only one note, use the removenote command."""
 
 
     @client_shownotes.error
-    @utils.print_error
     async def client_shownotes_error(self, ctx, error):
-        await ctx.send('An error has occurred.')
+        error = getattr(error, 'original', error)
 
 
 

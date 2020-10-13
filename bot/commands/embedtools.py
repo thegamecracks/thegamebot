@@ -148,7 +148,6 @@ These are the limits set by Discord:
 
 
     @client_createembed.error
-    @utils.print_error
     async def client_createembed_error(self, ctx, error):
         if isinstance(error, commands.errors.InvalidEndOfQuotedStringError):
             await ctx.send('Expected a space after end of a quoted string.')

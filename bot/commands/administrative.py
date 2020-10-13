@@ -43,8 +43,8 @@ class Administrative(commands.Cog):
 
 
     @client_shutdown.error
-    @utils.print_error
     async def client_shutdown_error(self, ctx, error):
+        error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
             await ctx.send(get_denied_message())
             return
@@ -76,8 +76,8 @@ class Administrative(commands.Cog):
 
 
     @client_execute.error
-    @utils.print_error
     async def client_execute_error(self, ctx, error):
+        error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
             await ctx.send(get_denied_message())
             return
@@ -97,8 +97,8 @@ class Administrative(commands.Cog):
 
 
     @client_presence.error
-    @utils.print_error
     async def client_presence_error(self, ctx, error):
+        error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotAdmin):
             await ctx.send(get_denied_message())
             return
@@ -128,9 +128,8 @@ title - The title to show."""
 
 
     @client_playing.error
-    @utils.print_error
     async def client_playing_error(self, ctx, error):
-        # Handle status error
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
@@ -159,9 +158,8 @@ https://www.twitch.tv/thegamecracks ."""
 
 
     @client_streaming.error
-    @utils.print_error
     async def client_streaming_error(self, ctx, error):
-        # Handle status error
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
@@ -186,9 +184,8 @@ title - The title to show."""
 
 
     @client_listening.error
-    @utils.print_error
     async def client_listening_error(self, ctx, error):
-        # Handle status error
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
@@ -214,9 +211,8 @@ title - The title to show."""
 
 
     @client_watching.error
-    @utils.print_error
     async def client_watching_error(self, ctx, error):
-        # Handle status error
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
@@ -238,9 +234,8 @@ Will remove any activity the bot currently has."""
 
 
     @client_status.error
-    @utils.print_error
     async def client_status_error(self, ctx, error):
-        # Handle status error
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
@@ -327,7 +322,6 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
 
     @client_sendmessage.error
-    @utils.print_error
     async def client_sendmessage_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotAdmin):

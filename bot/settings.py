@@ -147,7 +147,7 @@ def setup():
         'message_size': 2000,
         'message_limit': 1,
         'owner_ids': [153551102443257856, ],
-        'prefix': '\\',
+        'prefix': '.',
         'print_error_mode': 'raise'  # raise, print, None
     }
 

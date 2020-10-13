@@ -1,6 +1,6 @@
 import datetime
 import decimal
-import itertools  # Only used in rawincount()
+import itertools  # rawincount()
 import math
 import string
 
@@ -32,14 +32,17 @@ logger = discordlogger.get_logger()
 def convert_base(base_in: int, base_out: int, n,
         mapping='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
     """Converts a number to another base.
-Accepted bases are 2, 36, and all in-between.
-Base 36 uses 0-9 and a-z (case-insensitive), where z = 35.
-Decimals cannot be converted.
+    Accepted bases are 2, 36, and all in-between.
+    Base 36 uses 0-9 and a-z (case-insensitive).
+    Decimals cannot be converted.
 
-base_in - The number's base.
-base_out - The base to output as.
-n - The number to convert.
-mapping - The string mapping."""
+    Args:
+        base_in (int): The number's base.
+        base_out (int): The base to output as.
+        n (int): The number to convert.
+        mapping (str): The string mapping.
+
+    """
     if max(base_in, base_out) > len(mapping):
         raise ValueError(f'Given base is greater than {len(mapping)}.')
     elif min(base_in, base_out) < 2:
@@ -322,7 +325,7 @@ def truncate_message(
 # Decorators
 def print_error(func):
     """Decorate error handlers to print the error to console
-before running the handler function."""
+    before running the handler function."""
     async def wrapper(*args, **kwargs):
         logger.exception(f'In {func.__name__}, this error was raised:')
         mode = settings.get_setting('print_error_mode')
