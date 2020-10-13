@@ -1,49 +1,42 @@
 import asyncio
-import sqlite3
-import threading
+
+import aiosqlite
 
 
 class DatabaseConnection:
-    """Provide a connection to a database safeguarding it with
-    a threading lock.
+    """Provide an asynchronous connection to a database.
 
-    To create a connection, use the context manager protocol:
+    To use a connection, use the context manager protocol:
         locked_conn = DatabaseConnection(':memory:')
-        with locked_conn as conn:
-            # conn.execute statements here
-        # conn automatically closes and lock is released
+        async with locked_conn as conn:
+            # await conn.execute statements here
 
     """
+    __slots__ = ['path', 'blocking', 'timeout', 'conn']
 
-    def __init__(self, database_path, blocking=True, timeout=-1):
-        self.database_path = database_path
+    def __init__(self, path, blocking=True, timeout=-1):
+        self.path = path
         self.blocking = blocking
         self.timeout = timeout
-        self.lock = threading.Lock()
         self.conn = None
 
-    def __enter__(self):
-        if self.lock.acquire(self.blocking, self.timeout):
-            self.conn = sqlite3.connect(self.database_path)
-            # Enter the context manager for conn
-            self.conn.__enter__()
-            # Enable foreign key checks
-            # https://stackoverflow.com/q/29420910
-            self.conn.execute('PRAGMA foreign_keys = 1')
-            return self.conn
-        raise asyncio.TimeoutError(
-            f'Timed out trying to connect to {self.database_path!r}')
+    async def __aenter__(self):
+        self.conn = aiosqlite.connect(self.path)
+        # Enter the context manager for conn
+        await self.conn.__aenter__()
+        # Enable foreign key checks
+        # https://stackoverflow.com/q/29420910
+        await self.conn.execute('PRAGMA foreign_keys = 1')
+        return self.conn
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.conn.__exit__(exc_type, exc_value, exc_traceback)
-        self.conn.close()
+    async def __aexit__(self, exc_type, exc_value, exc_traceback):
+        await self.conn.__aexit__(exc_type, exc_value, exc_traceback)
         self.conn = None
-        self.lock.release()
 
     def __repr__(self):
         return '{}({!r}, blocking={!r}, timeout={!r})'.format(
             self.__class__.__name__,
-            self.database_path,
+            self.path,
             self.blocking,
             self.timeout
         )
@@ -63,18 +56,14 @@ class Database:
         row_to_dict(Row)
 
     """
-    def __init__(self, database_connection):
-        """Create a Database with a DatabaseConnection.
-
-        Use this to construct database interfaces sharing the same lock.
-
-        """
-        self.conn = database_connection
+    def __init__(self, conn):
+        """Create a Database with a DatabaseConnection."""
+        self.conn = conn
 
     def __repr__(self):
         return '{}({!r})'.format(self.__class__.__name__, self.conn)
 
-    def add_row(self, table: str, row: dict):
+    async def add_row(self, table: str, row: dict):
         "Add a row to a table."
 
         def create_keys(row: dict) -> (str, str, list):
@@ -93,13 +82,14 @@ class Database:
             return keys, placeholders, values
 
         keys, placeholders, values = create_keys(row)
-        with self.conn as conn:
-            conn.execute(
+        async with self.conn as conn:
+            await conn.execute(
                 f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
                 values
             )
+            await conn.commit()
 
-    def delete_rows(self, table: str, *, where: str, pop=False):
+    async def delete_rows(self, table: str, *, where: str, pop=False):
         """Delete one or more rows from a table.
 
         This method requires a where parameter unlike get_rows.
@@ -113,38 +103,38 @@ class Database:
 
         Returns:
             None
-            List[sqlite3.Row]: A list of deleted entries if pop is True.
+            List[aiosqlite.Row]: A list of deleted entries if pop is True.
 
         """
         if pop:
-            rows = self.get_rows(table, where=where)
+            rows = await self.get_rows(table, where=where)
 
-        with self.conn as conn:
-            conn.execute(f'DELETE FROM {table} WHERE {where}')
+        async with self.conn as conn:
+            await conn.execute(f'DELETE FROM {table} WHERE {where}')
+            await conn.commit()
 
         if pop:
             return rows
 
-    def get_one(self, table: str, *, where: str, as_Row=True):
+    async def get_one(self, table: str, *, where: str, as_Row=True):
         """Get one row from a table.
 
-        If as_Row, rows will be returned as sqlite3.Row objects.
+        If as_Row, rows will be returned as aiosqlite.Row objects.
         Otherwise, rows are returned as tuples.
 
         """
-        with self.conn as conn:
+        async with self.conn as conn:
             if as_Row:
-                conn.row_factory = sqlite3.Row
+                conn.row_factory = aiosqlite.Row
 
-            c = conn.cursor()
-            c.execute(f'SELECT * FROM {table} WHERE {where}')
+            c = await conn.execute(f'SELECT * FROM {table} WHERE {where}')
 
-            row = c.fetchone()
-            c.close()
+            row = await c.fetchone()
+            await c.close()
 
         return row
 
-    def get_rows(self, table: str, *, where: str = None, as_Row=True):
+    async def get_rows(self, table: str, *, where: str = None, as_Row=True):
         """Get/yield a list of rows from a table.
 
         Args:
@@ -153,29 +143,28 @@ class Database:
                 An optional parameter specifying a filter.
                 If left as None, returns all rows in the table.
             as_Row (bool):
-                If True, rows will be returned as sqlite3.Row objects.
+                If True, rows will be returned as aiosqlite.Row objects.
                 Otherwise, rows are returned as tuples.
 
         Returns:
-            List[sqlite3.Row]
+            List[aiosqlite.Row]
             List[tuple]
 
         """
-        with self.conn as conn:
+        async with self.conn as conn:
             if as_Row:
-                conn.row_factory = sqlite3.Row
+                conn.row_factory = aiosqlite.Row
 
-            c = conn.cursor()
             if where is not None:
-                c.execute(f'SELECT * FROM {table} WHERE {where}')
+                c = await conn.execute(f'SELECT * FROM {table} WHERE {where}')
             else:
-                c.execute(f'SELECT * FROM {table}')
+                c = await conn.execute(f'SELECT * FROM {table}')
 
-            rows = list(c)
-            c.close()
-            return rows
+            rows = await c.fetchall()
+            await c.close()
+        return rows
 
-    def update_rows(self, table: str, row: dict, *, where: str):
+    async def update_rows(self, table: str, row: dict, *, where: str):
         "Update one or more rows in a table."
 
         def create_placeholders(row: dict) -> (str, list):
@@ -193,20 +182,21 @@ class Database:
             return keys, values
 
         keys, values = create_placeholders(row)
-        with self.conn as conn:
-            conn.execute(
+        async with self.conn as conn:
+            await conn.execute(
                 f'UPDATE {table} SET {keys} WHERE {where}',
                 values
             )
+            await conn.commit()
 
     @classmethod
-    def from_path(cls, path, blocking=True, timeout=-1):
+    def from_path(cls, path, *args, **kwargs):
         """Create a Database object along with a DatabaseConnection."""
-        return cls(DatabaseConnection(path, blocking, timeout))
+        return cls(DatabaseConnection(path, *args, **kwargs))
 
     @staticmethod
-    def row_to_dict(Row: sqlite3.Row):
-        "Convert a sqlite3.Row into a dictionary."
+    def row_to_dict(Row):
+        "Convert a aiosqlite.Row into a dictionary."
         d = {}
         for k, v in zip(Row.keys(), Row):
             d[k] = v
