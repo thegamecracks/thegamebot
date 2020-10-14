@@ -8,6 +8,7 @@ import discord
 import inflect
 
 from bot.classes.get_reaction import get_reaction
+from bot import settings
 
 inflector = inflect.engine()
 
@@ -170,7 +171,9 @@ class BotMultimathGame:
         self._client = ctx.bot
         self.options = options
 
-        self.game = MultimathGame(color=0xFF8002)
+        self.game = MultimathGame(
+            color=int(settings.get_setting('bot_color'), 16)
+        )
 
     async def run(self, *, channel=None, users=None):
         """

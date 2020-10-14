@@ -133,6 +133,7 @@ def setup():
             #  'title': ''},
         ],
         'bgtask_TimestampDelay': 300,
+        'bot_color': '0xFF8002',
         'default_StreamingURL': 'https://www.twitch.tv/thegamecracks',
         'deniedmessages': [
             'Nope.',

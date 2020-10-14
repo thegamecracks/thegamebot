@@ -89,6 +89,7 @@ class Administrative(commands.Cog):
     @commands.group(
         name='presence')
     @checks.is_bot_admin()
+    @commands.cooldown(2, 10, commands.BucketType.user)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
         if ctx.invoked_subcommand is None:
@@ -248,6 +249,7 @@ Will remove any activity the bot currently has."""
     @commands.command(
         name='send')
     @checks.is_bot_admin()
+    @commands.cooldown(2, 10, commands.BucketType.user)
     async def client_sendmessage(self, ctx, channelID, *, message):
         """Sends a message to a given channel. Restricted to admins.
 
@@ -340,6 +342,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
     @commands.command(
         name='reload')
     @checks.is_bot_owner()
+    @commands.cooldown(2, 10, commands.BucketType.user)
     async def client_ext_reload(self, ctx, extension):
         """Reload an extension.
 https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
@@ -391,6 +394,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
 
     @commands.command(
         name='test')
+    @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_test(self, ctx):
         await ctx.send(
             'This command is designated for administrative validative \
@@ -402,6 +406,7 @@ analysis via manual connection deriving out of the primary specialist.')
 
     @commands.command(
         name='dmtest')
+    @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_dmtest(self, ctx):
         await ctx.author.send(
             'This command is designated for administrative validative \

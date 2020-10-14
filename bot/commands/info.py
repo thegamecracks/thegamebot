@@ -20,6 +20,7 @@ class Informative(commands.Cog):
 
     @commands.command(
         name='serverinfo')
+    @commands.cooldown(1, 15, commands.BucketType.user)
     async def client_serverinfo(self, ctx):
         """Get information about the server you are currently in.
 Format referenced from the Ayana bot."""
@@ -92,6 +93,7 @@ Format referenced from the Ayana bot."""
 
     @commands.command(
         name='userinfo')
+    @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_userinfo(self, ctx, user: discord.Member = None):
         """Get information about a user by name or mention.
 https://youtu.be/CppEzOOXJ8E used as reference.

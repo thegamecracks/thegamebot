@@ -36,6 +36,7 @@ class NoCategory(commands.Cog):
 
     @commands.command(
         name='getlastmessage')
+    @commands.cooldown(3, 10, commands.BucketType.user)
     async def client_getlastmessage(self, ctx, ID):
         """Get the last message of a text channel.
 
@@ -56,7 +57,7 @@ https://stackoverflow.com/q/64080277/"""
 
         await ctx.send(
             f'Last message in {channel.name} sent by {message.author.name}:\n'
-            + message.content
+            + message.clean_content
         )
 
 
@@ -67,6 +68,7 @@ https://stackoverflow.com/q/64080277/"""
     @commands.command(
         name='echo',
         aliases=('say',))
+    @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_echo(self, ctx, *, content):
         """Repeats what you say."""
         await ctx.send(discord.utils.escape_mentions(content))
@@ -79,6 +81,7 @@ https://stackoverflow.com/q/64080277/"""
         name='detectenglish',
         brief='Detects if a word is probably english.',
         aliases=('isenglish', 'english'))
+    @commands.cooldown(3, 10, commands.BucketType.user)
     async def client_english(self, ctx, word: str):
         """Goes through a list of words and checks if the given word is in it.
 
@@ -96,6 +99,7 @@ List of words comes from dwyl/english-words github."""
     @commands.command(
         name='goodday',
         aliases=('gooday', 'gday'))
+    @commands.cooldown(1, 30, commands.BucketType.channel)
     async def client_goodday(self, ctx):
         """Prints the time, date, and a good day message."""
         await ctx.channel.trigger_typing()

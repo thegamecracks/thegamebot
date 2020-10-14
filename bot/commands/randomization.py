@@ -48,6 +48,7 @@ class Randomization(commands.Cog):
     @commands.command(
         name='coinflip',
         aliases=('coin',))
+    @commands.cooldown(1, 1.5, commands.BucketType.user)
     async def client_coinflip(self, ctx, n: int = 1):
         """Flip a number of coins.
 Example:
@@ -76,7 +77,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
             result = 'Cannot flip over 20 coins.'
 
         async with ctx.channel.typing():
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.5)
             await ctx.send(result)
 
 
@@ -86,6 +87,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='dice',
         aliases=('roll',))
+    @commands.cooldown(1, 1.5, commands.BucketType.user)
     async def client_dice(self, ctx, dice='d6', *args):
         """Roll a number of dice.
 Example:
@@ -138,7 +140,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
             result = 'Cannot roll over 20 dice.'
 
         async with ctx.channel.typing():
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.5)
             await ctx.send(result)
 
 
@@ -148,6 +150,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='8ball',
         aliases=('eightball',))
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def client_eightball(self, ctx, *, question: str = ''):
         """Answers a yes or no question."""
         async with ctx.channel.typing():

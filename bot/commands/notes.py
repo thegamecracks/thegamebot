@@ -24,6 +24,7 @@ class Notes(commands.Cog):
 
 
     @commands.command(name='addnote')
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_addnote(self, ctx, *, note):
         """Add a note.
 
@@ -59,6 +60,7 @@ You can have a maximum of 20 notes."""
 
 
     @commands.command(name='removenote')
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_removenote(self, ctx, index: int):
         """Remove a note.
 
@@ -90,6 +92,7 @@ To remove several notes, use the removenotes command."""
 
 
     @commands.command(name='removenotes')
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def client_removenotes(self, ctx, indices):
         """Remove multiple notes.
 
@@ -132,6 +135,7 @@ To remove only one note, use the removenote command."""
 
 
     @commands.command(name='shownote')
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_shownote(self, ctx, index: int):
         """Show one of your notes."""
         await ctx.channel.trigger_typing()
@@ -165,6 +169,8 @@ To remove only one note, use the removenote command."""
 
 
     @commands.command(name='shownotes')
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    @commands.cooldown(4, 40, commands.BucketType.channel)
     async def client_shownotes(self, ctx):
         """Show all of your notes."""
         await ctx.channel.trigger_typing()

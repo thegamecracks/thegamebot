@@ -27,6 +27,7 @@ class Mathematics(commands.Cog):
         name='add',
         brief='Adds two numbers.',
         aliases=('+', 'sum', 'addi'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_add(self, ctx, x, y):
         """Returns the sum of x and y."""
         await ctx.send(utils.dec_addi(x, y))
@@ -47,6 +48,7 @@ class Mathematics(commands.Cog):
         name='subtract',
         brief='Subtracts two numbers.',
         aliases=('-', 'minus', 'subi'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_subtract(self, ctx, x, y):
         """Returns the difference of x and y."""
         await ctx.send(utils.dec_subi(x, y))
@@ -67,6 +69,7 @@ class Mathematics(commands.Cog):
         name='multiply',
         brief='Multiplies two numbers.',
         aliases=('*', 'product', 'muli'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_multiply(self, ctx, x, y):
         """Returns the product of x and y."""
         await ctx.send(utils.dec_muli(x, y))
@@ -87,6 +90,7 @@ class Mathematics(commands.Cog):
         name='divide',
         brief='Divides two numbers.',
         aliases=('/', 'quotient', 'divi'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_divide(self, ctx, x, y):
         """Returns the quotient of x and y."""
         await ctx.send(utils.dec_divi(x, y))
@@ -107,6 +111,7 @@ class Mathematics(commands.Cog):
         name='power',
         brief='Raises x to the power of y.',
         aliases=('exp', 'exponent', 'pow', 'raise'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_exponent(self, ctx, x, y):
         """Returns x raised to the power of y."""
         await ctx.send(utils.dec_pow(x, y))
@@ -127,6 +132,7 @@ class Mathematics(commands.Cog):
         name='sqrt',
         brief='Squares roots a number.',
         aliases=('squareroot',))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_sqrt(self, ctx, x: utils.num):
         """Returns the 2nd root of x."""
         await ctx.send(str(utils.num(math.sqrt(x))))
@@ -146,6 +152,7 @@ class Mathematics(commands.Cog):
     @commands.command(
         name='evaluate',
         aliases=('eval',))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_evaluate(self, ctx, *, expr: str):
         """Evaluates a simple mathematical expression.
 Syntax:
@@ -217,11 +224,14 @@ To reveal the evaluation of your expression, add --debug to your expression."""
 
     @commands.command(
         name='fibonacci')
+    @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_fibonacci(self, ctx, n: int, m: int = None):
         """Returns specified fibonacci numbers.
-n - First number. If only this is provided, returns the nth fibonacci number.
-m - Second number. If this is provided, returns n to m fibonacci numbers.
-Results may be spread apart multiple messages."""
+
+Results are limited to displaying the first 140 characters.
+
+n: First number. If only this is provided, returns the nth fibonacci number.
+m: Second number. If this is provided, returns n to m fibonacci numbers."""
 
         # If m is not given, set to 0 and set m_none to True
         m_none = False
@@ -279,20 +289,28 @@ Results may be spread apart multiple messages."""
         name='gcd',
         brief='Greatest common divisor/factor.',
         aliases=('gcf',))
+    @commands.cooldown(5, 25, commands.BucketType.user)
     async def client_gcd(self, ctx, x: int, y: str):
         """Return the Greatest Common Divisor/Factor of one or two integers.
 
 If y is "low", calculates the lowest divisor of x other than itself.
 If y is "high", calculates the highest divisor of x other than itself."""
-        if y == 'low' or y == 'high':
+        await ctx.channel.trigger_typing()
+
+        if x > 1_000_000:
+            await ctx.send('X must be below one million.')
+        elif y == 'low' or y == 'high':
             await ctx.send(utils.gcd(x, y))
         else:
             try:
                 y = int(y)
             except ValueError:
-                await ctx.send('y is not an integer.')
+                await ctx.send('Y is not an integer.')
             else:
-                await ctx.send(utils.gcd(x, y))
+                if y > 1_000_000:
+                    await ctx.send('Y must be below one million.')
+                else:
+                    await ctx.send(utils.gcd(x, y))
 
 
 
@@ -301,17 +319,25 @@ If y is "high", calculates the highest divisor of x other than itself."""
     @commands.command(
         name='isprime',
         aliases=('prime',))
+    @commands.cooldown(5, 25, commands.BucketType.user)
     async def client_isprime(self, ctx, n: int, setting: str = 'high'):
         """Checks if a number is prime.
 n - The number to test.
 setting - low or high: Returns either the lowest or highest divisor
  other than 1 and itself."""
+        await ctx.channel.trigger_typing()
+
         if n < 2:
-            await ctx.send(f'{n} is not a prime number;\n\
-    all numbers under 2 are not prime.')
+            await ctx.send(f'{n} is not a prime number;\n'
+                           'all whole numbers below 3 are not prime.')
+            return
+        elif n > 1_000_000:
+            await ctx.send('N must be below one million.')
             return
 
+
         divisor = utils.gcd(n, setting)
+
         if divisor == 1 or divisor == n:
             await ctx.send(f'{n} is a prime number.')
         elif setting == 'low':
@@ -373,13 +399,13 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
     @commands.command(
         name='factors',
         aliases=('factor',))
+    @commands.cooldown(5, 25, commands.BucketType.user)
     async def client_factors(self, ctx, n: utils.num):
         """Returns all factors of a number.
 n - The number to test.
 The maximum number to check factors is 10000."""
         if n > 10000:
-            await ctx.send(
-                'Will not return factors of numbers above 10000.')
+            await ctx.send('N must be below ten thousand.')
             return
 
         await ctx.channel.trigger_typing()
@@ -411,6 +437,7 @@ The maximum number to check factors is 10000."""
     @commands.command(
         name='convert',
         aliases=('unit', 'units'))
+    @commands.cooldown(5, 10, commands.BucketType.user)
     async def client_convertunit(self, ctx, measurement, to, *, unit=None):
         """Converts a unit into another unit.
 Examples:
@@ -495,6 +522,7 @@ Temperature conversions:
     @commands.command(
         name='numberbase',
         aliases=('numbase', 'base'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_numberbase(self, ctx,
         base_in: int, base_out: int, n,
             mapping: str = string.digits + string.ascii_uppercase \
@@ -509,8 +537,12 @@ letters are case-insensitive but will print out capitalized.
 base_in - The number's base.
 base_out - The base to output as.
 n - The number to convert."""
-        await ctx.send(utils.convert_base(base_in, base_out, n,
-            mapping[:max(base_in, base_out)]))
+        await ctx.send(
+            utils.convert_base(
+                base_in, base_out, n,
+                mapping[:max(base_in, base_out)]
+            )
+        )
 
 
     @client_numberbase.error

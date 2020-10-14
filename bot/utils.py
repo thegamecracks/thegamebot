@@ -154,11 +154,13 @@ def gcd(a, b='high'):
     return a
 
 
-def get_user_color(user, default_color=0xFF8002):
+def get_user_color(
+        user, default_color=None):
     "Return a user's role color if they are in a guild, else default_color."
     return (
         user.color if isinstance(user, discord.Member)
-        else default_color
+        else default_color if default_color is not None
+        else int(settings.get_setting('bot_color'), 16)
     )
 
 
