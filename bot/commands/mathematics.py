@@ -1,7 +1,8 @@
-import decimal
+from decimal import Decimal
 import io
 import math
 import string
+from typing import Union
 
 from discord.ext import commands
 import linecache
@@ -14,6 +15,9 @@ FILE_FIBONACCI = 'data/fibonacci.txt'
 
 PINT_UREG = pint.UnitRegistry()
 Q_ = PINT_UREG.Quantity
+
+to_hex = lambda x: Decimal(int(x, 16))
+dec_or_hex = Union[Decimal, to_hex]
 
 
 class Mathematics(commands.Cog):
@@ -28,9 +32,9 @@ class Mathematics(commands.Cog):
         brief='Adds two numbers.',
         aliases=('+', 'sum', 'addi'))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_add(self, ctx, x, y):
+    async def client_add(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the sum of x and y."""
-        await ctx.send(utils.dec_addi(x, y))
+        await ctx.send(f'{x+y:G}')
 
 
     @client_add.error
@@ -49,9 +53,9 @@ class Mathematics(commands.Cog):
         brief='Subtracts two numbers.',
         aliases=('-', 'minus', 'subi'))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_subtract(self, ctx, x, y):
+    async def client_subtract(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the difference of x and y."""
-        await ctx.send(utils.dec_subi(x, y))
+        await ctx.send(f'{x-y}:G')
 
 
     @client_subtract.error
@@ -70,9 +74,9 @@ class Mathematics(commands.Cog):
         brief='Multiplies two numbers.',
         aliases=('*', 'product', 'muli'))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_multiply(self, ctx, x, y):
+    async def client_multiply(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the product of x and y."""
-        await ctx.send(utils.dec_muli(x, y))
+        await ctx.send(f'{x*y:G}')
 
 
     @client_multiply.error
@@ -91,9 +95,9 @@ class Mathematics(commands.Cog):
         brief='Divides two numbers.',
         aliases=('/', 'quotient', 'divi'))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_divide(self, ctx, x, y):
+    async def client_divide(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the quotient of x and y."""
-        await ctx.send(utils.dec_divi(x, y))
+        await ctx.send(f'{x/y:G}')
 
 
     @client_divide.error
@@ -112,9 +116,9 @@ class Mathematics(commands.Cog):
         brief='Raises x to the power of y.',
         aliases=('exp', 'exponent', 'pow', 'raise'))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_exponent(self, ctx, x, y):
+    async def client_exponent(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns x raised to the power of y."""
-        await ctx.send(utils.dec_pow(x, y))
+        await ctx.send(f'{x**y:G}')
 
 
     @client_exponent.error
@@ -133,9 +137,9 @@ class Mathematics(commands.Cog):
         brief='Squares roots a number.',
         aliases=('squareroot',))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_sqrt(self, ctx, x: utils.num):
+    async def client_sqrt(self, ctx, x: dec_or_hex):
         """Returns the 2nd root of x."""
-        await ctx.send(str(utils.num(math.sqrt(x))))
+        await ctx.send(f'{x.sqrt():G}')
 
 
     @client_sqrt.error
@@ -215,8 +219,6 @@ To reveal the evaluation of your expression, add --debug to your expression."""
             await ctx.send(str(error))
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
-        else:
-            raise error from RuntimeError('Unhandled exception type')
 
 
 
@@ -228,7 +230,8 @@ To reveal the evaluation of your expression, add --debug to your expression."""
     async def client_fibonacci(self, ctx, n: int, m: int = None):
         """Returns specified fibonacci numbers.
 
-Results are limited to displaying the first 140 characters.
+Results are limited to displaying the first 140 characters
+and 50 fibonacci numbers at once.
 
 n: First number. If only this is provided, returns the nth fibonacci number.
 m: Second number. If this is provided, returns n to m fibonacci numbers."""
@@ -243,6 +246,10 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
         n = int(n) + 1
         m = int(m)
 
+        if not m_none and len(range(n, m)) > 50:
+            raise ValueError('The range of requested fibonacci numbers '
+                             'must be below 50.')
+
         # Set limit of fibonacci parameters to amount of
         # lines FILE_FIBONACCI has
         limit = utils.rawincount(FILE_FIBONACCI) - 2
@@ -252,9 +259,10 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
         if min(n-1, m if not m_none else 1) <= 0:
             return
         # Send error message if n or m is more than limit
-        if max(n-1, m) > limit:
-            raise ValueError(
-                f'This number is too high. The maximum is {limit:d}.')
+        if n-1 > limit:
+            raise ValueError(f'N is too high. The maximum is {limit:d}.')
+        elif m > limit:
+            raise ValueError(f'M is too high. The maximum is {limit:d}.')
 
         # If m is present, return range(n, m + 1) fibonacci numbers
         if m:
@@ -263,7 +271,7 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
             for i in range(n, m + 2):
                 message.append(linecache.getline(FILE_FIBONACCI, i)[:-1])
             # Join the message into one string
-            message = ', \n'.join(message)
+            message = ', '.join(message)
 
         # If m is not present, get the fibonacci number from the file
         else:
@@ -400,7 +408,7 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
         name='factors',
         aliases=('factor',))
     @commands.cooldown(5, 25, commands.BucketType.user)
-    async def client_factors(self, ctx, n: utils.num):
+    async def client_factors(self, ctx, n: int):
         """Returns all factors of a number.
 n - The number to test.
 The maximum number to check factors is 10000."""
@@ -442,7 +450,8 @@ The maximum number to check factors is 10000."""
         """Converts a unit into another unit.
 Examples:
     convert 1e2 m to ft
-        # Scientific notation only works when unit is separated
+        # Scientific notation only works when the unit is separated
+        # Counterexample: convert 1e2m to ft
     convert 100m ft
     convert 1lb to g
     convert 1m ft

@@ -40,7 +40,7 @@ class HelpCommand(commands.HelpCommand):
             description += 'There is no description for this command.'
 
         embed = discord.Embed(
-            title=command.name,
+            title=command.qualified_name,
             color=int(settings.get_setting('bot_color'), 16),
             description=description
         )

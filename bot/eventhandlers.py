@@ -88,9 +88,7 @@ async def on_command_error(ctx, error):
 
     # Send an error message
     if isinstance(error, commands.BadBoolArgument):
-        await ctx.send(
-            'Expected a boolean answer for an argument.'
-        )
+        await ctx.send('Expected a boolean answer for a parameter.')
     elif isinstance(error, commands.BotMissingPermissions):
         await ctx.send('I am {}'.format(
             missing_x_to_run('permission', error.missing_perms)
@@ -149,6 +147,10 @@ async def on_command_error(ctx, error):
             commands.UserNotFound,
             commands.MemberNotFound)):
         await ctx.send('I cannot find the given user.')
+    elif isinstance(error, commands.UserInputError):
+        # NOTE: This is a superclass of several other errors
+        await ctx.send('Failed to parse your parameters.\n'
+                       f'Usage: `{ctx.command.signature}`')
 
 
 def setup(bot):
