@@ -39,7 +39,7 @@ def main():
 
     bot = commands.Bot(
         command_prefix=settings.get_setting('prefix'),
-        # help_command=helpcommand.HelpCommand(),
+        help_command=helpcommand.HelpCommand(),
         intents=intents
     )
 
