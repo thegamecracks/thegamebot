@@ -302,8 +302,7 @@ move to the next column to the right. Skip any shaded boxes.
 This will be the ciphertext."""
         # Test if key is in valid range
         if key < 2 or key > len(string) // 2:
-            await ctx.send('Key is out of range.')
-            return
+            return await ctx.send('Key is out of range.')
 
         await ctx.send(self.ciphercolumnar(key, string))
 
@@ -363,8 +362,7 @@ key: The one time key to use."""
         elif mode in ('decipher', 'de'):
             mode = True
         else:
-            await ctx.send('Mode must be either "cipher" or "decipher"')
-            return
+            return await ctx.send('Mode must be either "cipher" or "decipher"')
 
         await ctx.send(self.cipherotp(text, key, mode))
 
@@ -529,7 +527,6 @@ Other characters will be passed through."""
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):
             await ctx.send(str(error))
-            return
 
 
     @commands.command(
@@ -603,7 +600,6 @@ text: The text to encrypt/decrypt."""
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):
             await ctx.send(str(error))
-            return
 
 
 

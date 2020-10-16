@@ -1,4 +1,4 @@
-"https://gist.github.com/Gobot1234/45cad24df63fc144e85a7f8c85812567"
+"Reference: https://gist.github.com/Gobot1234/45cad24df63fc144e85a7f8c85812567"
 import collections
 import math
 
@@ -150,7 +150,7 @@ class HelpCommand(commands.HelpCommand):
             title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
             color=get_bot_color(),
             description=(
-                f'Type {self.clean_prefix}help [command] '
+                f'{cog.description}\nType {self.clean_prefix}help [command] '
                 'for more info on a command.'
             )
         )
@@ -225,7 +225,7 @@ class HelpCommand(commands.HelpCommand):
                 # Get and try converting page number
                 page_num = int(self.context.kwargs['command'].split()[1])
                 cog = self.context.bot.get_cog(string)
-            except ValueError:
+            except (IndexError, ValueError):
                 # Not a page number request
                 await destination.send(error)
                 return

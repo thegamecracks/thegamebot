@@ -1,3 +1,4 @@
+import asyncio
 import collections
 import datetime
 import functools
@@ -8,7 +9,7 @@ from discord.ext import commands
 from bot import utils
 
 
-class EmbedTools(commands.Cog):
+class Embedding(commands.Cog):
     qualified_name = 'Embedding'
     description = 'Commands for creating embeds.'
 
@@ -148,11 +149,67 @@ These are the limits set by Discord:
         await ctx.send(embed=embed)
 
 
-    @client_createembed.error
-    async def client_createembed_error(self, ctx, error):
-        if isinstance(error, commands.errors.InvalidEndOfQuotedStringError):
-            await ctx.send('Expected a space after end of a quoted string.')
-            return
+
+
+
+    @commands.command(name='hyperlink')
+    @commands.guild_only()
+    @commands.cooldown(1, 10, commands.BucketType.member)
+    async def client_hyperlink(self, ctx):
+        """Create an embed showing a hyperlink with custom display text.
+
+You will be DM'd for your parameters."""
+        def on_message_check(message):
+            "Wait for a message in the author's DMs."
+            return message.channel == ctx.author.dm_channel
+
+        link_request = await ctx.author.send(
+            'What link would you like to show?')
+
+        # Get link from user
+        try:
+            link = await ctx.bot.wait_for(
+                'message', check=on_message_check, timeout=30)
+        except asyncio.TimeoutError:
+            # User took too long to respond
+            return await link_request.edit(
+                content=f'~~{link_request.content}~~ Canceled hyperlink.')
+
+        if link.author != ctx.author:
+            # Bot DM'd the user; cancel hyperlink command
+            return await link_request.edit(content='Canceled hyperlink.')
+
+        text_request = await ctx.author.send(
+            'What display text would you like the link to have?')
+
+        # Get display text from user
+        try:
+            text = await ctx.bot.wait_for(
+                'message', check=on_message_check, timeout=30)
+        except asyncio.TimeoutError:
+            await link_request.edit(
+                content=f'~~{link_request.content}~~ Canceled hyperlink.')
+            return await text_request.edit(
+                content=f'~~{text_request.content}~~ Canceled hyperlink.')
+
+        # Escape mentions and markdown
+        link = discord.utils.escape_markdown(link.clean_content)
+        text = discord.utils.escape_markdown(text.clean_content)
+
+        embed = discord.Embed(
+            title=f'{ctx.author.display_name}',
+            description=f'[{text}]({link})',
+            timestamp=datetime.datetime.now().astimezone()
+        )
+
+        await ctx.send(embed=embed)
+
+
+    @client_hyperlink.error
+    async def client_hyperlink_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+        if isinstance(error, commands.NoPrivateMessage):
+            await ctx.send('This command only works in servers.')
 
 
 
@@ -164,4 +221,4 @@ These are the limits set by Discord:
 
 
 def setup(bot):
-    bot.add_cog(EmbedTools(bot))
+    bot.add_cog(Embedding(bot))

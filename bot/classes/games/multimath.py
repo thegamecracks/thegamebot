@@ -276,5 +276,4 @@ class BotMultimathGame:
                     self.game.b,
                     response
                 )
-                await finish_and_show_score(response, user)
-                return
+                return await finish_and_show_score(response, user)

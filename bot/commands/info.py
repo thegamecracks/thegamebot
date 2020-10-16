@@ -25,8 +25,8 @@ class Informative(commands.Cog):
         """Get information about the server you are currently in.
 Format referenced from the Ayana bot."""
         if not isinstance(ctx.author, discord.Member):
-            await ctx.send('You must be in a server to use this command.')
-            return
+            return await ctx.send(
+                'You must be in a server to use this command.')
 
         guild = ctx.author.guild
 
@@ -217,8 +217,6 @@ Format referenced from the Ayana bot."""
         if isinstance(error, commands.BadArgument):
             if 'not found' in error.args[0]:
                 await ctx.send('Could not find that user.')
-                return
-        raise error from RuntimeError('Undefined error in userinfo')
 
 
 

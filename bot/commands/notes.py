@@ -71,8 +71,7 @@ To remove several notes, use the removenotes command."""
         note_list = await self.notedb.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            await ctx.send("You already don't have any notes.")
-            return
+            return await ctx.send("You already don't have any notes.")
 
         try:
             note = note_list[index - 1]
@@ -103,8 +102,7 @@ To remove only one note, use the removenote command."""
         note_list = await self.notedb.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            await ctx.send("You already don't have any notes.")
-            return
+            return await ctx.send("You already don't have any notes.")
 
         if indices.lower() == 'all':
             for note in note_list:
@@ -115,10 +113,10 @@ To remove only one note, use the removenote command."""
             start, end = [int(n) for n in indices.split('-')]
             start -= 1
             if start < 0:
-                await ctx.send('Start must be 1 or greater.')
-                return
+                return await ctx.send('Start must be 1 or greater.')
             elif end > len(note_list):
-                await ctx.send(f'End must only go up to {len(note_list)}.')
+                return await ctx.send(
+                    f'End must only go up to {len(note_list)}.')
 
             for i in range(start, end):
                 note = note_list[i]
@@ -143,8 +141,7 @@ To remove only one note, use the removenote command."""
         note_list = await self.notedb.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            await ctx.send("You don't have any notes.")
-            return
+            return await ctx.send("You don't have any notes.")
 
         try:
             note = note_list[index - 1]
@@ -178,8 +175,7 @@ To remove only one note, use the removenote command."""
         note_list = await self.notedb.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            await ctx.send("You don't have any notes.")
-            return
+            return await ctx.send("You don't have any notes.")
 
         # Create fields for each note, limiting them to 140 characters/5 lines
         fields = [

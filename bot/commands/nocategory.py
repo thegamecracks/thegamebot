@@ -44,12 +44,11 @@ This command was written as an answer to:
 https://stackoverflow.com/q/64080277/"""
         channel = self.bot.get_channel(int(ID))
         if channel is None:
-            await ctx.send('Could not find that channel.')
-            return
+            return await ctx.send('Could not find that channel.')
         elif not isinstance(channel, discord.TextChannel):
             # NOTE: get_channel can return a TextChannel, VoiceChannel,
             # or CategoryChannel
-            await ctx.send('The channel must be a text channel.')
+            return await ctx.send('The channel must be a text channel.')
 
         message = await channel.fetch_message(
             channel.last_message_id)
@@ -86,10 +85,10 @@ https://stackoverflow.com/q/64080277/"""
         """Goes through a list of words and checks if the given word is in it.
 
 List of words comes from dwyl/english-words github."""
-        if word.casefold() in WORDLIST:
+        if word.lower() in WORDLIST:
             await ctx.send(f'{word} is a word.')
-            return
-        await ctx.send(f'{word} is not a word.')
+        else:
+            await ctx.send(f'{word} is not a word.')
 
 
 

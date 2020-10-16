@@ -47,7 +47,21 @@ class Administrative(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
             await ctx.send(get_denied_message())
-            return
+
+
+
+
+
+    def cleanup_code(self, content):
+        """Automatically removes code blocks from the code.
+
+        Based off of RoboDanny/rewrite/cogs/admin.py.
+
+        """
+        # remove ```py\n``` or ```py```
+        if content.startswith('```') and content.endswith('```'):
+            # return '\n'.join(content.split('\n')[1:-1])
+            return content.lstrip('```py').rstrip('```')
 
 
 
@@ -62,12 +76,20 @@ class Administrative(commands.Cog):
         log = f'Executing code by {get_user_for_log(ctx)}:\n {x}'
         discordlogger.get_logger().warning(log)
         print(log)
+
+        # Remove code blocks
+        x = self.cleanup_code(x)
+
+        # Run code and store output
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
             exec(x, globals(), locals())
-        out = f.getvalue().strip()
-        if len(out) > 2000:
-            out = '{}...'.format(out[:1997])
+
+        # Get output and truncate it
+        out = f.getvalue()
+        out = utils.truncate_message(out)
+
+        # Return output
         if out:
             if sendIOtoDM:
                 await ctx.author.send(out)
@@ -80,7 +102,6 @@ class Administrative(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
             await ctx.send(get_denied_message())
-            return
 
 
 
@@ -102,13 +123,10 @@ class Administrative(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotAdmin):
             await ctx.send(get_denied_message())
-            return
         elif isinstance(error, commands.CommandNotFound):
             await ctx.send(str(error))
-            return
         elif isinstance(error, commands.MissingRequiredArgument):
             await ctx.send(str(error))
-            return
 
 
     @client_presence.command(
@@ -134,7 +152,6 @@ title - The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
-                return
 
 
     @client_presence.command(
@@ -164,7 +181,6 @@ https://www.twitch.tv/thegamecracks ."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
-                return
 
 
     @client_presence.command(name='listening')
@@ -174,8 +190,7 @@ https://www.twitch.tv/thegamecracks ."""
 status - The status to set for the bot.
 title - The title to show."""
         if title is None:
-            await self.bot.change_presence(activity=None)
-            return
+            return await self.bot.change_presence(activity=None)
 
         activity = discord.Activity(
             name=title, type=discord.ActivityType.listening)
@@ -201,8 +216,7 @@ title - The title to show."""
 status - The status to set for the bot.
 title - The title to show."""
         if title is None:
-            await self.bot.change_presence(activity=None)
-            return
+            return await self.bot.change_presence(activity=None)
 
         activity = discord.Activity(
             name=title, type=discord.ActivityType.watching)
@@ -217,7 +231,6 @@ title - The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
-                return
 
 
     @client_presence.command(
@@ -240,7 +253,6 @@ Will remove any activity the bot currently has."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
-                return
 
 
 
@@ -328,7 +340,6 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotAdmin):
             await ctx.send(get_denied_message())
-            return
         elif isinstance(error, AttributeError):
             if "'NoneType' object has no attribute" in str(error):
                 await ctx.send('I cannot find the given channel.')
@@ -373,8 +384,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
             for ext in list(self.bot.extensions):
                 result = reload(ext)
                 if result is not None:
-                    await ctx.send(result)
-                    break
+                    return await ctx.send(result)
             else:
                 logger.info(
                     f'All extensions reloaded by {get_user_for_log(ctx)}')

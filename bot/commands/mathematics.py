@@ -42,7 +42,6 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
 
 
 
@@ -63,7 +62,6 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
 
 
 
@@ -84,7 +82,6 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
 
 
 
@@ -105,7 +102,6 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
 
 
 
@@ -126,7 +122,6 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
 
 
 
@@ -147,7 +142,6 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
 
 
 
@@ -208,13 +202,10 @@ To reveal the evaluation of your expression, add --debug to your expression."""
         error = getattr(error, 'original', error)
         if isinstance(error, SyntaxError):
             await ctx.send(f'Undefined Syntax Error occurred: {error}')
-            return
         elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
-            return
         elif isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
-            return
         elif isinstance(error, ValueError):
             await ctx.send(str(error))
         elif isinstance(error, TypeError):
@@ -336,12 +327,10 @@ setting - low or high: Returns either the lowest or highest divisor
         await ctx.channel.trigger_typing()
 
         if n < 2:
-            await ctx.send(f'{n} is not a prime number;\n'
+            return await ctx.send(f'{n} is not a prime number;\n'
                            'all whole numbers below 3 are not prime.')
-            return
         elif n > 1_000_000:
-            await ctx.send('N must be below one million.')
-            return
+            return await ctx.send('N must be below one million.')
 
 
         divisor = utils.gcd(n, setting)
@@ -413,16 +402,14 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
 n - The number to test.
 The maximum number to check factors is 10000."""
         if n > 10000:
-            await ctx.send('N must be below ten thousand.')
-            return
+            return await ctx.send('N must be below ten thousand.')
 
         await ctx.channel.trigger_typing()
 
         factors = self.factors(n)
 
         if not factors:
-            await ctx.send(f'There are no factors of {n}.')
-            return
+            return await ctx.send(f'There are no factors of {n}.')
 
         message = ', '.join([str(i) for i in factors])
         await ctx.send(f'Factors of {n}:\n {message}')
@@ -568,7 +555,6 @@ n - The number to convert."""
                 msg = ('There is a character within the number not part of'
                     f' base {num}.')
             await ctx.send(msg)
-            return
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
         else:

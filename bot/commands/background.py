@@ -160,8 +160,8 @@ class BackgroundTasks(commands.Cog):
             try:
                 self.random_presence.start()
             except RuntimeError:
-                await ctx.send('The task is already running.')
-                return
+                return await ctx.send('The task is already running.')
+
             min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
             max_delay = settings.get_setting('bgtask_RandomPresenceMaxDelay')
             print('Enabled random presence')
