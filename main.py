@@ -14,7 +14,7 @@ cogs = [
     'bot.commands.administrative',
     'bot.commands.background',
     'bot.commands.ciphers',
-    'bot.commands.embedtools',
+    'bot.commands.embedding',
     'bot.commands.games',
     'bot.commands.info',
     'bot.commands.nocategory',
