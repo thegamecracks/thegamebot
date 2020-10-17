@@ -52,7 +52,7 @@ class NoteDatabase(user_db.UserDatabase):
 
         Returns:
             None
-            List[sqlite3.Row]: A list of deleted entries if pop is True.
+            List[aiosqlite.Row]: A list of deleted entries if pop is True.
 
         """
         return await self.delete_rows(

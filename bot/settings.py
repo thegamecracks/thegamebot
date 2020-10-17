@@ -1,20 +1,34 @@
 """Provides functions to interact with the configuration file.
 
+All results are cached into memory on first access.
+
+On overwrite_setting (which includes update_settings and write_setting),
+the cache is cleared.
+
 ==================  ====================================================
 Function            Arguments: Description
 ==================  ====================================================
-write_setting       (key, value): Write a new value to a given setting.
-load_settings       (): Return the config file as a dictionary.
+clear_cache         (): Clears the settings cache.
 get_setting         (key): Get a specific setting.
+load_settings       (): Return the config file as a dictionary.
 overwrite_settings  (settings: dict): Overwrite the config file.
 setup               (): Initialize the config file.
 update_settings     (settings: dict): Update the config file.
+write_setting       (key, value): Write a new value to a given setting.
 ==================  ====================================================
 """
 import json
 import pathlib
 
 SETTINGS_LOCATION = 'settings.json'
+
+_settings_cache = None
+
+
+def clear_cache():
+    """Clears the settings cache."""
+    global _settings_cache
+    _settings_cache = None
 
 
 def load_settings():
@@ -23,10 +37,16 @@ def load_settings():
     Missing settings file is handled but not corrupt settings.
 
     """
+    global _settings_cache
+    if _settings_cache is not None:
+        return _settings_cache
+
     if not pathlib.Path(SETTINGS_LOCATION).exists():
         setup()
     with open(SETTINGS_LOCATION) as f:
-        return json.load(f)
+        config = json.load(f)
+        _settings_cache = config
+        return config
 
 
 def get_setting(key):
@@ -43,6 +63,7 @@ def overwrite_settings(settings: dict):
             indent=4,
             sort_keys=True
         )
+    clear_cache()
 
 
 def update_settings(settings: dict):
@@ -135,6 +156,7 @@ def setup():
         'bgtask_TimestampDelay': 300,
         'bot_color': '0xFF8002',
         'default_StreamingURL': 'https://www.twitch.tv/thegamecracks',
+        'default_prefix': ';',
         'deniedmessages': [
             'Nope.',
             "Not havin' it.",
@@ -148,7 +170,6 @@ def setup():
         'message_size': 2000,
         'message_limit': 1,
         'owner_ids': [153551102443257856, ],
-        'prefix': ';',
         'print_error_mode': 'raise'  # raise, print, None
     }
 

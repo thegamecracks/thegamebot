@@ -1,6 +1,8 @@
 import contextlib
 import io
 import random
+import textwrap
+import time
 
 import discord
 from discord.ext import commands
@@ -25,25 +27,23 @@ class Administrative(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self._last_result = None  # Used in execute command
 
 
 
 
 
-    @commands.command(
-        name='shutdown',
-        brief='Shutdown the bot.',
-        aliases=('close', 'exit', 'quit', 'stop'))
+    @commands.command(name='block')
     @checks.is_bot_owner()
-    async def client_shutdown(self, ctx):
-        """Shuts down the bot."""
-        print('Shutting down')
-        await ctx.send('Shutting down.')
-        await self.bot.logout()
+    async def client_block(self, ctx, x: int = 20):
+        """Block the operation of the bot."""
+        await ctx.send(f'Blocking for {x} seconds.')
+        time.sleep(x)
+        await ctx.send('Finished blocking.')
 
 
-    @client_shutdown.error
-    async def client_shutdown_error(self, ctx, error):
+    @client_block.error
+    async def client_block_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
             await ctx.send(get_denied_message())
@@ -52,7 +52,34 @@ class Administrative(commands.Cog):
 
 
 
-    def cleanup_code(self, content):
+    @commands.command(name='cooldown')
+    @checks.is_bot_admin()
+    async def client_cooldown(self, ctx, *, command):
+        """Reset your cooldown for a command.
+
+Will reset cooldowns for all subcommands in a group."""
+        com = self.bot.get_command(command)
+
+        if com is None:
+            await ctx.send('Unknown command.')
+
+        com.reset_cooldown(ctx)
+
+        await ctx.send('Cooldown reset.')
+
+
+    @client_cooldown.error
+    async def client_cooldown_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+        if isinstance(error, checks.InvalidBotOwner):
+            await ctx.send(get_denied_message())
+
+
+
+
+
+    @staticmethod
+    def cleanup_code(content):
         """Automatically removes code blocks from the code.
 
         Based off of RoboDanny/rewrite/cogs/admin.py.
@@ -61,44 +88,93 @@ class Administrative(commands.Cog):
         # remove ```py\n``` or ```py```
         if content.startswith('```') and content.endswith('```'):
             # return '\n'.join(content.split('\n')[1:-1])
-            return content.lstrip('```py').rstrip('```')
+            return content.lstrip('```py').rstrip('```').strip()
+        return content
 
 
-
-
-
-    @commands.command(
-        name='execute',
-        description='https://repl.it/@AllAwesome497/ASB-DEV-again '
-                    'used as reference.')
+    @commands.command(name='execute')
     @checks.is_bot_owner()
     async def client_execute(self, ctx, sendIOtoDM: bool, *, x: str):
-        log = f'Executing code by {get_user_for_log(ctx)}:\n {x}'
-        discordlogger.get_logger().warning(log)
-        print(log)
+        """Run python code in an async condition.
+
+Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
+        async def send(*args, **kwargs):
+            # Send to either DM or channel based on sendIOtoDM
+            if sendIOtoDM:
+                return await ctx.author.send(*args, **kwargs)
+            await ctx.send(*args, **kwargs)
 
         # Remove code blocks
         x = self.cleanup_code(x)
 
+        # Compile the code as an async function
+        # See RoboDanny admin.py cog
+        to_compile = f'async def func():\n{textwrap.indent(x, "  ")}'
+
+        environment = {
+            'bot': self.bot,
+            'ctx': ctx,
+            'channel': ctx.channel,
+            'author': ctx.author,
+            'guild': ctx.guild,
+            'message': ctx.message,
+            '_': self._last_result
+        }
+
+        # Log before compilation
+        log = f'Executing code by {get_user_for_log(ctx)}:\n {to_compile}'
+        discordlogger.get_logger().warning(log)
+        print(log)
+
+        try:
+            exec(to_compile, environment)
+        except Exception as e:
+            return await ctx.send(
+                'Failed during compilation:\n`{}`'.format(
+                    discord.utils.escape_markdown(
+                        f'{e.__class__.__name__}: {e}'
+                    )
+                )
+            )
+
         # Run code and store output
         f = io.StringIO()
-        with contextlib.redirect_stdout(f):
-            exec(x, globals(), locals())
+        try:
+            with contextlib.redirect_stdout(f):
+                result = await environment['func']()
+        except Exception:
+            error_message = utils.exception_message()
+            return await ctx.send(f'```py\n{error_message}```')
 
-        # Get output and truncate it
-        out = f.getvalue()
-        out = utils.truncate_message(out)
+        # Get output and truncate it, and display result if its not None
+        out = f.getvalue() + f'{result}' * (result is not None)
+        out = utils.truncate_message(out, 1991)  # -9 to add code blocks
 
         # Return output
         if out:
-            if sendIOtoDM:
-                await ctx.author.send(out)
-            else:
-                await ctx.send(out)
+            await send(f'```py\n{out}```')
 
 
     @client_execute.error
     async def client_execute_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+        if isinstance(error, checks.InvalidBotOwner):
+            await ctx.send(get_denied_message())
+
+
+
+
+
+    @commands.command(name='clearsettingscache')
+    @checks.is_bot_owner()
+    async def client_clearsettingscache(self, ctx):
+        """Clear the settings cache."""
+        settings.clear_cache()
+        await ctx.send('Cleared cache.')
+
+
+    @client_clearsettingscache.error
+    async def client_clearsettingscache_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
             await ctx.send(get_denied_message())
@@ -259,6 +335,58 @@ Will remove any activity the bot currently has."""
 
 
     @commands.command(
+        name='reload')
+    @checks.is_bot_owner()
+    @commands.cooldown(2, 10, commands.BucketType.user)
+    async def client_ext_reload(self, ctx, extension):
+        """Reload an extension.
+https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
+        logger = discordlogger.get_logger()
+
+        def reload(ext):
+            # Unload extension if possible then load extension
+            try:
+                self.bot.unload_extension(ext)
+            except commands.errors.ExtensionNotFound:
+                return 'Could not find the extension.'
+            except commands.errors.NoEntryPointError:
+                return 'This extension is missing a setup.'
+            except commands.errors.ExtensionNotLoaded:
+                pass
+            try:
+                self.bot.load_extension(ext)
+            except commands.errors.ExtensionNotFound:
+                return 'Could not find the extension.'
+            except commands.errors.NoEntryPointError:
+                return 'This extension is missing a setup.'
+            except commands.errors.CommandInvokeError:
+                return 'This extension failed to be reloaded.'
+
+        if extension == 'all':
+            # Note: must convert dict into list as extensions is mutated
+            # during reloading
+            for ext in list(self.bot.extensions):
+                result = reload(ext)
+                if result is not None:
+                    return await ctx.send(result)
+            else:
+                logger.info(
+                    f'All extensions reloaded by {get_user_for_log(ctx)}')
+                await ctx.send('Extensions have been reloaded.')
+        else:
+            logger.info(f'Attempting to reload {extension} extension '
+                        f'by {get_user_for_log(ctx)}')
+            result = reload(extension)
+            if result is not None:
+                await ctx.send(result)
+            else:
+                await ctx.send('Extension has been reloaded.')
+
+
+
+
+
+    @commands.command(
         name='send')
     @checks.is_bot_admin()
     @commands.cooldown(2, 10, commands.BucketType.user)
@@ -351,76 +479,22 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
 
     @commands.command(
-        name='reload')
+        name='shutdown',
+        brief='Shutdown the bot.',
+        aliases=('close', 'exit', 'quit', 'stop'))
     @checks.is_bot_owner()
-    @commands.cooldown(2, 10, commands.BucketType.user)
-    async def client_ext_reload(self, ctx, extension):
-        """Reload an extension.
-https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
-        logger = discordlogger.get_logger()
-
-        def reload(ext):
-            # Unload extension if possible then load extension
-            try:
-                self.bot.unload_extension(ext)
-            except commands.errors.ExtensionNotFound:
-                return 'Could not find the extension.'
-            except commands.errors.NoEntryPointError:
-                return 'This extension is missing a setup.'
-            except commands.errors.ExtensionNotLoaded:
-                pass
-            try:
-                self.bot.load_extension(ext)
-            except commands.errors.ExtensionNotFound:
-                return 'Could not find the extension.'
-            except commands.errors.NoEntryPointError:
-                return 'This extension is missing a setup.'
-            except commands.errors.CommandInvokeError:
-                return 'This extension failed to be reloaded.'
-
-        if extension == 'all':
-            # Note: must convert dict into list as extensions is mutated
-            # during reloading
-            for ext in list(self.bot.extensions):
-                result = reload(ext)
-                if result is not None:
-                    return await ctx.send(result)
-            else:
-                logger.info(
-                    f'All extensions reloaded by {get_user_for_log(ctx)}')
-                await ctx.send('Extensions have been reloaded.')
-        else:
-            logger.info(f'Attempting to reload {extension} extension '
-                        f'by {get_user_for_log(ctx)}')
-            result = reload(extension)
-            if result is not None:
-                await ctx.send(result)
-            else:
-                await ctx.send('Extension has been reloaded.')
+    async def client_shutdown(self, ctx):
+        """Shuts down the bot."""
+        print('Shutting down')
+        await ctx.send('Shutting down.')
+        await self.bot.logout()
 
 
-
-
-
-    @commands.command(
-        name='test')
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    async def client_test(self, ctx):
-        await ctx.send(
-            'This command is designated for administrative validative \
-analysis via manual connection deriving out of the primary specialist.')
-
-
-
-
-
-    @commands.command(
-        name='dmtest')
-    @commands.cooldown(2, 30, commands.BucketType.user)
-    async def client_dmtest(self, ctx):
-        await ctx.author.send(
-            'This command is designated for administrative validative \
-analysis via manual connection deriving out of the primary specialist.')
+    @client_shutdown.error
+    async def client_shutdown_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+        if isinstance(error, checks.InvalidBotOwner):
+            await ctx.send(get_denied_message())
 
 
 

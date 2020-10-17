@@ -166,7 +166,10 @@ class HelpCommand(commands.HelpCommand):
             if not categories_to_add:
                 break
 
-            fields.append((com.qualified_name, com.short_doc))
+            fields.append(
+                (com.qualified_name,
+                 com.short_doc if com.short_doc else 'No description.')
+            )
 
             categories_to_add -= 1
 
@@ -281,7 +284,10 @@ class HelpCommand(commands.HelpCommand):
 
         # Add fields
         for com in group.commands:
-            embed.add_field(name=com.name, value=com.short_doc)
+            embed.add_field(
+                name=com.name,
+                value=com.short_doc if com.short_doc else 'No description.'
+            )
 
         await destination.send(embed=embed)
 
@@ -291,9 +297,9 @@ class HelpCommand(commands.HelpCommand):
 
         description = f'`{self.get_command_signature(command)}`\n'
 
-        if command.help is not None:
+        if command.help:
             description += f'```{command.help}```'
-        elif command.short_doc is not None:
+        elif command.short_doc:
             description += f'```{command.short_doc}```'
         else:
             description += 'There is no description for this command.'

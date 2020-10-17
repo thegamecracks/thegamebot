@@ -17,10 +17,11 @@ cogs = [
     'bot.commands.embedding',
     'bot.commands.games',
     'bot.commands.info',
-    'bot.commands.nocategory',
     'bot.commands.notes',
+    'bot.commands.prefix',
     'bot.commands.mathematics',
     'bot.commands.randomization',
+    'bot.commands.undefined',
 ]
 
 
@@ -38,10 +39,11 @@ def main():
     intents = discord.Intents.default()
 
     bot = commands.Bot(
-        command_prefix=settings.get_setting('prefix'),
+        command_prefix=database.get_prefix(),
         help_command=helpcommand.HelpCommand(),
         intents=intents
     )
+    bot.myattr = 1
 
     eventhandlers.setup(bot)
 

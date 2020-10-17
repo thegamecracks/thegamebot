@@ -56,6 +56,8 @@ class Database:
         row_to_dict(Row)
 
     """
+    __slots__ = ['conn']
+
     def __init__(self, conn):
         """Create a Database with a DatabaseConnection."""
         self.conn = conn
