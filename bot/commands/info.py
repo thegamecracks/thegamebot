@@ -71,7 +71,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Time of Server Creation',
-            value=f'{created[0]} Ago ({created[1]})',
+            value=f'{created[0]} ago ({created[1]})',
             inline=False
         )
         embed.add_field(
@@ -164,12 +164,12 @@ Format referenced from the Ayana bot."""
         if joined:
             embed.add_field(
                 name='Time of Server Join',
-                value=f'{joined[0]} Ago ({joined[1]})',
+                value=f'{joined[0]} ago ({joined[1]})',
                 inline=False
             )
         embed.add_field(
             name='Time of User Creation',
-            value=f'{created[0]} Ago ({created[1]})',
+            value=f'{created[0]} ago ({created[1]})',
             inline=False
         )
         if status:

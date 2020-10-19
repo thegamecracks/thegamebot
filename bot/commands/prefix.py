@@ -5,6 +5,15 @@ from bot.database import PrefixDatabase, dbconn_users
 from bot import utils
 
 
+def bot_owner_or_has_guild_permissions(**perms):
+    original = commands.has_guild_permissions(**perms).predicate
+    async def extended_check(ctx):
+        if ctx.guild is None:
+            return False
+        return ctx.bot.is_owner(ctx.author) or await original(ctx)
+    return commands.check(extended_check)
+
+
 class Prefix(commands.Cog):
     qualified_name = 'Prefix'
     description = "Commands for changing the bot's prefix."
@@ -19,7 +28,7 @@ class Prefix(commands.Cog):
 
     @commands.command(name='changeprefix')
     @commands.guild_only()
-    @commands.has_guild_permissions(manage_guild=True)
+    @bot_owner_or_has_guild_permissions(manage_guild=True)
     @commands.cooldown(1, 30, commands.BucketType.guild)
     async def client_changeprefix(self, ctx, *, prefix):
         """Change the bot's prefix."""

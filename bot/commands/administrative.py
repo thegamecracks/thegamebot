@@ -18,7 +18,7 @@ def get_denied_message():
 
 
 def get_user_for_log(ctx):
-    return f'{ctx.author} ({ctx.author.mention})'
+    return f'{ctx.author} ({ctx.author.id})'
 
 
 class Administrative(commands.Cog):
@@ -112,10 +112,11 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
         to_compile = f'async def func():\n{textwrap.indent(x, "  ")}'
 
         environment = {
+            'author': ctx.author,
             'bot': self.bot,
             'ctx': ctx,
             'channel': ctx.channel,
-            'author': ctx.author,
+            'discord': discord,
             'guild': ctx.guild,
             'message': ctx.message,
             '_': self._last_result
@@ -183,15 +184,12 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
 
 
 
-    @commands.group(
-        name='presence')
+    @commands.group(name='presence', invoke_without_command=True)
     @checks.is_bot_admin()
     @commands.cooldown(2, 10, commands.BucketType.user)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
-        if ctx.invoked_subcommand is None:
-            raise commands.CommandNotFound(
-                f'Unknown {ctx.command.name} subcommand given.')
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
     @client_presence.error
@@ -199,10 +197,6 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotAdmin):
             await ctx.send(get_denied_message())
-        elif isinstance(error, commands.CommandNotFound):
-            await ctx.send(str(error))
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(str(error))
 
 
     @client_presence.command(

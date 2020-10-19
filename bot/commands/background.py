@@ -101,7 +101,11 @@ class BackgroundTasks(commands.Cog):
             try:
                 pres = random.choice(
                     settings.get_setting('bgtask_RandomPresences')
-                )
+                ).copy()
+                # NOTE: .copy() is a fix to a bug occurring after
+                # settings caching was added where it mutates the status
+                # attribute and on second pass, it attempts reconverting
+                # the enumeration
             except IndexError:
                 print('No random presences in settings; '
                       'ending random presence task')

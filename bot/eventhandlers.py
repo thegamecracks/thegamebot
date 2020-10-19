@@ -14,6 +14,56 @@ handlers = [
 
 inflector = inflect.engine()
 
+PERMS_TO_ENGLISH = {
+    'add_reactions': 'Add Reactions',
+    'administrator': 'Administrator',
+    'attach_files': 'Attach Files',
+    'ban_members': 'Ban Members',
+    'change_nickname': 'Change Nickname',
+    'connect': 'Connect',
+    'deafen_members': 'Deafen Members',
+    'embed_links': 'Embed Links',
+    'external_emojis': 'External Emojis',
+    'kick_members': 'Kick Members',
+    'manage_channels': 'Manage Channels',
+    'manage_emojis': 'Manage Emojis',
+    'manage_guild': 'Manage Guild',
+    'manage_messages': 'Manage Messages',
+    'manage_nicknames': 'Manage Nicknames',
+    'manage_permissions': 'Manage Roles',
+    'manage_roles': 'Manage Roles',
+    'manage_webhooks': 'Manage ',
+    'mention_everyone': 'Mention Everyone',
+    'move_members': 'Move Members',
+    'mute_members': 'Mute Members',
+    'priority_speaker': 'Priority Speaker',
+    'read_message_history': 'Read Message History',
+    'read_messages': 'Read Messages',
+    'send_messages': 'Send Messages',
+    'send_tts_messages': 'Send TTS Messages',
+    'speak': 'Speak',
+    'stream': 'Stream',
+    'use_external_emojis': 'External Emojis',
+    'use_voice_activation': 'Voice Activation',
+    'view_audit_log': 'View Audit Log',
+    'view_channel': 'Read Messages',
+    'view_guild_insights': 'View Guild Insights'
+}
+
+
+def convert_perms_to_english(perms):
+    """Run through a list of permissions and convert them into
+    user-friendly representations.
+    """
+    new_perms = []
+
+    for p in perms:
+        eng = PERMS_TO_ENGLISH.get(p)
+        if eng is not None:
+            new_perms.append(eng)
+
+    return new_perms
+
 
 async def on_connect():
     print(time.strftime(
@@ -76,6 +126,13 @@ async def on_command_error(ctx, error):
 
         return (convert(missing_perms),)
 
+    def get_command_signature():
+        prefix = ctx.prefix
+        name_signature = ctx.invoked_with
+        arguments = ctx.command.signature
+
+        return f'{prefix}{name_signature} {arguments}'
+
     def missing_x_to_run(x, missing_perms):
         count = len(missing_perms)
         if count == 1:
@@ -90,9 +147,14 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.BadBoolArgument):
         await ctx.send('Expected a boolean answer for a parameter.')
     elif isinstance(error, commands.BotMissingPermissions):
-        await ctx.send('I am {}'.format(
-            missing_x_to_run('permission', error.missing_perms)
-        ))
+        await ctx.send(
+            'I am {}'.format(
+                missing_x_to_run(
+                    'permission',
+                    convert_perms_to_english(error.missing_perms)
+                )
+            )
+        )
     elif isinstance(error, (
             commands.BotMissingRole,
             commands.BotMissingAnyRole)):
@@ -126,11 +188,17 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.MessageNotFound):
         await ctx.send('I cannot find the given message.')
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f'Missing argument "{error.param}"')
+        # error.param is instance of inspect.Parameter
+        await ctx.send(f'Missing argument "{error.param.name}"')
     elif isinstance(error, commands.MissingPermissions):
-        await ctx.send('You are {}'.format(
-            missing_x_to_run('permission', error.missing_perms)
-        ))
+        await ctx.send(
+            'You are {}'.format(
+                missing_x_to_run(
+                    'permission',
+                    convert_perms_to_english(error.missing_perms)
+                )
+            )
+        )
     elif isinstance(error, (
             commands.MissingRole,
             commands.MissingAnyRole)):
@@ -150,7 +218,7 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.UserInputError):
         # NOTE: This is a superclass of several other errors
         await ctx.send('Failed to parse your parameters.\n'
-                       f'Usage: `{ctx.command.signature}`')
+                       f'Usage: `{get_command_signature()}`')
 
 
 def setup(bot):

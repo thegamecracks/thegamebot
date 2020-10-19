@@ -152,14 +152,33 @@ These are the limits set by Discord:
 
 
 
-    @commands.command(name='hyperlink')
+    @commands.group(name='hyperlink', invoke_without_command=True)
     @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.member)
     async def client_hyperlink(self, ctx):
-        """Create an embed showing a hyperlink with custom display text.
+        """Commands for using the Embed's hyperlink feature."""
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
+        # Reset cooldown as its limited to 1 command every 10 seconds
+        ctx.command.reset_cooldown(ctx)
+
+
+    @client_hyperlink.error
+    async def client_hyperlink_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+        if isinstance(error, commands.NoPrivateMessage):
+            await ctx.send('This command only works in servers.')
+
+
+    @client_hyperlink.command(name='procedure')
+    async def client_hyperlink_procedure(self, ctx):
+        """Create a hyperlink with custom display text in two steps.
 
 You will be DM'd for your parameters."""
-        def on_message_check(message):
+        async def cancel_message(message):
+            await message.edit(
+                content=f'~~{message.content}~~ Canceled hyperlink.')
+
+        def check(message):
             "Wait for a message in the author's DMs."
             return message.channel == ctx.author.dm_channel
 
@@ -169,15 +188,14 @@ You will be DM'd for your parameters."""
         # Get link from user
         try:
             link = await ctx.bot.wait_for(
-                'message', check=on_message_check, timeout=30)
+                'message', check=check, timeout=30)
         except asyncio.TimeoutError:
             # User took too long to respond
-            return await link_request.edit(
-                content=f'~~{link_request.content}~~ Canceled hyperlink.')
+            return await cancel_message(link_request)
 
         if link.author != ctx.author:
             # Bot DM'd the user; cancel hyperlink command
-            return await link_request.edit(content='Canceled hyperlink.')
+            return await cancel_message(link_request)
 
         text_request = await ctx.author.send(
             'What display text would you like the link to have?')
@@ -185,16 +203,14 @@ You will be DM'd for your parameters."""
         # Get display text from user
         try:
             text = await ctx.bot.wait_for(
-                'message', check=on_message_check, timeout=30)
+                'message', check=check, timeout=30)
         except asyncio.TimeoutError:
-            await link_request.edit(
-                content=f'~~{link_request.content}~~ Canceled hyperlink.')
-            return await text_request.edit(
-                content=f'~~{text_request.content}~~ Canceled hyperlink.')
+            await cancel_message(link_request)
+            return await cancel_message(text_request)
 
-        # Escape mentions and markdown
-        link = discord.utils.escape_markdown(link.clean_content)
-        text = discord.utils.escape_markdown(text.clean_content)
+        # Escape markdown (mentions don't work in embeds so no need to escape)
+        link = discord.utils.escape_markdown(link.content)
+        text = discord.utils.escape_markdown(text.content)
 
         embed = discord.Embed(
             title=f'{ctx.author.display_name}',
@@ -205,11 +221,46 @@ You will be DM'd for your parameters."""
         await ctx.send(embed=embed)
 
 
-    @client_hyperlink.error
-    async def client_hyperlink_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, commands.NoPrivateMessage):
-            await ctx.send('This command only works in servers.')
+    @client_hyperlink.command(
+        name='quick',
+        description='Create an embed directly out of a message.')
+    async def client_hyperlink_quick(self, ctx):
+        """Create an embed directly out of a message, allowing hyperlinks via markdown formatting.
+To create hyperlinks with custom display text:
+    text [display text](https://mylink.com/) text
+Make sure there's a space before and after the hyperlink.
+
+You will be DM'd for your parameters."""
+        async def cancel_message(message):
+            await message.edit(
+                content=f'~~{message.content}~~ Canceled hyperlink.')
+
+        def check(message):
+            "Wait for a message in the author's DMs."
+            return message.channel == ctx.author.dm_channel
+
+        message_request = await ctx.author.send(
+            'Send your message here to embed it:')
+
+        # Get message from user
+        try:
+            message = await ctx.bot.wait_for(
+                'message', check=check, timeout=30)
+        except asyncio.TimeoutError:
+            # User took too long to respond
+            return await cancel_message(message_request)
+
+        if message.author != ctx.author:
+            # Bot DM'd the user; cancel hyperlink command
+            return await cancel_message(message_request)
+
+        embed = discord.Embed(
+            title=f'{ctx.author.display_name}',
+            description=message.content,
+            timestamp=datetime.datetime.now().astimezone()
+        )
+
+        await ctx.send(embed=embed)
 
 
 

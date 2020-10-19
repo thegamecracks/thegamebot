@@ -9,9 +9,12 @@ import traceback  # exception_message()
 
 from dateutil.relativedelta import relativedelta
 import discord
+import inflect
 
 from bot import settings
 from bot.other import discordlogger
+
+inflector = inflect.engine()
 
 # Whitelist Digits, Decimal Point, Main Arithmetic,
 # Order of Operations, Function Arithmetic (modulus,),
@@ -100,7 +103,7 @@ def datetime_difference_string(current, prior):
         s.append(f"{diff.days} Day{'s' if diff.days != 1 else ''}")
     if diff.minutes:
         s.append(f"{diff.minutes} Minute{'s' if diff.minutes != 1 else ''}")
-    return ', '.join(s)
+    return inflector.join(s)
 
 
 def dec_addi(x, y):
