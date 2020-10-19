@@ -205,6 +205,8 @@ async def on_command_error(ctx, error):
         await ctx.send('You are {}'.format(
             missing_x_to_run('role', convert_roles(error.missing_perms))
         ))
+    elif isinstance(error, commands.NoPrivateMessage):
+        await ctx.send('You must be in a server to use this command.')
     elif isinstance(error, commands.NotOwner):
         await ctx.send('This command is for the bot owner only.')
     elif isinstance(error, commands.NSFWChannelRequired):

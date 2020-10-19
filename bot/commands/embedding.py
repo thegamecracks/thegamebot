@@ -153,10 +153,11 @@ These are the limits set by Discord:
 
 
     @commands.group(name='hyperlink', invoke_without_command=True)
-    @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.member)
     async def client_hyperlink(self, ctx):
-        """Commands for using the Embed's hyperlink feature."""
+        """Commands for using the Embed's hyperlink feature.
+
+These commands only work in servers."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
         # Reset cooldown as its limited to 1 command every 10 seconds
         ctx.command.reset_cooldown(ctx)
@@ -170,6 +171,7 @@ These are the limits set by Discord:
 
 
     @client_hyperlink.command(name='procedure')
+    @commands.guild_only()
     async def client_hyperlink_procedure(self, ctx):
         """Create a hyperlink with custom display text in two steps.
 
@@ -196,6 +198,8 @@ You will be DM'd for your parameters."""
         if link.author != ctx.author:
             # Bot DM'd the user; cancel hyperlink command
             return await cancel_message(link_request)
+
+        # TODO: Verify link with regex
 
         text_request = await ctx.author.send(
             'What display text would you like the link to have?')
@@ -224,6 +228,7 @@ You will be DM'd for your parameters."""
     @client_hyperlink.command(
         name='quick',
         description='Create an embed directly out of a message.')
+    @commands.guild_only()
     async def client_hyperlink_quick(self, ctx):
         """Create an embed directly out of a message, allowing hyperlinks via markdown formatting.
 To create hyperlinks with custom display text:
