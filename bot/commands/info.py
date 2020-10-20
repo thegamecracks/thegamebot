@@ -134,6 +134,8 @@ Format referenced from the Ayana bot."""
         if isinstance(user, discord.Member):
             description = None
             activity = user.activity
+            # If presences or members intent are disabled, d.py returns
+            # None for activity
             guild = user.guild
             joined = (
                 utils.datetime_difference_string(
@@ -147,9 +149,18 @@ Format referenced from the Ayana bot."""
             if len(roles) > 1:
                 # Has a role(s); remove @everyone
                 roles = roles[:0:-1]
-            status = str(user.status).title()
-            if status == 'Dnd':
-                status = 'Do Not Disturb'
+            status = None
+            # Check required intents before obtaining status
+            # (since d.py returns Status.offline instead of None)
+            if self.bot.intents.members and self.bot.intents.presences:
+                status = user.status
+                if isinstance(status, discord.Status):
+                    status = str(status).title()
+                else:
+                    # Status is unknown
+                    status = None
+                if status == 'Dnd':
+                    status = 'Do Not Disturb'
         else:
             description = '*For more information, ' \
                           'use this command in a server.*'

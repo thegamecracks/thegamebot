@@ -37,6 +37,7 @@ def main():
     settings.setup()
 
     intents = discord.Intents.default()
+    intents.presences = False
     intents.members = False
 
     bot = commands.Bot(
