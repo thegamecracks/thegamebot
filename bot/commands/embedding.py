@@ -153,6 +153,7 @@ These are the limits set by Discord:
 
 
     @commands.group(name='hyperlink', invoke_without_command=True)
+    @commands.guild_only()
     @commands.cooldown(1, 10, commands.BucketType.member)
     async def client_hyperlink(self, ctx):
         """Commands for using the Embed's hyperlink feature.
@@ -214,7 +215,7 @@ You will be DM'd for your parameters."""
 
         # Escape markdown (mentions don't work in embeds so no need to escape)
         link = discord.utils.escape_markdown(link.content)
-        text = discord.utils.escape_markdown(text.content)
+        text = text.content
 
         embed = discord.Embed(
             title=f'{ctx.author.display_name}',

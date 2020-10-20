@@ -97,19 +97,21 @@ async def on_command_error(ctx, error):
     if ctx.guild is not None:
         # Command invoked in server
         print(
-            'Command error from server {}, channel {}, by {}, '
+            'Command error from server {}, channel {}, by {}, using "{}" '
             'which raised {}: {}'.format(
                 ctx.guild,
                 ctx.channel,
                 ctx.author,
+                ctx.invoked_with,
                 type(error).__name__,
                 error
         ))
     else:
         # Command invoked in DMs
         print(
-            'Command error in DMs by {} which raised {}: {}'.format(
-                ctx.author, type(error).__name__, error
+            'Command error in DMs by {} using "{}" which raised {}: {}'.format(
+                ctx.author, ctx.invoked_with,
+                type(error).__name__, error
         ))
 
     # Error message functions

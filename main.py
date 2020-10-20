@@ -37,13 +37,13 @@ def main():
     settings.setup()
 
     intents = discord.Intents.default()
+    intents.members = False
 
     bot = commands.Bot(
         command_prefix=database.get_prefix(),
         help_command=helpcommand.HelpCommand(),
         intents=intents
     )
-    bot.myattr = 1
 
     eventhandlers.setup(bot)
 
