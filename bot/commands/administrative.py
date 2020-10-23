@@ -199,16 +199,39 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
             await ctx.send(get_denied_message())
 
 
+    @client_presence.command(name='competing')
+    async def client_competing(self, ctx,
+            status: utils.parse_status = 'online', *, title=None):
+        """Sets the competing message.
+status: The status to set for the bot.
+title: The title to show."""
+        if title is None:
+            return await self.bot.change_presence(activity=None)
+
+        activity = discord.Activity(
+            name=title, type=discord.ActivityType.competing)
+
+        await self.bot.change_presence(
+            activity=activity, status=status)
+
+
+    @client_competing.error
+    async def client_competing_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+        if isinstance(error, commands.BadArgument):
+            if 'parse_status' in str(error):
+                await ctx.send('Unknown status given.')
+
+
     @client_presence.command(
         name='playing')
     async def client_playing(self, ctx,
             status: utils.parse_status = 'online', *, title=None):
         """Sets the playing message.
-status - The status to set for the bot.
-title - The title to show."""
+status: The status to set for the bot.
+title: The title to show."""
         if title is None:
-            await self.bot.change_presence(activity=None)
-            return
+            return await self.bot.change_presence(activity=None)
 
         game = discord.Game(name=title)
 
@@ -231,13 +254,12 @@ title - The title to show."""
         title=None,
             url='https://www.twitch.tv/thegamecracks'):
         """Sets the streaming message.
-status - The status to set for the bot.
-title - The title to show. Use "quotations" to specify the title.
-url - The url to link to when streaming. Defaults to \
+status: The status to set for the bot.
+title: The title to show. Use "quotations" to specify the title.
+url: The url to link to when streaming. Defaults to \
 https://www.twitch.tv/thegamecracks ."""
         if title is None:
-            await self.bot.change_presence(activity=None)
-            return
+            return await self.bot.change_presence(activity=None)
 
         game = discord.Streaming(name=title, url=url)
 
@@ -257,8 +279,8 @@ https://www.twitch.tv/thegamecracks ."""
     async def client_listening(self, ctx,
             status: utils.parse_status = 'online', *, title=None):
         """Sets the listening message.
-status - The status to set for the bot.
-title - The title to show."""
+status: The status to set for the bot.
+title: The title to show."""
         if title is None:
             return await self.bot.change_presence(activity=None)
 
@@ -275,7 +297,6 @@ title - The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
-                return
 
 
     @client_presence.command(
@@ -283,8 +304,8 @@ title - The title to show."""
     async def client_watching(self, ctx,
             status: utils.parse_status = 'online', *, title=None):
         """Sets the watching message.
-status - The status to set for the bot.
-title - The title to show."""
+status: The status to set for the bot.
+title: The title to show."""
         if title is None:
             return await self.bot.change_presence(activity=None)
 
@@ -313,7 +334,7 @@ Options:
     idle, away
     dnd
     invisible, offline, off
-Will remove any activity the bot currently has."""
+This removes any activity the bot currently has."""
         await self.bot.change_presence(status=status)
 
 

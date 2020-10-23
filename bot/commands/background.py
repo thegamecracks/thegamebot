@@ -12,9 +12,9 @@ from bot import utils
 
 # Since the settings file is used as an argument to decorators which are
 # evaluated at runtime, the file must be set up
-class BackgroundTasks(commands.Cog):
-    qualified_name = 'Threads'
-    description = 'Background tasks.'
+class Tasks(commands.Cog):
+    qualified_name = 'Tasks'
+    description = 'Commands for controlling background tasks.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -101,19 +101,16 @@ class BackgroundTasks(commands.Cog):
             try:
                 pres = random.choice(
                     settings.get_setting('bgtask_RandomPresences')
-                ).copy()
-                # NOTE: .copy() is a fix to a bug occurring after
-                # settings caching was added where it mutates the status
-                # attribute and on second pass, it attempts reconverting
-                # the enumeration
+                )
             except IndexError:
                 print('No random presences in settings; '
                       'ending random presence task')
                 return
 
             # Parse status, otherwise use online/randomly pick one
-            if 'status' in pres:
-                pres['status'] = utils.parse_status(pres['status'])
+            status = pres.get('status')
+            if status is not None:
+                status = utils.parse_status(status)
             elif random.randint(1, 100) <= settings.get_setting(
                     'bgtask_RandomPresenceRandomStatusChance'):
                 pres['status'] = random.choice(
@@ -137,12 +134,15 @@ class BackgroundTasks(commands.Cog):
             elif activity == 'watching':
                 activity = discord.Activity(
                     name=pres['title'], type=discord.ActivityType.watching)
+            elif activity == 'competing':
+                activity = discord.Activity(
+                    name=pres['title'], type=discord.ActivityType.competing)
 
             # Change presence
             print(self.timestamp())
             print_presence(pres)
             await self.bot.change_presence(
-                activity=activity, status=pres['status'])
+                activity=activity, status=status)
 
             # Sleep
             min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
@@ -179,7 +179,7 @@ class BackgroundTasks(commands.Cog):
         else:
             self.random_presence.cancel()
             print('Disabled random presence')
-            await ctx.send('Turning off random presence changes.')
+            await ctx.send('Turned off random presence changes.')
 
 
 
@@ -191,4 +191,4 @@ class BackgroundTasks(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(BackgroundTasks(bot))
+    bot.add_cog(Tasks(bot))
