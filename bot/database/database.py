@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 
 import aiosqlite
 
@@ -56,18 +57,28 @@ class Database:
         row_to_dict(Row)
 
     """
-    __slots__ = ['conn']
+    __slots__ = ['conn', 'last_change']
 
     def __init__(self, conn):
         """Create a Database with a DatabaseConnection."""
         self.conn = conn
+        self.set_last_change(datetime.datetime.now(), table=None)
 
     def __repr__(self):
         return '{}({!r})'.format(self.__class__.__name__, self.conn)
 
-    async def add_row(self, table: str, row: dict):
-        "Add a row to a table."
+    def set_last_change(self, when, table):
+        self.last_change = {
+            'when': when,
+            'table': table
+        }
 
+    async def add_row(self, table: str, row: dict):
+        """Add a row to a table.
+
+        Returns the last row id that was added.
+
+        """
         def create_keys(row: dict) -> (str, str, list):
             """Return the column placeholders and values for a row.
 
@@ -85,11 +96,16 @@ class Database:
 
         keys, placeholders, values = create_keys(row)
         async with self.conn as conn:
-            await conn.execute(
+            c = await conn.cursor()
+            await c.execute(
                 f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
                 values
             )
+            last_row_id = c.lastrowid
             await conn.commit()
+        return last_row_id
+
+        self.set_last_change(datetime.datetime.now(), table)           
 
     async def delete_rows(self, table: str, *, where: str, pop=False):
         """Delete one or more rows from a table.
@@ -115,6 +131,8 @@ class Database:
             await conn.execute(f'DELETE FROM {table} WHERE {where}')
             await conn.commit()
 
+        self.set_last_change(datetime.datetime.now(), table) 
+
         if pop:
             return rows
 
@@ -123,6 +141,11 @@ class Database:
 
         If as_Row, rows will be returned as aiosqlite.Row objects.
         Otherwise, rows are returned as tuples.
+
+        Returns:
+            aiosqlite.Row
+            tuple
+            None: if no row is found.
 
         """
         async with self.conn as conn:
@@ -136,8 +159,9 @@ class Database:
 
         return row
 
-    async def get_rows(self, table: str, *, where: str = None, as_Row=True):
-        """Get/yield a list of rows from a table.
+    async def get_rows(
+            self, table: str, *, where: str = None, as_Row=True):
+        """Get a list of rows from a table.
 
         Args:
             table (str)
@@ -190,6 +214,39 @@ class Database:
                 values
             )
             await conn.commit()
+
+        self.set_last_change(datetime.datetime.now(), table)
+
+    async def yield_rows(
+            self, table: str, *, where: str = None, as_Row=True):
+        """Yield a list of rows from a table.
+
+        Args:
+            table (str)
+            where (Optional[str]):
+                An optional parameter specifying a filter.
+                If left as None, returns all rows in the table.
+            as_Row (bool):
+                If True, rows will be returned as aiosqlite.Row objects.
+                Otherwise, rows are returned as tuples.
+
+        Yields:
+            List[aiosqlite.Row]
+            List[tuple]
+
+        """
+        async with self.conn as conn:
+            if as_Row:
+                conn.row_factory = aiosqlite.Row
+
+            if where is not None:
+                c = await conn.execute(f'SELECT * FROM {table} WHERE {where}')
+            else:
+                c = await conn.execute(f'SELECT * FROM {table}')
+
+            async for row in c:
+                yield row
+            await c.close()
 
     @classmethod
     def from_path(cls, path, *args, **kwargs):

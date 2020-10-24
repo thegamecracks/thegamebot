@@ -85,6 +85,8 @@ class Tasks(commands.Cog):
                 message.append(f'streaming {title} to {url}')
             elif activity == 'watching':
                 message.append(f'watching {title}')
+            elif activity == 'competing':
+                message.append(f'competing in {title}')
 
             if status == discord.Status.online:
                 message.append(', status: online')
@@ -113,11 +115,11 @@ class Tasks(commands.Cog):
                 status = utils.parse_status(status)
             elif random.randint(1, 100) <= settings.get_setting(
                     'bgtask_RandomPresenceRandomStatusChance'):
-                pres['status'] = random.choice(
+                status = random.choice(
                     (discord.Status.idle, discord.Status.dnd)
                 )
             else:
-                pres['status'] = discord.Status.online
+                status = discord.Status.online
 
             # Parse activity
             activity = pres.get('activity')
@@ -128,9 +130,9 @@ class Tasks(commands.Cog):
                 activity = discord.Game(name=pres['title'])
             elif activity == 'streaming':
                 if 'url' not in pres:
-                    pres['url'] = settings.get_setting('default_StreamingURL')
+                    url = settings.get_setting('default_StreamingURL')
                 activity = discord.Streaming(
-                    name=pres['title'], url=pres['url'])
+                    name=pres['title'], url=url)
             elif activity == 'watching':
                 activity = discord.Activity(
                     name=pres['title'], type=discord.ActivityType.watching)

@@ -18,6 +18,42 @@ class Notes(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.notedb = NoteDatabase(dbconn_users)
+        self.cache = {}  # user_id: notes
+        # NOTE: this bot is small so this isn't required but if the bot
+        # never restarts frequently, the cache could grow forever,
+        # so this could use an LRU cache implementation
+
+
+
+
+
+    async def add_note(self, user_id, *args, **kwargs):
+        "Adds a note and invalidates the user's cache."
+        await self.notedb.add_note(user_id, *args, **kwargs)
+        del self.cache[user_id]
+
+    async def delete_note_by_note_id(self, note_id, pop=False):
+        "Remove a note by note_id and update the cache."
+        deleted = await self.notedb.delete_note_by_note_id(
+            note['note_id'], pop=True)
+
+        updated_ids = frozenset(note.user_id for note in deleted)
+
+        for user_id in updated_ids:
+            del self.cache[user_id]
+
+        if pop:
+            return deleted
+
+    async def get_notes(self, user_id):
+        notes = self.cache.get(user_id)
+
+        if notes is None:
+            # Uncached user; add them to cache
+            notes = await self.notedb.get_notes(user_id)
+            self.cache[user_id] = notes
+
+        return notes
 
 
 
@@ -31,12 +67,10 @@ class Notes(commands.Cog):
 You can have a maximum of 20 notes."""
         await ctx.channel.trigger_typing()
 
-        total_notes = len(await self.notedb.get_notes(ctx.author.id))
+        total_notes = len(await self.get_notes(ctx.author.id))
 
         if total_notes < 20:
-            content = discord.utils.escape_mentions(note)
-
-            await self.notedb.add_note(
+            await self.add_note(
                 ctx.author.id, datetime.datetime.now().astimezone(), note,
                 add_user=True
             )
@@ -68,7 +102,7 @@ To see a list of your notes and their indices, use the shownotes command.
 To remove several notes, use the removenotes command."""
         await ctx.channel.trigger_typing()
 
-        note_list = await self.notedb.get_notes(ctx.author.id)
+        note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
             return await ctx.send("You already don't have any notes.")
@@ -78,7 +112,7 @@ To remove several notes, use the removenotes command."""
         except IndexError:
             await ctx.send('That note index does not exist.')
         else:
-            await self.notedb.delete_note_by_note_id(note['note_id'])
+            await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Note successfully deleted!')
 
 
@@ -99,14 +133,14 @@ You can remove "all" of your notes or remove only a section of it by specifying 
 To remove only one note, use the removenote command."""
         await ctx.channel.trigger_typing()
 
-        note_list = await self.notedb.get_notes(ctx.author.id)
+        note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
             return await ctx.send("You already don't have any notes.")
 
         if indices.lower() == 'all':
             for note in note_list:
-                await self.notedb.delete_note_by_note_id(note['note_id'])
+                await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Notes successfully deleted!')
 
         else:
@@ -120,7 +154,7 @@ To remove only one note, use the removenote command."""
 
             for i in range(start, end):
                 note = note_list[i]
-                await self.notedb.delete_note_by_note_id(note['note_id'])
+                await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Notes successfully deleted!')
 
 
@@ -138,7 +172,7 @@ To remove only one note, use the removenote command."""
         """Show one of your notes."""
         await ctx.channel.trigger_typing()
 
-        note_list = await self.notedb.get_notes(ctx.author.id)
+        note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
             return await ctx.send("You don't have any notes.")
@@ -172,7 +206,7 @@ To remove only one note, use the removenote command."""
         """Show all of your notes."""
         await ctx.channel.trigger_typing()
 
-        note_list = await self.notedb.get_notes(ctx.author.id)
+        note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
             return await ctx.send("You don't have any notes.")

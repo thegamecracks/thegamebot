@@ -85,25 +85,35 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def datetime_difference_string(current, prior):
+def datetime_difference_string(
+        current, prior,
+        years=True, months=True, weeks=True, days=True,
+        hours=True, minutes=True, seconds=True):
     """Return the difference from prior to current as a string.
 
     Can show years, months, weeks, day, hours, and minutes.
 
     """
+    def s(n):
+        return 's' if n != 1 else ''
+
     diff = datetime_difference(current, prior)
-    s = []
-    if diff.years:
-        s.append(f"{diff.years} Year{'s' if diff.years != 1 else ''}")
-    if diff.months:
-        s.append(f"{diff.months} Month{'s' if diff.months != 1 else ''}")
-    if diff.weeks:
-        s.append(f"{diff.weeks} Week{'s' if diff.weeks != 1 else ''}")
-    if diff.days:
-        s.append(f"{diff.days} Day{'s' if diff.days != 1 else ''}")
-    if diff.minutes:
-        s.append(f"{diff.minutes} Minute{'s' if diff.minutes != 1 else ''}")
-    return inflector.join(s)
+    message = []
+    if diff.years and years:
+        message.append(f"{diff.years:,} Year{s(diff.years)}")
+    if diff.months and months:
+        message.append(f"{diff.months:,} Month{s(diff.months)}")
+    if diff.weeks and weeks:
+        message.append(f"{diff.weeks:,} Week{s(diff.weeks)}")
+    if diff.days and days:
+        message.append(f"{diff.days:,} Day{s(diff.days)}")
+    if diff.hours and hours:
+        message.append(f"{diff.hours:,} Hour{s(diff.hours)}")
+    if diff.minutes and minutes:
+        message.append(f"{diff.minutes:,} Minute{s(diff.minutes)}")
+    if diff.seconds and seconds:
+        message.append(f"{diff.seconds:,} Second{s(diff.seconds)}")
+    return inflector.join(message)
 
 
 def dec_addi(x, y):

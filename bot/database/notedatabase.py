@@ -20,7 +20,7 @@ class NoteDatabase(user_db.UserDatabase):
     "Provide an interface to a UserDatabase with a Notes table."
 
     async def add_note(self, user_id: int, time_of_entry,
-                 content: str, *, add_user=False):
+            content: str, *, add_user=False):
         """Add a note to the Notes table.
 
         Args:
@@ -35,7 +35,7 @@ class NoteDatabase(user_db.UserDatabase):
         if add_user:
             await self.add_user(user_id)
 
-        await self.add_row('Notes', {
+        return await self.add_row('Notes', {
             'user_id': user_id,
             'time_of_entry': time_of_entry,
             'content': content

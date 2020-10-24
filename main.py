@@ -21,6 +21,7 @@ cogs = [
     'bot.commands.prefix',
     'bot.commands.mathematics',
     'bot.commands.randomization',
+    'bot.commands.reminders',
     'bot.commands.undefined',
 ]
 
@@ -38,7 +39,7 @@ def main():
 
     intents = discord.Intents.default()
     intents.presences = False
-    intents.members = False
+    intents.members = True
 
     bot = commands.Bot(
         command_prefix=database.get_prefix(),

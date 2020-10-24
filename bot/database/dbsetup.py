@@ -8,6 +8,7 @@ from . import database
 from . import guilddatabase
 from . import notedatabase
 from . import prefixdatabase
+from . import reminderdatabase
 from . import userdatabase
 from bot import settings
 
@@ -52,6 +53,7 @@ def get_prefix():
 def setup_database_users(connection):
     userdatabase.setup(connection)
     notedatabase.setup(connection)
+    reminderdatabase.setup(connection)
     print('Verified user database')
     guilddatabase.setup(connection)
     prefixdatabase.setup(connection)

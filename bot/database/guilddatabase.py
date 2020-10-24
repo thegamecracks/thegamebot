@@ -28,7 +28,7 @@ class GuildDatabase(db.Database):
 
         """
         if not await self.has_guild(guild_id):
-            await self.add_row('Guilds', {'id': guild_id})
+            return await self.add_row('Guilds', {'id': guild_id})
 
     async def get_guild(self, guild_id: int, *, as_Row=True):
         """Get a guild record from the database.

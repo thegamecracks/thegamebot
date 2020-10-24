@@ -28,7 +28,7 @@ class UserDatabase(db.Database):
 
         """
         if not await self.has_user(user_id):
-            await self.add_row('Users', {'id': user_id})
+            return await self.add_row('Users', {'id': user_id})
 
     async def get_user(self, user_id: int, *, as_Row=True):
         """Get a user record from the database.

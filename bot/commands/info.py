@@ -14,6 +14,8 @@ class Informative(commands.Cog):
     # If True, members of any guild the bot is in can be looked up in DMs.
     # Note that this has no effect when the members intent is disabled.
 
+    DATETIME_DIFFERENCE_PRECISION = {'seconds': False}
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -34,7 +36,8 @@ Format referenced from the Ayana bot."""
         created = (
             utils.datetime_difference_string(
                 datetime.datetime.utcnow(),
-                guild.created_at
+                guild.created_at,
+                **self.DATETIME_DIFFERENCE_PRECISION
             ),
             guild.created_at.strftime('%Y/%m/%d %a %X %zUTC')
         )
@@ -140,7 +143,8 @@ Format referenced from the Ayana bot."""
             joined = (
                 utils.datetime_difference_string(
                     datetime.datetime.utcnow(),
-                    user.joined_at
+                    user.joined_at,
+                **self.DATETIME_DIFFERENCE_PRECISION
                 ),
                 user.joined_at.strftime('%Y/%m/%d %a %X %zUTC')
             )
@@ -173,7 +177,8 @@ Format referenced from the Ayana bot."""
         created = (
             utils.datetime_difference_string(
                 datetime.datetime.utcnow(),
-                user.created_at
+                user.created_at,
+                **self.DATETIME_DIFFERENCE_PRECISION
             ),
             user.created_at.strftime('%Y/%m/%d %a %X %zUTC')
         )

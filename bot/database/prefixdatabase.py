@@ -53,7 +53,7 @@ class PrefixDatabase(guild_db.GuildDatabase):
             await self.add_guild(guild_id)
 
         if not await self.has_prefix(guild_id):
-            await self.add_row(
+            return await self.add_row(
                 'Prefixes', {'guild_id': guild_id, 'prefix': prefix})
 
     async def delete_prefix(self, guild_id: int, pop=False):
