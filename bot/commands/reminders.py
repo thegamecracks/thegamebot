@@ -531,7 +531,7 @@ To remove only one reminder, use the removereminder command."""
             title=title,
             description=content,
             color=utils.get_user_color(user),
-            timestamp=utcwhen
+            timestamp=datetime.datetime.now().astimezone()
         )
 
         try:
