@@ -1,36 +1,35 @@
-try:
-    from discord.ext import commands
-    import discord
-except ModuleNotFoundError:
-    print('The discord.py package is missing!')
-    while True:
-        pass
-
 import asyncio
 import os
-import time
 
+from discord.ext import commands
+import discord
 from bot import database
+from bot import eventhandlers
+from bot.commands import helpcommand
 from bot import settings
+from bot import utils
 from bot.other import discordlogger
 
 cogs = [
     'bot.commands.administrative',
     'bot.commands.background',
     'bot.commands.ciphers',
-    'bot.commands.embedtools',
+    'bot.commands.embedding',
     'bot.commands.games',
     'bot.commands.info',
-    'bot.commands.nocategory',
     'bot.commands.notes',
+    'bot.commands.prefix',
     'bot.commands.mathematics',
     'bot.commands.randomization',
+    'bot.commands.reminders',
+    'bot.commands.undefined',
 ]
 
 
 def main():
-    # Set up database
-    database.main()
+    # Set up databases
+    database.setup()
+
     # Set up client
     TOKEN = os.environ['PyDiscordBotToken']
 
@@ -39,61 +38,30 @@ def main():
     settings.setup()
 
     intents = discord.Intents.default()
+    intents.presences = False
+    intents.members = True
 
-    client = commands.Bot(
-        command_prefix=settings.get_setting('prefix'),
+    bot = commands.Bot(
+        command_prefix=database.get_prefix(),
+        help_command=helpcommand.HelpCommand(),
         intents=intents
     )
 
-
-    @client.event
-    async def on_connect():
-        print(time.strftime(
-            'Connection: Connected to Discord, %c UTC',
-            time.gmtime()))
-
-
-    @client.event
-    async def on_disconnect():
-        print(time.strftime(
-            'Connection: Lost connection to Discord, %c UTC',
-            time.gmtime()))
-
-
-    @client.event
-    async def on_ready():
-        print(time.strftime(
-            'Bot is ready, %c UTC',
-            time.gmtime()))
-        username = 'Logged in as ' + client.user.name
-        user_id = client.user.id
-        print(
-            username,
-            user_id,
-            '-' * max(len(username), len(str(user_id))),
-            sep='\n'
-        )
-
-
-    @client.event
-    async def on_resumed():
-        """Unknown event."""
-        print('Resuming session.')
-
+    eventhandlers.setup(bot)
 
     for name in cogs:
-        client.load_extension(name)
+        bot.load_extension(name)
 
     loop = asyncio.get_event_loop()
     bot_args = [TOKEN]
     bot_kwargs = dict()
 
     try:
-        loop.run_until_complete(client.start(*bot_args, **bot_kwargs))
+        loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
     except Exception as e:
         logger.exception('Exception raised in bot')
     finally:
-        loop.run_until_complete(client.close())
+        loop.run_until_complete(bot.close())
         loop.close()
 
 

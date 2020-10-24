@@ -10,6 +10,12 @@ class Informative(commands.Cog):
     qualified_name = 'Informative'
     description = 'Informative commands.'
 
+    ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS = False
+    # If True, members of any guild the bot is in can be looked up in DMs.
+    # Note that this has no effect when the members intent is disabled.
+
+    DATETIME_DIFFERENCE_PRECISION = {'seconds': False}
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -20,19 +26,18 @@ class Informative(commands.Cog):
 
     @commands.command(
         name='serverinfo')
+    @commands.guild_only()
+    @commands.cooldown(1, 15, commands.BucketType.user)
     async def client_serverinfo(self, ctx):
         """Get information about the server you are currently in.
 Format referenced from the Ayana bot."""
-        if not isinstance(ctx.author, discord.Member):
-            await ctx.send('You must be in a server to use this command.')
-            return
-
         guild = ctx.author.guild
 
         created = (
             utils.datetime_difference_string(
                 datetime.datetime.utcnow(),
-                guild.created_at
+                guild.created_at,
+                **self.DATETIME_DIFFERENCE_PRECISION
             ),
             guild.created_at.strftime('%Y/%m/%d %a %X %zUTC')
         )
@@ -70,7 +75,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Time of Server Creation',
-            value=f'{created[0]} Ago ({created[1]})',
+            value=f'{created[0]} ago ({created[1]})',
             inline=False
         )
         embed.add_field(
@@ -92,20 +97,54 @@ Format referenced from the Ayana bot."""
 
     @commands.command(
         name='userinfo')
-    async def client_userinfo(self, ctx, user: discord.Member = None):
+    @commands.cooldown(3, 15, commands.BucketType.user)
+    async def client_userinfo(self, ctx, user=None):
         """Get information about a user by name or mention.
+
 https://youtu.be/CppEzOOXJ8E used as reference.
 Format referenced from the Ayana bot."""
+        # NOTE: when members intent is enabled, members from guilds
+        # the bot is in can be accessed in DMs.
         if user is None:
             user = ctx.author
+        else:
+            user_input = user
 
+            try:
+                user = await commands.MemberConverter().convert(ctx, user)
+            except commands.MemberNotFound as e:
+                if (not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS
+                        and ctx.guild is None):
+                    return await ctx.send('Cannot search for members in DMs.')
+                # Else allow error handler to deal with it
+                raise e
+            else:
+                # Successful search
+                is_me = user.id == self.bot.user.id
+                if isinstance(user, discord.Member):
+                    if ctx.guild is None:
+                        # Command invoked in DMs
+                        if is_me:
+                            # Convert to discord.User so guild-related
+                            # information is not displayed
+                            user = self.bot.get_user(user.id)
+                        elif not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS:
+                            # Disallowed showing guild members in DMs
+                            return await ctx.send(
+                                'Cannot search for members in DMs.')
+
+        # Extract attributes based on whether its a Member or User
         if isinstance(user, discord.Member):
             description = None
             activity = user.activity
+            # If presences or members intent are disabled, d.py returns
+            # None for activity
+            guild = user.guild
             joined = (
                 utils.datetime_difference_string(
                     datetime.datetime.utcnow(),
-                    user.joined_at
+                    user.joined_at,
+                **self.DATETIME_DIFFERENCE_PRECISION
                 ),
                 user.joined_at.strftime('%Y/%m/%d %a %X %zUTC')
             )
@@ -114,9 +153,18 @@ Format referenced from the Ayana bot."""
             if len(roles) > 1:
                 # Has a role(s); remove @everyone
                 roles = roles[:0:-1]
-            status = str(user.status).title()
-            if status == 'Dnd':
-                status = 'Do Not Disturb'
+            status = None
+            # Check required intents before obtaining status
+            # (since d.py returns Status.offline instead of None)
+            if self.bot.intents.members and self.bot.intents.presences:
+                status = user.status
+                if isinstance(status, discord.Status):
+                    status = str(status).title()
+                else:
+                    # Status is unknown
+                    status = None
+                if status == 'Dnd':
+                    status = 'Do Not Disturb'
         else:
             description = '*For more information, ' \
                           'use this command in a server.*'
@@ -129,7 +177,8 @@ Format referenced from the Ayana bot."""
         created = (
             utils.datetime_difference_string(
                 datetime.datetime.utcnow(),
-                user.created_at
+                user.created_at,
+                **self.DATETIME_DIFFERENCE_PRECISION
             ),
             user.created_at.strftime('%Y/%m/%d %a %X %zUTC')
         )
@@ -153,29 +202,37 @@ Format referenced from the Ayana bot."""
             value=user.mention,
             inline=False
         )
-        if nickname:
+        if nickname is not None:
             embed.add_field(
                 name='Nickname',
                 value=nickname,
                 inline=False
             )
-        if joined:
+        if joined is not None:
+            if guild != ctx.guild:
+                # Queried in DMs (could also mean found member
+                # in another guild but MemberConverter currently won't
+                # search for members outside of the guild);
+                # include guild name in join title
+                joined_name = f'Time of joining {guild.name}'
+            else:
+                joined_name = 'Time of Server Join'
             embed.add_field(
-                name='Time of Server Join',
-                value=f'{joined[0]} Ago ({joined[1]})',
+                name=joined_name,
+                value=f'{joined[0]} ago ({joined[1]})',
                 inline=False
             )
         embed.add_field(
             name='Time of User Creation',
-            value=f'{created[0]} Ago ({created[1]})',
+            value=f'{created[0]} ago ({created[1]})',
             inline=False
         )
-        if status:
+        if status is not None:
             embed.add_field(
                 name='Status',
                 value=status
             )
-        if activity:
+        if activity is not None:
             if activity.type is discord.ActivityType.playing:
                 embed.add_field(
                     name='Playing',
@@ -208,15 +265,6 @@ Format referenced from the Ayana bot."""
         )
 
         await ctx.send(embed=embed)
-
-
-    @client_userinfo.error
-    async def client_userinfo_error(self, ctx, error):
-        if isinstance(error, commands.BadArgument):
-            if 'not found' in error.args[0]:
-                await ctx.send('Could not find that user.')
-                return
-        raise error from RuntimeError('Undefined error in userinfo')
 
 
 

@@ -1,7 +1,8 @@
-import decimal
+from decimal import Decimal
 import io
 import math
 import string
+from typing import Union
 
 from discord.ext import commands
 import linecache
@@ -15,6 +16,9 @@ FILE_FIBONACCI = 'data/fibonacci.txt'
 PINT_UREG = pint.UnitRegistry()
 Q_ = PINT_UREG.Quantity
 
+to_hex = lambda x: Decimal(int(x, 16))
+dec_or_hex = Union[Decimal, to_hex]
+
 
 class Mathematics(commands.Cog):
     qualified_name = 'Mathematics'
@@ -27,18 +31,17 @@ class Mathematics(commands.Cog):
         name='add',
         brief='Adds two numbers.',
         aliases=('+', 'sum', 'addi'))
-    async def client_add(self, ctx, x, y):
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_add(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the sum of x and y."""
-        await ctx.send(utils.dec_addi(x, y))
+        await ctx.send(f'{x+y:G}')
 
 
     @client_add.error
-    @utils.print_error
     async def client_add_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
 
 
 
@@ -48,18 +51,17 @@ class Mathematics(commands.Cog):
         name='subtract',
         brief='Subtracts two numbers.',
         aliases=('-', 'minus', 'subi'))
-    async def client_subtract(self, ctx, x, y):
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_subtract(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the difference of x and y."""
-        await ctx.send(utils.dec_subi(x, y))
+        await ctx.send(f'{x-y}:G')
 
 
     @client_subtract.error
-    @utils.print_error
     async def client_subtract_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
 
 
 
@@ -69,18 +71,17 @@ class Mathematics(commands.Cog):
         name='multiply',
         brief='Multiplies two numbers.',
         aliases=('*', 'product', 'muli'))
-    async def client_multiply(self, ctx, x, y):
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_multiply(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the product of x and y."""
-        await ctx.send(utils.dec_muli(x, y))
+        await ctx.send(f'{x*y:G}')
 
 
     @client_multiply.error
-    @utils.print_error
     async def client_multiply_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
 
 
 
@@ -90,18 +91,17 @@ class Mathematics(commands.Cog):
         name='divide',
         brief='Divides two numbers.',
         aliases=('/', 'quotient', 'divi'))
-    async def client_divide(self, ctx, x, y):
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_divide(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the quotient of x and y."""
-        await ctx.send(utils.dec_divi(x, y))
+        await ctx.send(f'{x/y:G}')
 
 
     @client_divide.error
-    @utils.print_error
     async def client_divide_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
 
 
 
@@ -110,19 +110,18 @@ class Mathematics(commands.Cog):
     @commands.command(
         name='power',
         brief='Raises x to the power of y.',
-        aliases=('exp', 'exponent', 'raise'))
-    async def client_exponent(self, ctx, x, y):
+        aliases=('exp', 'exponent', 'pow', 'raise'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_exponent(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns x raised to the power of y."""
-        await ctx.send(utils.dec_pow(x, y))
+        await ctx.send(f'{x**y:G}')
 
 
     @client_exponent.error
-    @utils.print_error
     async def client_exponent_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
 
 
 
@@ -132,18 +131,17 @@ class Mathematics(commands.Cog):
         name='sqrt',
         brief='Squares roots a number.',
         aliases=('squareroot',))
-    async def client_sqrt(self, ctx, x: utils.num):
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_sqrt(self, ctx, x: dec_or_hex):
         """Returns the 2nd root of x."""
-        await ctx.send(str(utils.num(math.sqrt(x))))
+        await ctx.send(f'{x.sqrt():G}')
 
 
     @client_sqrt.error
-    @utils.print_error
     async def client_sqrt_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
+        error = getattr(error, 'original', error)
+        if isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
 
 
 
@@ -152,6 +150,7 @@ class Mathematics(commands.Cog):
     @commands.command(
         name='evaluate',
         aliases=('eval',))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_evaluate(self, ctx, *, expr: str):
         """Evaluates a simple mathematical expression.
 Syntax:
@@ -200,22 +199,17 @@ To reveal the evaluation of your expression, add --debug to your expression."""
 
     @client_evaluate.error
     async def client_evaluate_error(self, ctx, error):
-        exception = error.original
-        if isinstance(exception, SyntaxError):
-            await ctx.send(f'Undefined Syntax Error occurred: {exception}')
-            return
-        elif isinstance(exception, ZeroDivisionError):
+        error = getattr(error, 'original', error)
+        if isinstance(error, SyntaxError):
+            await ctx.send(f'Undefined Syntax Error occurred: {error}')
+        elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
-            return
-        elif isinstance(exception, OverflowError):
-            await ctx.send(exception.args[1] + '.')
-            return
-        elif isinstance(exception, ValueError):
-            await ctx.send(str(exception))
-        elif isinstance(exception, TypeError):
-            await ctx.send(str(exception))
-        else:
-            raise exception from RuntimeError('Unhandled exception type')
+        elif isinstance(error, OverflowError):
+            await ctx.send(error.args[1] + '.')
+        elif isinstance(error, ValueError):
+            await ctx.send(str(error))
+        elif isinstance(error, TypeError):
+            await ctx.send(str(error))
 
 
 
@@ -223,11 +217,15 @@ To reveal the evaluation of your expression, add --debug to your expression."""
 
     @commands.command(
         name='fibonacci')
+    @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_fibonacci(self, ctx, n: int, m: int = None):
         """Returns specified fibonacci numbers.
-n - First number. If only this is provided, returns the nth fibonacci number.
-m - Second number. If this is provided, returns n to m fibonacci numbers.
-Results may be spread apart multiple messages."""
+
+Results are limited to displaying the first 140 characters
+and 50 fibonacci numbers at once.
+
+n: First number. If only this is provided, returns the nth fibonacci number.
+m: Second number. If this is provided, returns n to m fibonacci numbers."""
 
         # If m is not given, set to 0 and set m_none to True
         m_none = False
@@ -239,6 +237,10 @@ Results may be spread apart multiple messages."""
         n = int(n) + 1
         m = int(m)
 
+        if not m_none and len(range(n, m)) > 50:
+            raise ValueError('The range of requested fibonacci numbers '
+                             'must be below 50.')
+
         # Set limit of fibonacci parameters to amount of
         # lines FILE_FIBONACCI has
         limit = utils.rawincount(FILE_FIBONACCI) - 2
@@ -248,9 +250,10 @@ Results may be spread apart multiple messages."""
         if min(n-1, m if not m_none else 1) <= 0:
             return
         # Send error message if n or m is more than limit
-        if max(n-1, m) > limit:
-            raise ValueError(
-                f'This number is too high. The maximum is {limit:d}.')
+        if n-1 > limit:
+            raise ValueError(f'N is too high. The maximum is {limit:d}.')
+        elif m > limit:
+            raise ValueError(f'M is too high. The maximum is {limit:d}.')
 
         # If m is present, return range(n, m + 1) fibonacci numbers
         if m:
@@ -259,28 +262,23 @@ Results may be spread apart multiple messages."""
             for i in range(n, m + 2):
                 message.append(linecache.getline(FILE_FIBONACCI, i)[:-1])
             # Join the message into one string
-            message = ', \n'.join(message)
+            message = ', '.join(message)
 
         # If m is not present, get the fibonacci number from the file
         else:
             message = linecache.getline(FILE_FIBONACCI, n)[:-1]
 
         # Print message
-        for snippet in message_snip(message)[0]:
-            await ctx.send(snippet)
+        await ctx.send(utils.truncate_message(message, 140))
 
 
     @client_fibonacci.error
-    @utils.print_error
     async def client_fibonacci_error(self, ctx, error):
-        if hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, ValueError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, OverflowError):
-                await ctx.send(str(exception))
-                return
+        error = getattr(error, 'original', error)
+        if isinstance(error, ValueError):
+            await ctx.send(str(error))
+        elif isinstance(error, OverflowError):
+            await ctx.send(str(error))
 
 
 
@@ -290,20 +288,28 @@ Results may be spread apart multiple messages."""
         name='gcd',
         brief='Greatest common divisor/factor.',
         aliases=('gcf',))
+    @commands.cooldown(5, 25, commands.BucketType.user)
     async def client_gcd(self, ctx, x: int, y: str):
         """Return the Greatest Common Divisor/Factor of one or two integers.
 
 If y is "low", calculates the lowest divisor of x other than itself.
 If y is "high", calculates the highest divisor of x other than itself."""
-        if y == 'low' or y == 'high':
+        await ctx.channel.trigger_typing()
+
+        if x > 1_000_000:
+            await ctx.send('X must be below one million.')
+        elif y == 'low' or y == 'high':
             await ctx.send(utils.gcd(x, y))
         else:
             try:
                 y = int(y)
             except ValueError:
-                await ctx.send('y is not an integer.')
+                await ctx.send('Y is not an integer.')
             else:
-                await ctx.send(utils.gcd(x, y))
+                if y > 1_000_000:
+                    await ctx.send('Y must be below one million.')
+                else:
+                    await ctx.send(utils.gcd(x, y))
 
 
 
@@ -312,17 +318,23 @@ If y is "high", calculates the highest divisor of x other than itself."""
     @commands.command(
         name='isprime',
         aliases=('prime',))
+    @commands.cooldown(5, 25, commands.BucketType.user)
     async def client_isprime(self, ctx, n: int, setting: str = 'high'):
         """Checks if a number is prime.
 n - The number to test.
 setting - low or high: Returns either the lowest or highest divisor
  other than 1 and itself."""
+        await ctx.channel.trigger_typing()
+
         if n < 2:
-            await ctx.send(f'{n} is not a prime number;\n\
-    all numbers under 2 are not prime.')
-            return
+            return await ctx.send(f'{n} is not a prime number;\n'
+                           'all whole numbers below 3 are not prime.')
+        elif n > 1_000_000:
+            return await ctx.send('N must be below one million.')
+
 
         divisor = utils.gcd(n, setting)
+
         if divisor == 1 or divisor == n:
             await ctx.send(f'{n} is a prime number.')
         elif setting == 'low':
@@ -384,41 +396,34 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
     @commands.command(
         name='factors',
         aliases=('factor',))
-    async def client_factors(self, ctx, n: utils.num):
+    @commands.cooldown(5, 25, commands.BucketType.user)
+    async def client_factors(self, ctx, n: int):
         """Returns all factors of a number.
 n - The number to test.
 The maximum number to check factors is 10000."""
         if n > 10000:
-            await ctx.send(
-                'Will not return factors of numbers above 10000.')
-            return
+            return await ctx.send('N must be below ten thousand.')
 
         await ctx.channel.trigger_typing()
 
         factors = self.factors(n)
 
         if not factors:
-            await ctx.send(f'There are no factors of {n}.')
-            return
+            return await ctx.send(f'There are no factors of {n}.')
 
         message = ', '.join([str(i) for i in factors])
         await ctx.send(f'Factors of {n}:\n {message}')
 
 
     @client_factors.error
-    @utils.print_error
     async def client_factors_error(self, ctx, error):
+        error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             await ctx.send('An integer must be given.')
-            return
-        elif hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, ValueError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, TypeError):
-                await ctx.send(str(exception))
-                return
+        elif isinstance(error, ValueError):
+            await ctx.send(str(error))
+        elif isinstance(error, TypeError):
+            await ctx.send(str(error))
 
 
 
@@ -427,11 +432,13 @@ The maximum number to check factors is 10000."""
     @commands.command(
         name='convert',
         aliases=('unit', 'units'))
+    @commands.cooldown(5, 10, commands.BucketType.user)
     async def client_convertunit(self, ctx, measurement, to, *, unit=None):
         """Converts a unit into another unit.
 Examples:
     convert 1e2 m to ft
-        # Scientific notation only works when unit is separated
+        # Scientific notation only works when the unit is separated
+        # Counterexample: convert 1e2m to ft
     convert 100m ft
     convert 1lb to g
     convert 1m ft
@@ -495,19 +502,14 @@ Temperature conversions:
 
 
     @client_convertunit.error
-    @utils.print_error
     async def client_convertunit_error(self, ctx, error):
-        if hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, pint.DimensionalityError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, pint.OffsetUnitCalculusError):
-                await ctx.send(str(exception))
-                return
-            elif isinstance(exception, pint.UndefinedUnitError):
-                await ctx.send(str(exception))
-                return
+        error = getattr(error, 'original', error)
+        if isinstance(error, pint.DimensionalityError):
+            await ctx.send(str(error))
+        elif isinstance(error, pint.OffsetUnitCalculusError):
+            await ctx.send(str(error))
+        elif isinstance(error, pint.UndefinedUnitError):
+            await ctx.send(str(error))
 
 
 
@@ -516,6 +518,7 @@ Temperature conversions:
     @commands.command(
         name='numberbase',
         aliases=('numbase', 'base'))
+    @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_numberbase(self, ctx,
         base_in: int, base_out: int, n,
             mapping: str = string.digits + string.ascii_uppercase \
@@ -530,31 +533,32 @@ letters are case-insensitive but will print out capitalized.
 base_in - The number's base.
 base_out - The base to output as.
 n - The number to convert."""
-        await ctx.send(convert_base(base_in, base_out, n,
-            mapping[:max(base_in, base_out)]))
+        await ctx.send(
+            utils.convert_base(
+                base_in, base_out, n,
+                mapping[:max(base_in, base_out)]
+            )
+        )
 
 
     @client_numberbase.error
-    @utils.print_error
     async def client_numberbase_error(self, ctx, error):
-        if hasattr(error, 'original'):
-            exception = error.original
-            if isinstance(exception, ValueError):
-                msg = str(exception)
-                if msg == 'substring not found':
-                    msg = 'There is an unknown character(s) in the number.'
-                elif 'invalid literal for int()' in msg:
-                    # Find the first number in message; it should be the base
-                    # n[:-1] - Remove the colon next to the number
-                    num = [n[:-1] for n in msg.split() if n[:-1].isnumeric()][0]
-                    msg = ('There is a character within the number not part of'
-                        f' base {num}.')
-                await ctx.send(msg)
-                return
-            elif isinstance(exception, TypeError):
-                await ctx.send(str(exception))
-                return
-        await ctx.send('An unspecified error has occurred.')
+        error = getattr(error, 'original', error)
+        if isinstance(error, ValueError):
+            msg = str(error)
+            if msg == 'substring not found':
+                msg = 'There is an unknown character(s) in the number.'
+            elif 'invalid literal for int()' in msg:
+                # Find the first number in message; it should be the base
+                # n[:-1] - Remove the colon next to the number
+                num = [n[:-1] for n in msg.split() if n[:-1].isnumeric()][0]
+                msg = ('There is a character within the number not part of'
+                    f' base {num}.')
+            await ctx.send(msg)
+        elif isinstance(error, TypeError):
+            await ctx.send(str(error))
+        else:
+            await ctx.send('An unspecified error has occurred.')
 
 
 

@@ -1,14 +1,20 @@
 import datetime
 import decimal
-import itertools  # Only used in rawincount()
+import itertools  # rawincount()
 import math
+import pathlib    # exception_message()
 import string
+import sys        # exception_message()
+import traceback  # exception_message()
 
 from dateutil.relativedelta import relativedelta
 import discord
+import inflect
 
 from bot import settings
 from bot.other import discordlogger
+
+inflector = inflect.engine()
 
 # Whitelist Digits, Decimal Point, Main Arithmetic,
 # Order of Operations, Function Arithmetic (modulus,),
@@ -32,14 +38,17 @@ logger = discordlogger.get_logger()
 def convert_base(base_in: int, base_out: int, n,
         mapping='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
     """Converts a number to another base.
-Accepted bases are 2, 36, and all in-between.
-Base 36 uses 0-9 and a-z (case-insensitive), where z = 35.
-Decimals cannot be converted.
+    Accepted bases are 2, 36, and all in-between.
+    Base 36 uses 0-9 and a-z (case-insensitive).
+    Decimals cannot be converted.
 
-base_in - The number's base.
-base_out - The base to output as.
-n - The number to convert.
-mapping - The string mapping."""
+    Args:
+        base_in (int): The number's base.
+        base_out (int): The base to output as.
+        n (int): The number to convert.
+        mapping (str): The string mapping.
+
+    """
     if max(base_in, base_out) > len(mapping):
         raise ValueError(f'Given base is greater than {len(mapping)}.')
     elif min(base_in, base_out) < 2:
@@ -76,25 +85,35 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def datetime_difference_string(current, prior):
+def datetime_difference_string(
+        current, prior,
+        years=True, months=True, weeks=True, days=True,
+        hours=True, minutes=True, seconds=True):
     """Return the difference from prior to current as a string.
 
     Can show years, months, weeks, day, hours, and minutes.
 
     """
+    def s(n):
+        return 's' if n != 1 else ''
+
     diff = datetime_difference(current, prior)
-    s = []
-    if diff.years:
-        s.append(f"{diff.years} Year{'s' if diff.years != 1 else ''}")
-    if diff.months:
-        s.append(f"{diff.months} Month{'s' if diff.months != 1 else ''}")
-    if diff.weeks:
-        s.append(f"{diff.weeks} Week{'s' if diff.weeks != 1 else ''}")
-    if diff.days:
-        s.append(f"{diff.days} Day{'s' if diff.days != 1 else ''}")
-    if diff.minutes:
-        s.append(f"{diff.minutes} Minute{'s' if diff.minutes != 1 else ''}")
-    return ', '.join(s)
+    message = []
+    if diff.years and years:
+        message.append(f"{diff.years:,} Year{s(diff.years)}")
+    if diff.months and months:
+        message.append(f"{diff.months:,} Month{s(diff.months)}")
+    if diff.weeks and weeks:
+        message.append(f"{diff.weeks:,} Week{s(diff.weeks)}")
+    if diff.days and days:
+        message.append(f"{diff.days:,} Day{s(diff.days)}")
+    if diff.hours and hours:
+        message.append(f"{diff.hours:,} Hour{s(diff.hours)}")
+    if diff.minutes and minutes:
+        message.append(f"{diff.minutes:,} Minute{s(diff.minutes)}")
+    if diff.seconds and seconds:
+        message.append(f"{diff.seconds:,} Second{s(diff.seconds)}")
+    return inflector.join(message)
 
 
 def dec_addi(x, y):
@@ -127,6 +146,60 @@ def dec_pow(x, y):
     return decimal.Decimal(x) ** decimal.Decimal(y)
 
 
+def exception_message(
+        exc_type=None, exc_value=None, exc_traceback=None,
+        header: str = '', log_handler=logger) -> str:
+    """Create a message out of the last exception handled by try/except.
+
+    Args:
+        header (Optional[str]): The header to place above the message.
+        log_handler (Optional): The logger to run the exception() method on.
+
+    Returns:
+        str: The string containing the exception message.
+
+    """
+    if exc_type is None and exc_value is None and exc_traceback is None:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+    elif exc_type is None or exc_value is None or exc_traceback is None:
+        raise ValueError('An exception type/value/traceback was passed '
+                         'but is missing the other values')
+
+    # Header message with padded border
+    msg = ''
+    if header:
+        msg = '{:=^{length}}\n'.format(
+            header, length=len(header) * 2 + len(header) % 2)
+
+    if log_handler is not None:
+        # Log the exception; doesn't require creating a message
+        log_handler.exception(msg)
+
+    # Create the message to return, containing the traceback and exception
+    for frame in traceback.extract_tb(exc_traceback):
+        if frame.name == '<module>':
+            # Bottom of the stack; stop here
+            break
+
+        msg += f'Frame {frame.name!r}\n'
+        # Show only the path starting from project using instead of
+        # just the full path inside frame.filename
+        project_path = pathlib.Path().resolve()
+        trace_path = pathlib.Path(frame.filename)
+        try:
+            filename = trace_path.relative_to(project_path)
+        except ValueError:
+            # Trace must be outside of project; use that then
+            filename = trace_path
+
+        msg += f'Within file "{filename}"\n'
+        msg += f'at line number {frame.lineno}:\n'
+        msg += f'   {frame.line}\n'
+    msg += f'\n{exc_type.__name__}: {exc_value}'
+
+    return msg
+
+
 def gcd(a, b='high'):
     """Calculate the Greatest Common Divisor of a and b.
 
@@ -151,11 +224,13 @@ def gcd(a, b='high'):
     return a
 
 
-def get_user_color(user, default_color=0xFF8002):
+def get_user_color(
+        user, default_color=None):
     "Return a user's role color if they are in a guild, else default_color."
     return (
         user.color if isinstance(user, discord.Member)
-        else default_color
+        else default_color if default_color is not None
+        else int(settings.get_setting('bot_color'), 16)
     )
 
 
@@ -322,7 +397,7 @@ def truncate_message(
 # Decorators
 def print_error(func):
     """Decorate error handlers to print the error to console
-before running the handler function."""
+    before running the handler function."""
     async def wrapper(*args, **kwargs):
         logger.exception(f'In {func.__name__}, this error was raised:')
         mode = settings.get_setting('print_error_mode')

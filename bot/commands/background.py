@@ -12,9 +12,9 @@ from bot import utils
 
 # Since the settings file is used as an argument to decorators which are
 # evaluated at runtime, the file must be set up
-class BackgroundTasks(commands.Cog):
-    qualified_name = 'Threads'
-    description = 'Background tasks.'
+class Tasks(commands.Cog):
+    qualified_name = 'Tasks'
+    description = 'Commands for controlling background tasks.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -31,8 +31,8 @@ class BackgroundTasks(commands.Cog):
     def timestamp():
         """Show the current time."""
         return time.strftime(
-            'Timestamp: %c UTC',
-            time.gmtime()
+            'Timestamp: %c',
+            time.localtime()
         )
 
 
@@ -85,6 +85,8 @@ class BackgroundTasks(commands.Cog):
                 message.append(f'streaming {title} to {url}')
             elif activity == 'watching':
                 message.append(f'watching {title}')
+            elif activity == 'competing':
+                message.append(f'competing in {title}')
 
             if status == discord.Status.online:
                 message.append(', status: online')
@@ -108,15 +110,16 @@ class BackgroundTasks(commands.Cog):
                 return
 
             # Parse status, otherwise use online/randomly pick one
-            if 'status' in pres:
-                pres['status'] = utils.parse_status(pres['status'])
+            status = pres.get('status')
+            if status is not None:
+                status = utils.parse_status(status)
             elif random.randint(1, 100) <= settings.get_setting(
                     'bgtask_RandomPresenceRandomStatusChance'):
-                pres['status'] = random.choice(
+                status = random.choice(
                     (discord.Status.idle, discord.Status.dnd)
                 )
             else:
-                pres['status'] = discord.Status.online
+                status = discord.Status.online
 
             # Parse activity
             activity = pres.get('activity')
@@ -127,18 +130,21 @@ class BackgroundTasks(commands.Cog):
                 activity = discord.Game(name=pres['title'])
             elif activity == 'streaming':
                 if 'url' not in pres:
-                    pres['url'] = settings.get_setting('default_StreamingURL')
+                    url = settings.get_setting('default_StreamingURL')
                 activity = discord.Streaming(
-                    name=pres['title'], url=pres['url'])
+                    name=pres['title'], url=url)
             elif activity == 'watching':
                 activity = discord.Activity(
                     name=pres['title'], type=discord.ActivityType.watching)
+            elif activity == 'competing':
+                activity = discord.Activity(
+                    name=pres['title'], type=discord.ActivityType.competing)
 
             # Change presence
             print(self.timestamp())
             print_presence(pres)
             await self.bot.change_presence(
-                activity=activity, status=pres['status'])
+                activity=activity, status=status)
 
             # Sleep
             min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
@@ -160,8 +166,8 @@ class BackgroundTasks(commands.Cog):
             try:
                 self.random_presence.start()
             except RuntimeError:
-                await ctx.send('The task is already running.')
-                return
+                return await ctx.send('The task is already running.')
+
             min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
             max_delay = settings.get_setting('bgtask_RandomPresenceMaxDelay')
             print('Enabled random presence')
@@ -175,7 +181,7 @@ class BackgroundTasks(commands.Cog):
         else:
             self.random_presence.cancel()
             print('Disabled random presence')
-            await ctx.send('Turning off random presence changes.')
+            await ctx.send('Turned off random presence changes.')
 
 
 
@@ -187,4 +193,4 @@ class BackgroundTasks(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(BackgroundTasks(bot))
+    bot.add_cog(Tasks(bot))

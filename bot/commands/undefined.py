@@ -22,7 +22,7 @@ with open('data/wordlist.txt') as f:
     WORDLIST = set(f.read().split())
 
 
-class NoCategory(commands.Cog):
+class Undefined(commands.Cog):
     qualified_name = 'Undefined'
     description = 'Uncategorized commands.'
 
@@ -33,31 +33,13 @@ class NoCategory(commands.Cog):
 
 
 
-
     @commands.command(
-        name='getlastmessage')
-    async def client_getlastmessage(self, ctx, ID):
-        """Get the last message of a text channel.
-
-This command was written as an answer to:
-https://stackoverflow.com/q/64080277/"""
-        channel = self.bot.get_channel(int(ID))
-        if channel is None:
-            await ctx.send('Could not find that channel.')
-            return
-        elif not isinstance(channel, discord.TextChannel):
-            # NOTE: get_channel can return a TextChannel, VoiceChannel,
-            # or CategoryChannel
-            await ctx.send('The channel must be a text channel.')
-
-        message = await channel.fetch_message(
-            channel.last_message_id)
-        # NOTE: channel.last_message_id could return None; needs a check
-
-        await ctx.send(
-            f'Last message in {channel.name} sent by {message.author.name}:\n'
-            + message.content
-        )
+        name='dmtest')
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    async def client_dmtest(self, ctx):
+        await ctx.author.send(
+            'This command is designated for administrative validative \
+analysis via manual connection deriving out of the primary specialist.')
 
 
 
@@ -67,6 +49,7 @@ https://stackoverflow.com/q/64080277/"""
     @commands.command(
         name='echo',
         aliases=('say',))
+    @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_echo(self, ctx, *, content):
         """Repeats what you say."""
         await ctx.send(discord.utils.escape_mentions(content))
@@ -79,14 +62,45 @@ https://stackoverflow.com/q/64080277/"""
         name='detectenglish',
         brief='Detects if a word is probably english.',
         aliases=('isenglish', 'english'))
+    @commands.cooldown(3, 10, commands.BucketType.user)
     async def client_english(self, ctx, word: str):
         """Goes through a list of words and checks if the given word is in it.
 
 List of words comes from dwyl/english-words github."""
-        if word.casefold() in WORDLIST:
+        if word.lower() in WORDLIST:
             await ctx.send(f'{word} is a word.')
-            return
-        await ctx.send(f'{word} is not a word.')
+        else:
+            await ctx.send(f'{word} is not a word.')
+
+
+
+
+
+
+    @commands.command(
+        name='getlastmessage')
+    @commands.cooldown(3, 10, commands.BucketType.user)
+    async def client_getlastmessage(self, ctx, ID):
+        """Get the last message of a text channel.
+
+This command was written as an answer to:
+https://stackoverflow.com/q/64080277/"""
+        channel = self.bot.get_channel(int(ID))
+        if channel is None:
+            return await ctx.send('Could not find that channel.')
+        elif not isinstance(channel, discord.TextChannel):
+            # NOTE: get_channel can return a TextChannel, VoiceChannel,
+            # or CategoryChannel
+            return await ctx.send('The channel must be a text channel.')
+
+        message = await channel.fetch_message(
+            channel.last_message_id)
+        # NOTE: channel.last_message_id could return None; needs a check
+
+        await ctx.send(
+            f'Last message in {channel.name} sent by {message.author.name}:\n'
+            + message.clean_content
+        )
 
 
 
@@ -96,6 +110,7 @@ List of words comes from dwyl/english-words github."""
     @commands.command(
         name='goodday',
         aliases=('gooday', 'gday'))
+    @commands.cooldown(1, 30, commands.BucketType.channel)
     async def client_goodday(self, ctx):
         """Prints the time, date, and a good day message."""
         await ctx.channel.trigger_typing()
@@ -151,10 +166,22 @@ List of words comes from dwyl/english-words github."""
 
 
 
+    @commands.command(
+        name='test')
+    @commands.cooldown(2, 30, commands.BucketType.user)
+    async def client_test(self, ctx):
+        await ctx.send(
+            'This command is designated for administrative validative \
+analysis via manual connection deriving out of the primary specialist.')
+
+
+
+
+
 
 
 
 
 
 def setup(bot):
-    bot.add_cog(NoCategory(bot))
+    bot.add_cog(Undefined(bot))

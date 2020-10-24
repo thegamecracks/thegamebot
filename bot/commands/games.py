@@ -19,6 +19,7 @@ class Games(commands.Cog):
 
 
     @commands.command(name='testpages')
+    @commands.cooldown(2, 30, commands.BucketType.channel)
     async def client_testpages(self, ctx):
         "Create a simple paginator."
         embeds = [
@@ -39,6 +40,7 @@ class Games(commands.Cog):
 
 
     @commands.command(name='multimath')
+    @commands.cooldown(1, 30, commands.BucketType.channel)
     async def client_multimath(
             self, ctx,
             allow_others: bool = False,
