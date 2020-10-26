@@ -26,13 +26,14 @@ class Informative(commands.Cog):
 
     @commands.command(
         name='ping')
-    @commands.cooldown(1, 15, commands.BucketType.user)
+    @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_ping(self, ctx):
         """Get the bot's latency."""
         start = time.perf_counter()
         message = await ctx.send('pong!')
-        latency_ms = round(time.perf_counter() - start, 5) * 100
-        await message.edit(content=f'pong! {latency_ms}ms')
+        latency = time.perf_counter() - start
+        latency_ms = round(latency * 100000) / 1000
+        await message.edit(content=f'pong! {latency_ms:g}ms')
 
 
 

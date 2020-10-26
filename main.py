@@ -16,6 +16,7 @@ cogs = [
     'bot.commands.ciphers',
     'bot.commands.embedding',
     'bot.commands.games',
+    'bot.commands.images',
     'bot.commands.info',
     'bot.commands.notes',
     'bot.commands.prefix',
@@ -31,7 +32,7 @@ def main():
     database.setup()
 
     # Set up client
-    TOKEN = os.environ['PyDiscordBotToken']
+    TOKEN = os.getenv('PyDiscordBotToken')
 
     logger = discordlogger.get_logger()
 

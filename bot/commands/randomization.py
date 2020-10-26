@@ -60,8 +60,11 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         def flip(sides=('Heads', 'Tails')):
             return random.choice(sides)
 
+        skip_delay = False
+
         if n <= 0:
             result = 'Cannot flip less than zero coins.'
+            skip_delay = True
         elif n == 1:
             result = f'Flipped __{flip()}__.'
         elif n <= 20:
@@ -75,10 +78,12 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
             result = '\n'.join(result)
         else:
             result = 'Cannot flip over 20 coins.'
+            skip_delay = True
 
-        async with ctx.channel.typing():
+        if not skip_delay:
+            await ctx.trigger_typing()
             await asyncio.sleep(1.5)
-            await ctx.send(result)
+        await ctx.send(result)
 
 
 
@@ -116,12 +121,17 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
             # "amount/" syntax
             amount, sides = int(dice), 6
 
+        skip_delay = False
+
         if amount <= 0:
             result = 'Cannot roll less than zero dice.'
+            skip_delay = True
         elif sides <= 0:
             result = 'Cannot roll with less than zero sides.'
+            skip_delay = True
         elif sides > 20:
             result = 'Cannot roll with over 20 sides.'
+            skip_delay = True
         elif amount == 1:
             result = f'Rolled a __{roll()}__.'
         elif amount <= 20:
@@ -138,10 +148,12 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
                 result = f'Rolled a total of __{dice}__.'
         else:
             result = 'Cannot roll over 20 dice.'
+            skip_delay = True
 
-        async with ctx.channel.typing():
+        if not skip_delay:
+            await ctx.trigger_typing()
             await asyncio.sleep(1.5)
-            await ctx.send(result)
+        await ctx.send(result)
 
 
 
