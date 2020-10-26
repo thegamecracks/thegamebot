@@ -1,4 +1,5 @@
 import datetime
+import time
 
 import discord
 from discord.ext import commands
@@ -19,6 +20,19 @@ class Informative(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+
+
+
+
+    @commands.command(
+        name='ping')
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def client_ping(self, ctx):
+        """Get the bot's latency."""
+        start = time.perf_counter()
+        message = await ctx.send('pong!')
+        latency_ms = round(time.perf_counter() - start, 5) * 100
+        await message.edit(content=f'pong! {latency_ms}ms')
 
 
 
@@ -89,7 +103,6 @@ Format referenced from the Ayana bot."""
         )
 
         await ctx.send(embed=embed)
-
 
 
 

@@ -223,6 +223,8 @@ async def on_command_error(ctx, error):
         # NOTE: This is a superclass of several other errors
         await ctx.send('Failed to parse your parameters.\n'
                        f'Usage: `{get_command_signature()}`')
+    else:
+        raise error
 
 
 def setup(bot):
