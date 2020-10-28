@@ -47,9 +47,8 @@ class Games(commands.Cog):
             members: commands.Greedy[discord.User] = None):
         """Answer simple multiple-choice math expressions.
 
-allow_others: If yes, you can specify which other members are allowed
-to play, either by mention or name. Otherwise, only you can play.
-members: If you allowed others, you can specify which members can play.
+allow_others: If yes, you can specify which other members are allowed to play, either by mention or name. Otherwise, only you can play.
+members: If allowed_others is yes, you can specify which members can play.
 If no members are specified, everyone can play."""
         if not allow_others:
             users = None

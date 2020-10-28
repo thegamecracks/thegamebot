@@ -101,9 +101,9 @@ def parse_reminder(s, utcnow=None):
             pass
         else:
             unit = next_token()
-            if unit in ('sec', 'second', 'seconds'):
+            if unit in ('s', 'sec', 'second', 'seconds'):
                 unit = 'seconds'
-            elif unit in ('min', 'minute', 'minutes'):
+            elif unit in ('m', 'min', 'minute', 'minutes'):
                 unit = 'minutes'
             elif unit in ('h', 'hr', 'hrs', 'hour', 'hours'):
                 unit = 'hours'
