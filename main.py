@@ -1,8 +1,9 @@
 import asyncio
 import os
 
-from discord.ext import commands
 import discord
+from discord.ext import commands
+
 from bot import database
 from bot import eventhandlers
 from bot.commands import helpcommand

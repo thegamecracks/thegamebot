@@ -1,3 +1,7 @@
+"""
+The "execute" command is in part from RoboDanny which is released under MPL-2.0.
+See https://www.mozilla.org/en-US/MPL/2.0/ for full license details.
+"""
 import contextlib
 import io
 import random
