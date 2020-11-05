@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 
@@ -29,6 +30,14 @@ cogs = [
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-M', '--members', action='store_true',
+                        help='Enable privileged members intent.')
+    parser.add_argument('-P', '--presences', action='store_true',
+                        help='Enable privileged presencesintent.')
+
+    args = parser.parse_args()
+
     # Set up databases
     database.setup()
 
@@ -40,8 +49,8 @@ def main():
     settings.setup()
 
     intents = discord.Intents.default()
-    intents.presences = False
-    intents.members = True
+    intents.members = args.members
+    intents.presences = args.presences
 
     bot = commands.Bot(
         command_prefix=database.get_prefix(),
@@ -58,6 +67,7 @@ def main():
     bot_args = [TOKEN]
     bot_kwargs = dict()
 
+    print('Starting bot')
     try:
         loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
     except Exception as e:

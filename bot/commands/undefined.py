@@ -178,6 +178,16 @@ analysis via manual connection deriving out of the primary specialist.')
 
 
 
+    @commands.command(name='utctime', aliases=['utc'])
+    @commands.cooldown(3, 15, commands.BucketType.user)
+    async def client_timeutc(self, ctx):
+        """Get the current date and time in UTC."""
+        await ctx.send(time.asctime(time.gmtime()) + ' (UTC)')
+
+
+
+
+
 
 
 

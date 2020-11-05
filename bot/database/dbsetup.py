@@ -42,6 +42,7 @@ def get_prefix():
         guild_id = guild.id
         await db.add_prefix(guild_id, add_guild=True)
         row = await db.get_prefix(guild_id)
+        # TODO: add prefix caching to PrefixDatabase
 
         if row is not None:
             return commands.when_mentioned_or(row['prefix'])(bot, message)

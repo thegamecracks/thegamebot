@@ -309,5 +309,7 @@ class HelpCommand(commands.HelpCommand):
             color=get_bot_color(),
             description=description
         )
+        if command.cog is not None:
+            embed.set_author(name=f'In {command.cog.qualified_name} category')
 
         await channel.send(embed=embed)

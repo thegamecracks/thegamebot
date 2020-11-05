@@ -64,7 +64,7 @@ Source: https://morsecode.world/international/morse.html
 "_" : ..--.-
 "'" : .----.
 '"' : .-..-.
-"\\n" : .-.-
+<new line> : .-.-
 "<AA>": .-.-        New line ("\\n")
 "<AR>": .-.-.       End of message ("+")
 "<AS>": .-...       Wait ("&")
@@ -531,12 +531,12 @@ Other characters will be passed through."""
 
     @commands.command(
         name='morsecodetable',
-        brief='An interational morse code table.',
+        brief='The interational morse code table.',
         aliases=('mcodetable', 'mct', 'morsetable'))
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def client_morsecodetable(self, ctx):
-        """Displays a table for interational morse code."""
-        await ctx.send('```' + MORSECODE_DICTIONARY_STRING + '```')
+        """DMs the interational morse code table."""
+        await ctx.author.send('```' + MORSECODE_DICTIONARY_STRING + '```')
 
 
 

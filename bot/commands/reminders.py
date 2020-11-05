@@ -375,6 +375,10 @@ To remove only one reminder, use the removereminder command."""
             return await self.send_with_disclaimer(
                 ctx, "You don't have any reminders.")
 
+        if start < 1:
+            return await self.send_with_disclaimer(
+                ctx, 'Index must be 1 or greater.')
+
         try:
             reminder = reminder_list[index - 1]
         except IndexError:

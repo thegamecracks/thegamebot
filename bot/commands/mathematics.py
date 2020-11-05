@@ -169,7 +169,7 @@ Example expression: (1+3) ** -2 - 7 // 9e2
 To reveal the evaluation of your expression, add --debug to your expression."""
         debugging = '--debug' in expr
         if debugging:
-            expr = expr.replace('--debug', '')
+            expr = expr.replace('--debug', '').strip()
 
         msg = []
         with ctx.channel.typing():
@@ -494,7 +494,7 @@ Temperature conversions:
         converted_unit = parsed_unit.to(unit)
 
         # Round quantity to 3 digits or as integer
-        quantity = decimal.Decimal(f'{converted_unit.magnitude:.3f}')
+        quantity = Decimal(f'{converted_unit.magnitude:.3f}')
 
         await ctx.send('{quantity}{unit:~} ({unit})'.format(
             quantity=quantity,

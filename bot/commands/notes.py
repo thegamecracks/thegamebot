@@ -177,6 +177,9 @@ To remove only one note, use the removenote command."""
         if len(note_list) == 0:
             return await ctx.send("You don't have any notes.")
 
+        if index < 1:
+            return await ctx.send('Index must be 1 or greater.')
+
         try:
             note = note_list[index - 1]
         except IndexError:
