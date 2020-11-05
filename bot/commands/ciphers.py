@@ -441,9 +441,9 @@ key: The one time key to use."""
                                 MORSECODE_PROSIGNS_INVERTED.get(c, c)
                             )
                     s[i] = ''.join(decode)
-            return ' '.join(s)
+            return ' '.join(s).upper()
         else:
-            s = s.split(' ')
+            s = s.lower().split(' ')
             for i, word in enumerate(s):
                 prosign = MORSECODE_PROSIGNS.get(word)
                 if prosign is None:

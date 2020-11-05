@@ -374,7 +374,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 pass
             try:
                 self.bot.load_extension(ext)
-            except commands.errors.ExtensionNotFound:
+            except (ModuleNotFoundError, commands.errors.ExtensionNotFound):
                 return 'Could not find the extension.'
             except commands.errors.NoEntryPointError:
                 return 'This extension is missing a setup.'

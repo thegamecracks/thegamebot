@@ -375,7 +375,7 @@ To remove only one reminder, use the removereminder command."""
             return await self.send_with_disclaimer(
                 ctx, "You don't have any reminders.")
 
-        if start < 1:
+        if index < 1:
             return await self.send_with_disclaimer(
                 ctx, 'Index must be 1 or greater.')
 
@@ -528,9 +528,9 @@ To remove only one reminder, use the removereminder command."""
             return
 
         if seconds == 0:
-            title = f'Late reminder for {utcwhen.strftime("%c")}'
+            title = f'Late reminder for {utcwhen.strftime("%c UTC")}'
         else:
-            title = f'Reminder for {utcwhen.strftime("%c")}'
+            title = f'Reminder for {utcwhen.strftime("%c UTC")}'
         embed = discord.Embed(
             title=title,
             description=content,
