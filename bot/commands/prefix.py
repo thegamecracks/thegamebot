@@ -10,7 +10,7 @@ def bot_owner_or_has_guild_permissions(**perms):
     async def extended_check(ctx):
         if ctx.guild is None:
             return False
-        return ctx.bot.is_owner(ctx.author) or await original(ctx)
+        return await original(ctx) or await ctx.bot.is_owner(ctx.author)
     return commands.check(extended_check)
 
 

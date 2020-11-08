@@ -28,13 +28,18 @@ cogs = [
     'bot.commands.undefined',
 ]
 
+disabled_intents = [
+    'bans', 'integrations', 'webhooks', 'invites',
+    'voice_states', 'typing'
+]
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-M', '--members', action='store_true',
                         help='Enable privileged members intent.')
     parser.add_argument('-P', '--presences', action='store_true',
-                        help='Enable privileged presencesintent.')
+                        help='Enable privileged presences intent.')
 
     args = parser.parse_args()
 
@@ -51,6 +56,9 @@ def main():
     intents = discord.Intents.default()
     intents.members = args.members
     intents.presences = args.presences
+
+    for attr in disabled_intents:
+        setattr(intents, attr, False)
 
     bot = commands.Bot(
         command_prefix=database.get_prefix(),
