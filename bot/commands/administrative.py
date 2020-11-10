@@ -7,6 +7,7 @@ import io
 import random
 import textwrap
 import time
+import typing
 
 import discord
 from discord.ext import commands
@@ -91,14 +92,14 @@ Will reset cooldowns for all subcommands in a group."""
         """
         # remove ```py\n``` or ```py```
         if content.startswith('```') and content.endswith('```'):
-            # return '\n'.join(content.split('\n')[1:-1])
-            return content.lstrip('```py').rstrip('```').strip()
+            return content.lstrip('```py').strip('```').strip()
         return content
 
 
     @commands.command(name='execute')
     @checks.is_bot_owner()
-    async def client_execute(self, ctx, sendIOtoDM: bool, *, x: str):
+    async def client_execute(
+            self, ctx, sendIOtoDM: typing.Optional[bool] = False, *, x: str):
         """Run python code in an async condition.
 
 Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""

@@ -43,20 +43,35 @@ class Games(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.channel)
     async def client_multimath(
             self, ctx,
-            allow_others: bool = False,
+            players='only me',
             members: commands.Greedy[discord.User] = None):
         """Answer simple multiple-choice math expressions.
 
-allow_others: If yes, you can specify which other members are allowed to play, either by mention or name. Otherwise, only you can play.
-members: If allowed_others is yes, you can specify which members can play.
-If no members are specified, everyone can play."""
-        if not allow_others:
-            users = None
-        elif members is None:
-            users = True
+If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
+> multimath allow Alice#1234 Bob
+If no members are specified after "allow", anyone can play:
+> multimath allow
+Otherwise, only you can play:
+> multimath"""
+        if 'allow' in players.lower():
+            if members:
+                # Player whitelist
+                users = members
+                users.append(ctx.author)
+            else:
+                # All players
+                users = True
         else:
-            users = members
-            users.append(ctx.author)
+            if members:
+                # Argument error
+                ctx.command.reset_cooldown(ctx)
+                return await ctx.send(
+                    'You cannot specify which members can play if you do '
+                    'not allow others. See the help message for more info.'
+                )
+            else:
+                # Solo
+                users = None
 
         game = multimath.BotMultimathGame(ctx)
 

@@ -1,4 +1,4 @@
-from decimal import Decimal
+import decimal
 import io
 import math
 import string
@@ -16,8 +16,8 @@ FILE_FIBONACCI = 'data/fibonacci.txt'
 PINT_UREG = pint.UnitRegistry()
 Q_ = PINT_UREG.Quantity
 
-to_hex = lambda x: Decimal(int(x, 16))
-dec_or_hex = Union[Decimal, to_hex]
+to_hex = lambda x: decimal.Decimal(int(x, 16))
+dec_or_hex = Union[decimal.Decimal, to_hex]
 
 
 class Mathematics(commands.Cog):
@@ -204,12 +204,12 @@ To reveal the evaluation of your expression, add --debug to your expression."""
             await ctx.send(f'Undefined Syntax Error occurred: {error}')
         elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
-        elif isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
         elif isinstance(error, ValueError):
             await ctx.send(str(error))
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
+        elif isinstance(error, decimal.Overflow):
+            await ctx.send('Could not calculate due to overflow.')
 
 
 
@@ -494,7 +494,7 @@ Temperature conversions:
         converted_unit = parsed_unit.to(unit)
 
         # Round quantity to 3 digits or as integer
-        quantity = Decimal(f'{converted_unit.magnitude:.3f}')
+        quantity = decimal.Decimal(f'{converted_unit.magnitude:.3f}')
 
         await ctx.send('{quantity}{unit:~} ({unit})'.format(
             quantity=quantity,
