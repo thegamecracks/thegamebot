@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import datetime
 import os
 
 import discord
@@ -76,6 +77,7 @@ def main():
     bot_kwargs = dict()
 
     print('Starting bot')
+    bot.uptime_last_connect = datetime.datetime.now().astimezone()
     try:
         loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
     except Exception as e:

@@ -198,9 +198,7 @@ class Reminders(commands.Cog):
 
     async def send_with_disclaimer(
             self, messageable, content=None, *args, **kwargs):
-        if content is None:
-            content = ''
-        if not self.bot.intents.members:
+        if content is not None and not self.bot.intents.members:
             content += ('\nNote: the bot currently cannot send '
                         'reminders at this time.')
 
@@ -393,9 +391,11 @@ To remove only one reminder, use the removereminder command."""
                 timestamp=utcdue
             ).add_field(
                 name='Due in',
-                value=utils.datetime_difference_string(
-                    utcdue,
-                    datetime.datetime.utcnow()
+                value=utils.timedelta_string(
+                    utils.datetime_difference(
+                        utcdue,
+                        datetime.datetime.utcnow()
+                    )
                 )
             ).set_footer(text='Due date')
             await self.send_with_disclaimer(ctx, embed=embed)

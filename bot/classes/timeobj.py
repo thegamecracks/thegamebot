@@ -18,28 +18,28 @@ class Time:
 
     def __add__(self, other):
         if isinstance(other, self.__class__):
-            return self.__class__.from_hour_and_minute(
-                (self.hour + other.hour) % 24,
-                (self.minute + other.minute) % 60
-            )
+            h = self.hour + other.hour
+            m = self.minute + other.minute
+            total_minutes = (h*60 + m) % 1440
+            return self.__class__(total_minutes)
         elif isinstance(other, (datetime.datetime, datetime.time)):
-            return self.__class__.from_hour_and_minute(
-                (self.hour + other.hour) % 24,
-                (self.minute + other.minute + round(other.second / 60)) % 60
-            )
+            h = self.hour + other.hour
+            m = self.minute + (other.minute + round(other.second / 60))
+            total_minutes = (h*60 + m) % 1440
+            return self.__class__(total_minutes)
         raise NotImplemented
 
     def __sub__(self, other):
         if isinstance(other, self.__class__):
-            return self.__class__.from_hour_and_minute(
-                (self.hour - other.hour) % 24,
-                (self.minute - other.minute) % 60
-            )
+            h = self.hour - other.hour
+            m = self.minute - other.minute
+            total_minutes = (h*60 + m) % 1440
+            return self.__class__(total_minutes)
         elif isinstance(other, (datetime.datetime, datetime.time)):
-            return self.__class__.from_hour_and_minute(
-                (self.hour - other.hour) % 24,
-                (self.minute - other.minute + round(other.second / 60)) % 60
-            )
+            h = self.hour - other.hour
+            m = self.minute - (other.minute + round(other.second / 60))
+            total_minutes = (h*60 + m) % 1440
+            return self.__class__(total_minutes)
         raise NotImplemented
 
     def __eq__(self, other):
@@ -201,3 +201,17 @@ class Time:
             minute = m
 
         return cls.from_hour_and_minute(hour, minute)
+
+
+if __name__ == '__main__':
+    # Calculate difference and sum from utcnow to a given Time
+    now = datetime.datetime.utcnow().replace(second=0)
+    print('Now:', now)
+    while True:
+        s = input('Time: ')
+        when = Time.from_string(s)
+        print('When:', when.as_string())
+        diff = when - now
+        sum_ = when + now
+        print('Diff:', diff.as_string())
+        print('Sum: ', sum_.as_string())

@@ -4,6 +4,7 @@ import time
 import discord
 from discord.ext import commands
 
+from bot import settings
 from bot import utils
 
 
@@ -19,6 +20,14 @@ class Informative(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+
+
+
+
+
+    @commands.Cog.listener()
+    async def on_resumed(self):
+        self.bot.uptime_last_connect = datetime.datetime.now().astimezone()
 
 
 
@@ -49,9 +58,11 @@ Format referenced from the Ayana bot."""
         guild = ctx.author.guild
 
         created = (
-            utils.datetime_difference_string(
-                datetime.datetime.utcnow(),
-                guild.created_at,
+            utils.timedelta_string(
+                utils.datetime_difference(
+                    datetime.datetime.utcnow(),
+                    guild.created_at
+                ),
                 **self.DATETIME_DIFFERENCE_PRECISION
             ),
             guild.created_at.strftime('%Y/%m/%d %a %X %zUTC')
@@ -110,6 +121,27 @@ Format referenced from the Ayana bot."""
 
 
     @commands.command(
+        name='uptime')
+    @commands.cooldown(2, 20, commands.BucketType.user)
+    async def client_uptime(self, ctx):
+        """Get the uptime of the bot."""
+        diff_string = utils.timedelta_string(
+            utils.datetime_difference(
+                datetime.datetime.now().astimezone(),
+                self.bot.uptime_last_connect
+            )
+        )
+        await ctx.send(embed=discord.Embed(
+            title='Uptime',
+            description=diff_string,
+            color=int(settings.get_setting('bot_color'), 16)
+        ))
+
+
+
+
+
+    @commands.command(
         name='userinfo')
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_userinfo(self, ctx, user=None):
@@ -155,10 +187,12 @@ Format referenced from the Ayana bot."""
             # None for activity
             guild = user.guild
             joined = (
-                utils.datetime_difference_string(
-                    datetime.datetime.utcnow(),
-                    user.joined_at,
-                **self.DATETIME_DIFFERENCE_PRECISION
+                utils.timedelta_string(
+                    utils.datetime_difference(
+                        datetime.datetime.utcnow(),
+                        user.created_at
+                    ),
+                    **self.DATETIME_DIFFERENCE_PRECISION
                 ),
                 user.joined_at.strftime('%Y/%m/%d %a %X %zUTC')
             )
@@ -189,9 +223,11 @@ Format referenced from the Ayana bot."""
             status = None
         author = f'{user} (Bot)' if user.bot else f'{user}'
         created = (
-            utils.datetime_difference_string(
-                datetime.datetime.utcnow(),
-                user.created_at,
+            utils.timedelta_string(
+                utils.datetime_difference(
+                    datetime.datetime.utcnow(),
+                    user.created_at
+                ),
                 **self.DATETIME_DIFFERENCE_PRECISION
             ),
             user.created_at.strftime('%Y/%m/%d %a %X %zUTC')

@@ -85,11 +85,11 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def datetime_difference_string(
-        current, prior,
+def timedelta_string(
+        diff,
         years=True, months=True, weeks=True, days=True,
         hours=True, minutes=True, seconds=True):
-    """Return the difference from prior to current as a string.
+    """Return a string representation of a timedelta.
 
     Can show years, months, weeks, day, hours, and minutes.
 
@@ -97,7 +97,6 @@ def datetime_difference_string(
     def s(n):
         return 's' if n != 1 else ''
 
-    diff = datetime_difference(current, prior)
     message = []
     if diff.years and years:
         message.append(f"{diff.years:,} Year{s(diff.years)}")
