@@ -13,15 +13,15 @@ class DatabaseConnection:
             # await conn.execute statements here
 
     """
-    __slots__ = ['path', 'blocking', 'timeout', 'conn']
+    __slots__ = ['path', 'conn', 'lock']
 
-    def __init__(self, path, blocking=True, timeout=-1):
+    def __init__(self, path):
         self.path = path
-        self.blocking = blocking
-        self.timeout = timeout
         self.conn = None
+        self.lock = asyncio.Lock()
 
     async def __aenter__(self):
+        await self.lock.acquire()
         self.conn = aiosqlite.connect(self.path)
         # Enter the context manager for conn
         await self.conn.__aenter__()
@@ -33,6 +33,7 @@ class DatabaseConnection:
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
         await self.conn.__aexit__(exc_type, exc_value, exc_traceback)
         self.conn = None
+        self.lock.release()
 
     def __repr__(self):
         return '{}({!r}, blocking={!r}, timeout={!r})'.format(

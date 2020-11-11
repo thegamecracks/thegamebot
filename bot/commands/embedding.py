@@ -160,15 +160,7 @@ These are the limits set by Discord:
 
 These commands only work in servers."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
-        # Reset cooldown as its limited to 1 command every 10 seconds
         ctx.command.reset_cooldown(ctx)
-
-
-    @client_hyperlink.error
-    async def client_hyperlink_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, commands.NoPrivateMessage):
-            await ctx.send('This command only works in servers.')
 
 
     @client_hyperlink.command(name='procedure')
