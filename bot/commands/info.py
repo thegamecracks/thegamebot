@@ -25,9 +25,25 @@ class Informative(commands.Cog):
 
 
 
+    def update_last_connect(self):
+        if not self.bot.uptime_is_online:
+            self.bot.uptime_last_connect = datetime.datetime.now().astimezone()
+            self.bot.uptime_is_online = True
+
+
+    @commands.Cog.listener()
+    async def on_disconnect(self):
+        self.bot.uptime_is_online = False
+
+
+    @commands.Cog.listener()
+    async def on_connect(self):
+        self.update_last_connect()
+
+
     @commands.Cog.listener()
     async def on_resumed(self):
-        self.bot.uptime_last_connect = datetime.datetime.now().astimezone()
+        self.update_last_connect()
 
 
 

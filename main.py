@@ -49,15 +49,12 @@ def main():
 
     # Set up client
     TOKEN = os.getenv('PyDiscordBotToken')
-
     logger = discordlogger.get_logger()
-
     settings.setup()
 
     intents = discord.Intents.default()
     intents.members = args.members
     intents.presences = args.presences
-
     for attr in disabled_intents:
         setattr(intents, attr, False)
 
@@ -69,15 +66,19 @@ def main():
 
     eventhandlers.setup(bot)
 
+    # Add botvars
+    bot.uptime_last_connect = datetime.datetime.now().astimezone()
+    bot.uptime_is_online = False
+
+    # Load extensions
     for name in cogs:
         bot.load_extension(name)
 
+    # Start the bot
     loop = asyncio.get_event_loop()
     bot_args = [TOKEN]
     bot_kwargs = dict()
-
     print('Starting bot')
-    bot.uptime_last_connect = datetime.datetime.now().astimezone()
     try:
         loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
     except Exception as e:
