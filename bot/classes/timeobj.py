@@ -1,5 +1,18 @@
 import datetime
 
+DAYS = {
+    k: value
+    for days, value in (
+        (('mon', 'monday'), 0),
+        (('tue', 'tuesday'), 1),
+        (('wed', 'wednesday'), 2),
+        (('thu', 'thur', 'thursday'), 3),
+        (('fri', 'friday'), 4),
+        (('sat', 'saturday'), 5),
+        (('sun', 'sunday'), 6)
+    ) for k in days
+}
+
 
 class Time:
     """A time object that stores minutes.
@@ -201,6 +214,99 @@ class Time:
             minute = m
 
         return cls.from_hour_and_minute(hour, minute)
+
+
+def parse_timedelta(s, utcnow=None):
+    """
+    Examples:
+        at 10pm [x] (x can be any message)
+        in 10 sec/min/h/days [x]
+        on wednesday [x]
+
+    Args:
+        s (str): The string to parse.
+        utcnow (Optional[datetime.datetime]): A naive datetime representing
+            what time it currently is in UTC. If None, defaults to
+            datetime.datetime.utcnow(). This argument is only needed when
+            a time is given in the format of 
+
+    Returns:
+        Tuple[datetime.timedelta, str]
+    """
+    def next_token():
+        nonlocal s
+
+        if s is None:
+            return ''
+
+        parts = s.split(None, 1)
+
+        length = len(parts)
+        if length == 2:
+            token, s = parts[0], parts[1]
+        elif length == 1:
+            token, s = parts[0], ''
+
+        return token.lower()
+
+    if utcnow is None:
+        utcnow = datetime.datetime.utcnow()
+
+    preposition = next_token()
+
+    if preposition in ('at', 'in', 'on'):
+        when = next_token()
+
+        # Try converting to day
+        when_weekday = DAYS.get(when)
+        if when_weekday is not None:
+            # determine whether it refers to this week or next
+            weekday = utcnow.weekday()
+            days = when_weekday - weekday + 7*(when_weekday <= weekday)
+            td = datetime.timedelta(days=days)
+            return td, s
+
+        # Try converting to Time
+        try:
+            utcwhen = Time.from_string(when)
+        except (ValueError, TypeError) as e:
+            pass
+        else:
+            # Get time difference with utcnow rounding down seconds
+            # NOTE: Time objects automatically handle underflowing,
+            # so no code is needed beyond this
+            diff = utcwhen - utcnow.replace(second=0)
+            td = datetime.timedelta(hours=diff.hour, minutes=diff.minute)
+            return td, s
+
+        # Try converting into time diff
+        try:
+            num = int(when)
+            if num <= 0:
+                raise ValueError('time cannot be negative')
+        except ValueError:
+            pass
+        else:
+            unit = next_token()
+            if unit in ('s', 'sec', 'second', 'seconds'):
+                unit = 'seconds'
+            elif unit in ('m', 'min', 'minute', 'minutes'):
+                unit = 'minutes'
+            elif unit in ('h', 'hr', 'hrs', 'hour', 'hours'):
+                unit = 'hours'
+            elif unit in ('d', 'day', 'days'):
+                unit = 'days'
+            else:
+                unit = None
+
+            if unit is not None:
+                kwargs = {unit: num}
+                td = datetime.timedelta(**kwargs)
+                return td, s
+
+        raise ValueError('Invalid time')
+    else:
+        raise ValueError(f'Invalid preposition: {preposition!r}')
 
 
 if __name__ == '__main__':

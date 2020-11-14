@@ -1,6 +1,7 @@
 import datetime
 import time
 
+from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
 
@@ -16,7 +17,9 @@ class Informative(commands.Cog):
     # If True, members of any guild the bot is in can be looked up in DMs.
     # Note that this has no effect when the members intent is disabled.
 
-    DATETIME_DIFFERENCE_PRECISION = {'seconds': False}
+    DATETIME_DIFFERENCE_PRECISION = {'minutes': False, 'seconds': False}
+
+    UPTIME_ALLOWED_DOWNTIME = 10
 
     def __init__(self, bot):
         self.bot = bot
@@ -25,24 +28,55 @@ class Informative(commands.Cog):
 
 
 
-    def update_last_connect(self):
+    def update_last_connect(self, *, force_update=False):
         if not self.bot.uptime_is_online:
-            self.bot.uptime_last_connect = datetime.datetime.now().astimezone()
+            # Calculate downtime
+            now = datetime.datetime.now().astimezone()
+            diff = now - self.bot.uptime_last_disconnect
+
+            # Only update last connect if downtime was long,
+            # else record the downtime
+            if force_update or (diff.total_seconds()
+                                > self.UPTIME_ALLOWED_DOWNTIME):
+                self.bot.uptime_last_connect = now
+                self.bot.uptime_total_downtime = relativedelta()
+
+                if force_update:
+                    print('Uptime: forced uptime reset')
+                else:
+                    print(
+                        'Uptime: Downtime of {} seconds exceeded allowed '
+                        'downtime ({} seconds); resetting uptime'.format(
+                            diff.total_seconds(),
+                            self.UPTIME_ALLOWED_DOWNTIME
+                        )
+                    )
+            else:
+                self.bot.uptime_total_downtime += diff
+                print('Uptime:', 'Recorded downtime of',
+                      diff.total_seconds(), 'seconds')
+
             self.bot.uptime_is_online = True
 
 
     @commands.Cog.listener()
     async def on_disconnect(self):
+        self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
         self.bot.uptime_is_online = False
 
 
     @commands.Cog.listener()
     async def on_connect(self):
-        self.update_last_connect()
+        """Triggered when waking up from computer sleep.
+        As there is no way to tell how long the computer went for sleep,
+        this forces the last_connect time to be updated.
+        """
+        self.update_last_connect(force_update=True)
 
 
     @commands.Cog.listener()
     async def on_resumed(self):
+        "Triggered when reconnecting from an internet loss."
         self.update_last_connect()
 
 
@@ -81,7 +115,7 @@ Format referenced from the Ayana bot."""
                 ),
                 **self.DATETIME_DIFFERENCE_PRECISION
             ),
-            guild.created_at.strftime('%Y/%m/%d %a %X %zUTC')
+            guild.created_at.strftime('%Y/%m/%d %a %X UTC')
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -141,15 +175,19 @@ Format referenced from the Ayana bot."""
     @commands.cooldown(2, 20, commands.BucketType.user)
     async def client_uptime(self, ctx):
         """Get the uptime of the bot."""
-        diff_string = utils.timedelta_string(
-            utils.datetime_difference(
-                datetime.datetime.now().astimezone(),
-                self.bot.uptime_last_connect
-            )
-        )
+        # Calculate time diff (subtracting downtime)
+        diff = utils.datetime_difference(
+            datetime.datetime.now().astimezone(),
+            self.bot.uptime_last_connect
+        ) - self.bot.uptime_total_downtime
+        diff_string = utils.timedelta_string(diff)
+
+        utc = self.bot.uptime_last_connect.astimezone(datetime.timezone.utc)
+        date_string = utc.strftime('%Y/%m/%d %a %X UTC')
+
         await ctx.send(embed=discord.Embed(
             title='Uptime',
-            description=diff_string,
+            description=f'{diff_string}\n({date_string})',
             color=int(settings.get_setting('bot_color'), 16)
         ))
 
@@ -210,7 +248,7 @@ Format referenced from the Ayana bot."""
                     ),
                     **self.DATETIME_DIFFERENCE_PRECISION
                 ),
-                user.joined_at.strftime('%Y/%m/%d %a %X %zUTC')
+                user.joined_at.strftime('%Y/%m/%d %a %X UTC')
             )
             nickname = user.nick
             roles = [role.name for role in user.roles]
@@ -246,7 +284,7 @@ Format referenced from the Ayana bot."""
                 ),
                 **self.DATETIME_DIFFERENCE_PRECISION
             ),
-            user.created_at.strftime('%Y/%m/%d %a %X %zUTC')
+            user.created_at.strftime('%Y/%m/%d %a %X UTC')
         )
 
         embed = discord.Embed(
