@@ -143,6 +143,16 @@ class HelpCommand(commands.HelpCommand):
         if page_num not in range(1, total_pages + 1):
             if total_pages == 1:
                 raise ValueError('Page number must be 1.')
+            elif total_pages == 0:
+                # All commands in this cog are hidden
+                return discord.Embed(
+                    title='Category help unavailable',
+                    color=get_bot_color(),
+                    description=(
+                        'This category exists, but you cannot access any '
+                        'of its commands here.'
+                    )
+                )
             raise ValueError(
                 f'Page number must be between 1 and {total_pages}.')
 

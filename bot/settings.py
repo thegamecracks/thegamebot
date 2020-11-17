@@ -128,6 +128,8 @@ def setup():
              'title': 'Skillzhare'},
             {'activity': 'listening',
              'title': 'beep bop behop'},
+            {'activity': 'listening',
+             'title': 'The Real Folk Blues'},
             {'activity': 'playing',
              'title': 'as a car'},
             {'activity': 'watching',

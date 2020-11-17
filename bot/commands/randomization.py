@@ -165,11 +165,10 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def client_eightball(self, ctx, *, question: str = ''):
         """Answers a yes or no question."""
-        async with ctx.channel.typing():
-            await asyncio.sleep(random.randint(1, 5))
-            await ctx.send(f'{ctx.author.mention} '
-                           f'{random.choice(CLIENT_EIGHTBALL)}'
-            )
+        await ctx.trigger_typing()
+        await asyncio.sleep(random.randint(1, 5))
+        await ctx.send(
+            f'{ctx.author.mention} {random.choice(CLIENT_EIGHTBALL)}')
 
 
 
@@ -183,14 +182,14 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
 Ayana command used as reference."""
         choices = list(choices)
         choices += [choice1, choice2]
-        async with ctx.channel.typing():
-            await asyncio.sleep(1)
-            await ctx.send(
-                random.choice(CLIENT_PICK_DIALOGUE).format(
-                    choice=random.choice(choices),
-                    mention=ctx.author.mention
-                )
+        await ctx.trigger_typing()
+        await asyncio.sleep(1)
+        await ctx.send(
+            random.choice(CLIENT_PICK_DIALOGUE).format(
+                choice=random.choice(choices),
+                mention=ctx.author.mention
             )
+        )
 
 
 

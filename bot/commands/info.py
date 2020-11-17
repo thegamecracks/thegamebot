@@ -4,6 +4,7 @@ import time
 from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
+import pytz
 
 from bot import settings
 from bot import utils
@@ -165,6 +166,37 @@ Format referenced from the Ayana bot."""
         )
 
         await ctx.send(embed=embed)
+
+
+
+
+
+    @commands.command(name='utctime', aliases=['utc'])
+    @commands.cooldown(3, 15, commands.BucketType.user)
+    async def client_timeutc(self, ctx):
+        """Get the current date and time in UTC."""
+        await ctx.send(time.asctime(time.gmtime()) + ' (UTC)')
+
+
+
+
+
+    @commands.command(name='timezone', aliases=['tz'])
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def client_timezone(self, ctx, *, timezone):
+        """Get the current date and time in a given timezone.
+
+This command uses the IANA timezone database."""
+        # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
+        try:
+            tz = pytz.timezone(timezone)
+        except pytz.UnknownTimeZoneError:
+            return await ctx.send('Unknown timezone.')
+
+        UTC = pytz.utc
+        utcnow = UTC.localize(datetime.datetime.utcnow())
+        tznow = utcnow.astimezone(tz)
+        await ctx.send(tznow.strftime('%c %Z (%z)'))
 
 
 

@@ -79,20 +79,31 @@ class Prefix(commands.Cog):
     @commands.guild_only()
     @bot_owner_or_has_guild_permissions(manage_guild=True)
     @commands.cooldown(2, 30, commands.BucketType.guild)
-    async def client_changeprefix(self, ctx, *, prefix):
-        """Change the bot's prefix."""
-        with ctx.channel.typing():
-            current_prefix = (
-                await self.prefixdb.get_prefix(ctx.guild.id)
-            )['prefix']
-            if prefix == current_prefix:
-                await ctx.send('That is already the current prefix.')
-            else:
-                # Escape escape characters before printing
-                clean_prefix = prefix.replace('\\', r'\\')
-                await self.prefixdb.update_prefix(ctx.guild.id, prefix)
-                await ctx.send(
-                    f'Successfully changed prefix to: "{clean_prefix}"')
+    async def client_changeprefix(self, ctx, prefix):
+        """Change the bot's prefix.
+
+For prefixes ending with a space or multi-word prefixes, specify it with double quotes:
+<command> "myprefix " """
+        prefix = prefix.lstrip()
+
+        if not prefix:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send('An empty prefix is not allowed.')
+
+        await ctx.trigger_typing()
+
+        current_prefix = (
+            await self.prefixdb.get_prefix(ctx.guild.id)
+        )['prefix']
+
+        if prefix == current_prefix:
+            await ctx.send('That is already the current prefix.')
+        else:
+            # Escape escape characters before printing
+            clean_prefix = prefix.replace('\\', r'\\')
+            await self.prefixdb.update_prefix(ctx.guild.id, prefix)
+            await ctx.send(
+                f'Successfully changed prefix to: "{clean_prefix}"')
 
 
     @client_changeprefix.error

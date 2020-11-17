@@ -94,7 +94,9 @@ async def on_resumed():
 
 async def on_command_error(ctx, error):
     # Print error
-    if ctx.guild is not None:
+    if isinstance(error, commands.CommandNotFound):
+        return
+    elif ctx.guild is not None:
         # Command invoked in server
         print(
             'Command error ({}:{}:{}:"{}")\n  {}: {}'.format(
@@ -162,11 +164,12 @@ async def on_command_error(ctx, error):
         await ctx.send('I am {}'.format(
             missing_x_to_run('role', convert_roles(error.missing_perms))
         ))
-    elif isinstance(error, commands.CommandNotFound):
-        # Command "x" is not found
-        await ctx.send('Unknown command: {}'.format(
-                error.args[0].split()[1].strip('"')
-        ))
+    # elif isinstance(error, commands.CommandNotFound):
+    #     Command "x" is not found
+    #     await ctx.send('Unknown command: {}'.format(
+    #         error.args[0].split()[1].strip('"')
+    #     ))
+    #     pass
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send('I cannot find the given channel.')
     elif isinstance(error, commands.ChannelNotReadable):
