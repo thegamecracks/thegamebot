@@ -383,7 +383,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 return 'This extension failed to be reloaded.'
 
         if extension == 'all':
-            # Note: must convert dict into list as extensions is mutated
+            # NOTE: must cast dict into list as extensions is mutated
             # during reloading
             for ext in list(self.bot.extensions):
                 result = reload(ext)

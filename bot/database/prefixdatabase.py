@@ -18,7 +18,13 @@ CREATE TABLE IF NOT EXISTS Prefixes (
 class PrefixDatabase(guild_db.GuildDatabase):
     "Provide an interface to a GuildDatabase with a Prefixes table."
 
+    __slots__ = ['prefix_cache']
+
     PREFIX_SIZE_LIMIT = 20
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prefix_cache = {}
 
     async def has_prefix(self, guild_id: int):
         "Test if a prefix for a guild exists in the database."
@@ -33,8 +39,7 @@ class PrefixDatabase(guild_db.GuildDatabase):
         Args:
             guild_id (int)
             prefix (Optional[str]): The prefix to set the guild with.
-                If no prefix is provided, uses default_prefix
-                in settings.json.
+                If no prefix is provided, uses default_prefix in settings.
             add_guild (bool):
                 If True, automatically adds the guild_id to the Guilds table.
                 Otherwise, the guild_id foreign key can be violated.
@@ -53,8 +58,12 @@ class PrefixDatabase(guild_db.GuildDatabase):
             await self.add_guild(guild_id)
 
         if not await self.has_prefix(guild_id):
-            return await self.add_row(
+            result = await self.add_row(
                 'Prefixes', {'guild_id': guild_id, 'prefix': prefix})
+
+            self.prefix_cache[guild_id] = prefix
+
+            return result
 
     async def delete_prefix(self, guild_id: int, pop=False):
         """Delete a prefix from a guild.
@@ -70,17 +79,34 @@ class PrefixDatabase(guild_db.GuildDatabase):
             List[aiosqlite.Row]: A list of deleted entries if pop is True.
 
         """
-        return await self.delete_rows(
+        prefixes = await self.delete_rows(
             'Prefixes', where=f'guild_id={guild_id}', pop=pop)
+
+        self.prefix_cache.pop(guild_id, None)
+
+        return prefixes
 
     async def get_prefix(self, guild_id: int, *, as_Row=True):
         """Get the prefix for a guild.
 
         guild_id is not escaped.
 
+        Returns:
+            str
+
         """
-        return await self.get_one(
+        prefix = self.prefix_cache.get(guild_id)
+        if prefix is not None:
+            return prefix
+
+        query = await self.get_one(
             'Prefixes', where=f'guild_id={guild_id}', as_Row=as_Row)
+        prefix = query['prefix']
+
+        self.prefix_cache[guild_id] = prefix
+
+        return prefix
+        
 
     async def update_prefix(
             self, guild_id: int, prefix: str):
@@ -97,6 +123,8 @@ class PrefixDatabase(guild_db.GuildDatabase):
 
         await self.update_rows(
             'Prefixes', {'prefix': prefix}, where=f'guild_id={guild_id}')
+
+        self.prefix_cache[guild_id] = prefix
 
 
 def setup(connection):

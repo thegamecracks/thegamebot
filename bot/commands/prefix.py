@@ -76,8 +76,8 @@ class Prefix(commands.Cog):
 
 
     @commands.command(name='changeprefix')
-    @commands.guild_only()
     @bot_owner_or_has_guild_permissions(manage_guild=True)
+    @commands.guild_only()
     @commands.cooldown(2, 30, commands.BucketType.guild)
     async def client_changeprefix(self, ctx, prefix):
         """Change the bot's prefix.
@@ -94,7 +94,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
 
         current_prefix = (
             await self.prefixdb.get_prefix(ctx.guild.id)
-        )['prefix']
+        )
 
         if prefix == current_prefix:
             await ctx.send('That is already the current prefix.')

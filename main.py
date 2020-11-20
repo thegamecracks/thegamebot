@@ -3,7 +3,6 @@ import asyncio
 import datetime
 import os
 
-from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
 
@@ -69,8 +68,9 @@ def main():
 
     # Add botvars
     bot.uptime_last_connect = datetime.datetime.now().astimezone()
+    bot.uptime_last_connect_adjusted = bot.uptime_last_connect
     bot.uptime_last_disconnect = bot.uptime_last_connect
-    bot.uptime_total_downtime = relativedelta()
+    bot.uptime_total_downtime = datetime.timedelta()
     bot.uptime_is_online = False
 
     # Load extensions

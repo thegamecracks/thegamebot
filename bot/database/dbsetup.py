@@ -32,7 +32,7 @@ def get_prefix():
     async def inner(bot, message):
         guild = message.guild
 
-        # If in DMs, get default prefix
+        # If in DMs, get default prefix or use prefix-less invokation
         if guild is None:
             return commands.when_mentioned_or(
                 settings.get_setting('default_prefix')
@@ -41,11 +41,10 @@ def get_prefix():
         # Else, fetch guild prefix
         guild_id = guild.id
         await db.add_prefix(guild_id, add_guild=True)
-        row = await db.get_prefix(guild_id)
-        # TODO: add prefix caching to PrefixDatabase
+        prefix = await db.get_prefix(guild_id)
 
-        if row is not None:
-            return commands.when_mentioned_or(row['prefix'])(bot, message)
+        if prefix is not None:
+            return commands.when_mentioned_or(prefix)(bot, message)
         return commands.when_mentioned(bot, message)
 
     return inner

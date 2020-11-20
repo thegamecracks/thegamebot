@@ -1,5 +1,6 @@
 import asyncio
 import calendar
+import random
 import time
 
 import discord
@@ -22,6 +23,46 @@ with open('data/wordlist.txt') as f:
     WORDLIST = set(f.read().split())
 
 
+def generate_test_message():
+    kwargs = {
+        'made': random.choice(('designed', 'designated', 'made', 'meant')),
+        'testing1': random.choice((
+            'administrative',
+            'executive',
+            'high-level',
+            'official'
+        )),
+        'testing2': random.choice((
+            'certifying',
+            'validative',
+            'legitimizing',
+            'testing'
+        )),
+        'testing3': random.choice((
+            'analysis',
+            'experimentation',
+            'verification'
+        )),
+        'input': random.choice((
+            'manual connection',
+            'electronically delivered input',
+            'wirelessly transmitted signal'
+        )),
+        'from': random.choice((
+            'derivative of',
+            'deriving out of',
+            'in accordance with',
+        )),
+        'user1': random.choice(('leading', 'primary')),
+        'user2': random.choice(('expert', 'specialist'))
+    }
+
+    return (
+        'This command is {made} for {testing1} {testing2} {testing3} via '
+        '{input} {from} the {user1} {user2}.'.format(**kwargs)
+    )
+
+
 class Undefined(commands.Cog):
     qualified_name = 'Undefined'
     description = 'Uncategorized commands.'
@@ -37,9 +78,7 @@ class Undefined(commands.Cog):
         name='dmtest')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_dmtest(self, ctx):
-        await ctx.author.send(
-            'This command is designated for administrative validative \
-analysis via manual connection deriving out of the primary specialist.')
+        await ctx.author.send(generate_test_message())
 
 
 
@@ -170,9 +209,7 @@ https://stackoverflow.com/q/64080277/"""
         name='test')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_test(self, ctx):
-        await ctx.send(
-            'This command is designated for administrative validative \
-analysis via manual connection deriving out of the primary specialist.')
+        await ctx.send(generate_test_message())
 
 
 

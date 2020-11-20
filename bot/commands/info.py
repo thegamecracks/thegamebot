@@ -40,7 +40,8 @@ class Informative(commands.Cog):
             if force_update or (diff.total_seconds()
                                 > self.UPTIME_ALLOWED_DOWNTIME):
                 self.bot.uptime_last_connect = now
-                self.bot.uptime_total_downtime = relativedelta()
+                self.bot.uptime_last_connect_adjusted = now
+                self.bot.uptime_total_downtime = datetime.timedelta()
 
                 if force_update:
                     print('Uptime: forced uptime reset')
@@ -54,6 +55,10 @@ class Informative(commands.Cog):
                     )
             else:
                 self.bot.uptime_total_downtime += diff
+                self.bot.uptime_last_connect_adjusted = (
+                    self.bot.uptime_last_connect
+                    + self.bot.uptime_total_downtime
+                )
                 print('Uptime:', 'Recorded downtime of',
                       diff.total_seconds(), 'seconds')
 
@@ -210,8 +215,8 @@ This command uses the IANA timezone database."""
         # Calculate time diff (subtracting downtime)
         diff = utils.datetime_difference(
             datetime.datetime.now().astimezone(),
-            self.bot.uptime_last_connect
-        ) - self.bot.uptime_total_downtime
+            self.bot.uptime_last_connect_adjusted
+        )
         diff_string = utils.timedelta_string(diff)
 
         utc = self.bot.uptime_last_connect.astimezone(datetime.timezone.utc)

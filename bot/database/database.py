@@ -4,6 +4,15 @@ import datetime
 import aiosqlite
 
 
+class Singleton(type):
+    # https://stackoverflow.com/q/6760685
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
 class DatabaseConnection:
     """Provide an asynchronous connection to a database.
 
@@ -36,15 +45,13 @@ class DatabaseConnection:
         self.lock.release()
 
     def __repr__(self):
-        return '{}({!r}, blocking={!r}, timeout={!r})'.format(
+        return '{}({!r})'.format(
             self.__class__.__name__,
             self.path,
-            self.blocking,
-            self.timeout
         )
 
 
-class Database:
+class Database(metaclass=Singleton):
     """Provide a higher-level interface to a database.
 
     Methods:
@@ -58,6 +65,9 @@ class Database:
         row_to_dict(Row)
 
     """
+    # FIXME: using Singleton is probably a dumb way of making sure
+    # caches of subclasses are preserved across instantiations;
+    # why not just have dbsetup create all the instances?
     __slots__ = ['conn', 'last_change']
 
     def __init__(self, conn):
@@ -104,9 +114,10 @@ class Database:
             )
             last_row_id = c.lastrowid
             await conn.commit()
-        return last_row_id
 
-        self.set_last_change(datetime.datetime.now(), table)           
+        self.set_last_change(datetime.datetime.now(), table)
+
+        return last_row_id
 
     async def delete_rows(self, table: str, *, where: str, pop=False):
         """Delete one or more rows from a table.
@@ -132,7 +143,7 @@ class Database:
             await conn.execute(f'DELETE FROM {table} WHERE {where}')
             await conn.commit()
 
-        self.set_last_change(datetime.datetime.now(), table) 
+        self.set_last_change(datetime.datetime.now(), table)
 
         if pop:
             return rows
