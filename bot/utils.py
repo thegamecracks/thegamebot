@@ -85,6 +85,90 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
+def fuzzy_match_char(s, choices):
+    """Matches a string with a given evidence by characters (case-insensitive).
+
+    Args:
+        s (str)
+        choices (List[str])
+
+    Returns:
+        None
+        str
+
+    """
+    possible = choices
+    possible_lower = [s.lower() for s in possible]
+
+    try:
+        i = possible_lower.index(s.lower())
+        return possible[i]
+    except ValueError:
+        pass
+
+    length = len(s)
+    for i, char in enumerate(s.lower()):
+        new = []
+
+        for p, pl in zip(possible, possible_lower):
+            if len(pl) >= length and pl[i] == char:
+                new.append(p)
+
+        possible = new
+
+        count = len(possible)
+        if count == 0:
+            return None
+        elif count == 1:
+            return possible[0]
+
+        possible_lower = [s.lower() for s in possible]
+
+    return None
+
+
+def fuzzy_match_word(s, choices):
+    """Matches a string with a given evidence by token (case-insensitive).
+
+    Args:
+        s (str)
+        choices (List[str])
+
+    Returns:
+        None
+        str
+
+    """
+    possible = choices
+    possible_lower = [s.lower() for s in possible]
+
+    try:
+        i = possible_lower.index(s.lower())
+        return possible[i]
+    except ValueError:
+        pass
+
+    length = len(s)
+    for word in s.lower().split():
+        new = []
+
+        for p, pl in zip(possible, possible_lower):
+            if word in pl:
+                new.append(p)
+
+        possible = new
+
+        count = len(possible)
+        if count == 0:
+            return None
+        elif count == 1:
+            return possible[0]
+
+        possible_lower = [s.lower() for s in possible]
+
+    return None
+
+
 def timedelta_string(
         diff,
         years=True, months=True, weeks=True, days=True,

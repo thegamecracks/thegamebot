@@ -5,8 +5,14 @@ import time
 
 import discord
 from discord.ext import commands
+import inflect
 
+from bot import settings
 from bot import utils
+
+inflector = inflect.engine()
+
+get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
 
 CLIENT_GOODDAY_VARS = {
     'nightmessage': 'Have a good night.',
@@ -21,6 +27,77 @@ CLIENT_GOODDAY_VARS = {
 }
 with open('data/wordlist.txt') as f:
     WORDLIST = set(f.read().split())
+
+
+class Ghost:
+    __slots__ = ('name', 'evidences', 'url')
+
+    def __init__(self, name, evidences, url):
+        self.name = name
+        self.evidences = evidences
+        self.url = url
+
+
+GHOST_EVIDENCE = [
+    Ghost('Banshee',
+          ('EMF Level 5', 'Fingerprints', 'Freezing Temperatures'),
+          'https://phasmophobia.fandom.com/wiki/Banshee'),
+    Ghost('Demon',
+          ('Freezing Temperatures', 'Ghost Writing', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Demon'),
+    Ghost('Jinn',
+          ('EMF Level 5', 'Ghost Orb', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Jinn'),
+    Ghost('Mare',
+          ('Freezing Temperatures', 'Ghost Orb', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Mare'),
+    Ghost('Oni',
+          ('EMF Level 5', 'Ghost Writing', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Oni'),
+    Ghost('Phantom',
+          ('EMF Level 5', 'Freezing Temperatures', 'Ghost Orb'),
+          'https://phasmophobia.fandom.com/wiki/Phantom'),
+    Ghost('Poltergeist',
+          ('Fingerprints', 'Ghost Orb', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Poltergeist'),
+    Ghost('Revenant',
+          ('EMF Level 5', 'Fingerprints', 'Ghost Writing'),
+          'https://phasmophobia.fandom.com/wiki/Revenant'),
+    Ghost('Shade',
+          ('EMF Level 5', 'Ghost Orb', 'Ghost Writing'),
+          'https://phasmophobia.fandom.com/wiki/Shade'),
+    Ghost('Spirit',
+          ('Fingerprints', 'Ghost Writing', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Spirit'),
+    Ghost('Wraith',
+          ('Fingerprints', 'Freezing Temperatures', 'Spirit Box'),
+          'https://phasmophobia.fandom.com/wiki/Wraith'),
+    Ghost('Yurei',
+          ('Freezing Temperatures', 'Ghost Orb', 'Ghost Writing'),
+          'https://phasmophobia.fandom.com/wiki/Yurei')
+]
+EVIDENCES = [
+    'EMF Level 5', 'Freezing Temperatures', 'Fingerprints',
+    'Ghost Orb', 'Ghost Writing', 'Spirit Box'
+]
+
+
+def phasmophobia_match_ghost_evidence(evidences):
+    possible_ghosts = GHOST_EVIDENCE.copy()
+
+    for e in evidences:
+        new_ghosts = []
+
+        for g in possible_ghosts:
+            if e.lower() in [gev.lower() for gev in g.evidences]:
+                new_ghosts.append(g)
+
+        possible_ghosts = new_ghosts
+
+        if len(possible_ghosts) == 0:
+            return possible_ghosts
+
+    return possible_ghosts
 
 
 def generate_test_message():
@@ -200,6 +277,84 @@ https://stackoverflow.com/q/64080277/"""
             CLIENT_GOODDAY_VARS['afternoonmessage'])
         elif hour <= CLIENT_GOODDAY_VARS['evening']: await ctx.send(
             CLIENT_GOODDAY_VARS['eveningmessage'])
+
+
+
+
+
+    @commands.group(name='phasmophobia', invoke_without_command=True)
+    async def client_phasmophobia(self, ctx):
+        """Commands related to the game Phasmophobia."""
+
+
+    @client_phasmophobia.command(name='evidence')
+    @commands.cooldown(3, 10, commands.BucketType.user)
+    async def client_phasmophobia_ghost_evidence(self, ctx, *, evidences):
+        """Phasmophobia: determine ghost(s) based on evidence.
+Example usage:
+    <command> emf level 5, fingerprints, freezing temp
+Available evidences:
+EMF Level 5
+Freezing Temperatures
+Fingerprints
+Ghost Orb
+Ghost Writing
+Spirit Box"""
+        evidences = [s.strip() for s in evidences.split(',')]
+
+        corrected_evidence = False
+        for i, e in enumerate(evidences):
+            match = utils.fuzzy_match_word(e, EVIDENCES)
+            if not match:
+                return await ctx.send(f'Unknown evidence: "{e}"')
+            elif match == e:
+                continue
+            evidences[i] = match
+            corrected_evidence = True
+
+        ghosts = phasmophobia_match_ghost_evidence(evidences)
+
+        if not ghosts:
+            if corrected_evidence:
+                title = 'No ghosts match the given evidence ({}).'.format(
+                    ', '.join(evidences))
+            else:
+                title = 'No ghosts match the given evidence.'
+        elif len(ghosts) == 1:
+            if corrected_evidence:
+                title = 'One ghost matches the given evidence ({}).'.format(
+                    ', '.join(evidences))
+            else:
+                title = 'One ghost matches the given evidence.'
+
+            g = ghosts[0]
+            embed = discord.Embed(
+                description='[{}]({})'.format(g.name, g.url),
+                color=get_bot_color()
+            )
+        else:
+            if corrected_evidence:
+                title = '{} ghosts match the given evidence ({}):'.format(
+                    inflector.number_to_words(
+                        len(ghosts), threshold=10).capitalize(),
+                    ', '.join(evidences)
+                )
+            else:
+                title = '{} ghosts match the given evidence:'.format(
+                    inflector.number_to_words(
+                        len(ghosts), threshold=10).capitalize()
+                )
+
+            embed = discord.Embed(
+                description='\n'.join([
+                    '[{}]({}) ({})'.format(
+                        g.name, g.url, ', '.join(g.evidences))
+                    for g in ghosts
+                ]),
+                color=get_bot_color()
+            )
+
+        await ctx.send(title, embed=embed)
 
 
 
