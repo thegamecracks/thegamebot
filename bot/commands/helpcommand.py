@@ -10,12 +10,18 @@ from bot import settings
 get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
 
 
+message_length_cooldown = commands.CooldownMapping.from_cooldown(
+    1, 30, commands.BucketType.user)
+
 class HelpCommand(commands.HelpCommand):
 
     help_categories_per_page = 9  # Max of 25 fields
     help_commands_per_category = 5
 
     help_cog_commands_per_page = 9  # Max of 25 fields
+
+    help_message_length_threshold = 300
+    # Maximum allowed characters in a help message before it is sent via DM
 
     def __init__(self):
         super().__init__(
@@ -76,6 +82,32 @@ class HelpCommand(commands.HelpCommand):
                 command.qualified_name)
 
         return message, string, command
+
+    async def send(self, content=None, *args, embed=None, **kwargs):
+        """Send a message to the user, diverting it to DMs
+        if the message is too long."""
+        length = 0
+        if content is not None:
+            length += len(content)
+        if embed is not None:
+            length += len(embed)
+
+        destination = self.get_destination()
+        ctx = self.context
+
+        if length >= self.help_message_length_threshold:
+            # Too long; send in DMs
+            await ctx.author.send(content, embed=embed, *args, **kwargs)
+
+            if ctx.guild is not None:
+                # User sent command in server; only give notification if they
+                # haven't recently received one
+                bucket = message_length_cooldown.get_bucket(ctx.message)
+                if not bucket.update_rate_limit():
+                    await destination.send(
+                        'Help message is a bit long; sent it to you in DMs.')
+        else:
+            await destination.send(content, embed=embed, *args, **kwargs)
 
     async def create_help_category_page(self, *, page_num):
         "Create an embed showing a page of categories."
@@ -240,7 +272,7 @@ class HelpCommand(commands.HelpCommand):
                 cog = self.context.bot.get_cog(string)
             except (IndexError, ValueError):
                 # Not a page number request
-                await destination.send(error)
+                await self.send(error)
                 return
 
         if cog is None:
@@ -251,7 +283,7 @@ class HelpCommand(commands.HelpCommand):
                 # Invalid page number
                 await destination.send(str(e))
             else:
-                await destination.send(embed=embed)
+                await self.send(embed=embed)
         else:
             # User requested a cog help page
             try:
@@ -260,23 +292,19 @@ class HelpCommand(commands.HelpCommand):
                 # Invalid page number
                 await destination.send(str(e))
             else:
-                await destination.send(embed=embed)
+                await self.send(embed=embed)
 
     async def send_bot_help(self, mapping):
         "Sends help when no arguments are given."
-        destination = self.get_destination()
-
         embed = await self.create_help_category_page(page_num=1)
 
-        await destination.send(embed=embed)
+        await self.send(embed=embed)
 
     async def send_cog_help(self, cog):
         "Sends help for a specific cog."
-        destination = self.get_destination()
-
         embed = await self.create_help_cog_page(cog, page_num=1)
 
-        await destination.send(embed=embed)
+        await self.send(embed=embed)
 
     async def send_group_help(self, group):
         """Sends help for an individual group.
@@ -284,8 +312,6 @@ class HelpCommand(commands.HelpCommand):
         NOTE: Does not support groups containing over 25 commands.
 
         """
-        destination = self.get_destination()
-
         embed = discord.Embed(
             title=self.get_command_signature(group),
             color=get_bot_color(),
@@ -299,12 +325,10 @@ class HelpCommand(commands.HelpCommand):
                 value=com.short_doc if com.short_doc else 'No description.'
             )
 
-        await destination.send(embed=embed)
+        await self.send(embed=embed)
 
     async def send_command_help(self, command):
         "Sends help for an individual command."
-        channel = self.get_destination()
-
         description = f'`{self.get_command_signature(command)}`\n'
 
         if command.help:
@@ -322,4 +346,4 @@ class HelpCommand(commands.HelpCommand):
         if command.cog is not None:
             embed.set_author(name=f'In {command.cog.qualified_name} category')
 
-        await channel.send(embed=embed)
+        await self.send(embed=embed)

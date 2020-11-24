@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import datetime
+import time
 import os
 
 import discord
@@ -36,6 +37,8 @@ disabled_intents = [
 
 
 def main():
+    start_time = time.perf_counter()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-M', '--members', action='store_true',
                         help='Enable privileged members intent.')
@@ -67,11 +70,18 @@ def main():
     eventhandlers.setup(bot)
 
     # Add botvars
+    bot.about_bootup_time = 0
+    bot.about_processed_commands = 0
     bot.uptime_last_connect = datetime.datetime.now().astimezone()
     bot.uptime_last_connect_adjusted = bot.uptime_last_connect
     bot.uptime_last_disconnect = bot.uptime_last_connect
     bot.uptime_total_downtime = datetime.timedelta()
     bot.uptime_is_online = False
+
+    # Create task to calculate bootup time
+    async def bootup_time(bot, start_time):
+        await bot.wait_until_ready()
+        bot.about_bootup_time = time.perf_counter() - start_time
 
     # Load extensions
     for name in cogs:
@@ -79,6 +89,9 @@ def main():
 
     # Start the bot
     loop = asyncio.get_event_loop()
+
+    loop.create_task(bootup_time(bot, start_time))
+
     bot_args = [TOKEN]
     bot_kwargs = dict()
     print('Starting bot')

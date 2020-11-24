@@ -139,6 +139,7 @@ class CommandErrorCooldown:
 
 
 ERRORS_TO_LIMIT_COOLDOWN_MAPPING = {
+    discord.Forbidden: (1, 5, commands.BucketType.user),
     commands.CommandOnCooldown: None,
     commands.MaxConcurrencyReached: None,
     commands.MissingRole: None,
@@ -196,8 +197,11 @@ async def on_command_error(ctx, error):
     # Print error
     if isinstance(error, commands.CommandNotFound):
         return
-    elif isinstance(error, ERRORS_TO_LIMIT):
-        if error_limiter.check_user(ctx, error):
+    elif (isinstance(error, ERRORS_TO_LIMIT)
+          or isinstance(error, commands.CommandInvokeError)
+          and isinstance(error.original, ERRORS_TO_LIMIT)):
+        error_unpacked = getattr(error, 'original', error)
+        if error_limiter.check_user(ctx, error_unpacked):
             # rate limited
             return
     elif ctx.guild is not None:
@@ -397,6 +401,12 @@ async def on_command_error(ctx, error):
         # NOTE: This is a superclass of several other errors
         await ctx.send('Failed to parse your parameters.\n'
                        f'Usage: `{get_command_signature()}`')
+    elif (isinstance(error, commands.CommandInvokeError)
+          and isinstance(error.original, discord.Forbidden)
+          and error.original.code == 50007):
+        # Cannot send messages to this user
+        await ctx.send('I tried DMing you but you have your DMs '
+                       'disabled for this server.')
     else:
         raise error
 

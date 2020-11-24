@@ -1,13 +1,26 @@
 import datetime
+import sys
 import time
 
 from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
+import humanize
+import psutil
 import pytz
 
 from bot import settings
 from bot import utils
+
+get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
+
+
+def iterable_has(iterable, *args):
+    "Used for parsing *args in commands."
+    for s in args:
+        if s in iterable:
+            return True
+    return False
 
 
 class Informative(commands.Cog):
@@ -24,6 +37,7 @@ class Informative(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.process = psutil.Process()
 
 
 
@@ -66,9 +80,8 @@ class Informative(commands.Cog):
 
 
     @commands.Cog.listener()
-    async def on_disconnect(self):
-        self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
-        self.bot.uptime_is_online = False
+    async def on_command_completion(self, ctx):
+        self.bot.about_processed_commands += 1
 
 
     @commands.Cog.listener()
@@ -81,9 +94,86 @@ class Informative(commands.Cog):
 
 
     @commands.Cog.listener()
+    async def on_disconnect(self):
+        self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
+        self.bot.uptime_is_online = False
+
+
+    @commands.Cog.listener()
     async def on_resumed(self):
         "Triggered when reconnecting from an internet loss."
         self.update_last_connect()
+
+
+
+
+
+    @commands.command(
+        name='about', aliases=['info'])
+    @commands.cooldown(3, 60, commands.BucketType.guild)
+    @commands.max_concurrency(3, wait=True)
+    async def client_aboutbot(self, ctx, *args):
+        """An about page for this bot.
+Optional settings:
+    -S --system: show system-related information about the bot."""
+        embed = discord.Embed(
+            title='About',
+            description=('I do random stuff, whatever <@153551102443257856> '
+                         'adds to me'),
+            color=get_bot_color()
+        ).set_thumbnail(
+            url=self.bot.user.avatar_url
+        ).set_footer(
+            text=f'Requested by {ctx.author}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        vp = sys.version_info
+        version_python = f'{vp.major}.{vp.minor}.{vp.micro}'
+
+        start_time = datetime.datetime.fromtimestamp(
+            self.process.create_time()).astimezone().astimezone(pytz.utc)
+
+        await ctx.trigger_typing()
+
+        field_statistics = (
+            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}\n"
+        )
+
+        if self.bot.intents.members:
+            field_statistics += f'# Members: {len(self.bot.users)}\n'
+
+        field_statistics += (
+            f'# Servers: {len(self.bot.guilds)}\n'
+            f'# Commands: {len(self.bot.commands)}\n'
+            f'# Commands processed: {self.bot.about_processed_commands + 1}\n'
+            f'Python version: {version_python}\n'
+            f'D.py version: {discord.__version__}\n'
+        )
+
+        if iterable_has(args, '-S', '--system'):
+            # Add system information
+            p = self.process
+            with p.oneshot():
+                mem_usage = p.memory_full_info().uss
+                num_threads = p.num_threads()
+                num_handles = p.num_handles()
+                cpu = p.cpu_percent(interval=0.1)
+
+            field_statistics += (
+                f'> Bootup time: {self.bot.about_bootup_time:.1f} seconds\n'
+                f'> CPU usage: {cpu}%\n'
+                f'> Memory usage: {humanize.naturalsize(mem_usage)}\n'
+                f'> Threads: {num_threads}\n'
+                f'> Handles: {num_handles}\n'
+            )
+
+        embed.add_field(
+            name='Statistics',
+            value=field_statistics
+        )
+
+        await ctx.send(embed=embed)
 
 
 
