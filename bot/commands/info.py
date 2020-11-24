@@ -177,7 +177,7 @@ Format referenced from the Ayana bot."""
 
 
     @commands.command(name='utctime', aliases=['utc'])
-    @commands.cooldown(3, 15, commands.BucketType.user)
+    @commands.cooldown(3, 15, commands.BucketType.member)
     async def client_timeutc(self, ctx):
         """Get the current date and time in UTC."""
         await ctx.send(time.asctime(time.gmtime()) + ' (UTC)')
@@ -187,7 +187,7 @@ Format referenced from the Ayana bot."""
 
 
     @commands.command(name='timezone', aliases=['tz'])
-    @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.cooldown(2, 5, commands.BucketType.member)
     async def client_timezone(self, ctx, *, timezone):
         """Get the current date and time in a given timezone.
 

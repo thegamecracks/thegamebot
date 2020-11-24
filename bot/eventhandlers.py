@@ -4,6 +4,11 @@ import discord
 from discord.ext import commands
 import inflect
 
+from bot import settings
+from bot import utils
+
+get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
+
 handlers = [
     'on_command_error',
     'on_connect',
@@ -13,6 +18,58 @@ handlers = [
 ]
 
 inflector = inflect.engine()
+
+COOLDOWN_DESCRIPTIONS = {
+    commands.BucketType.default: 'Too many people have used this command '
+                                 'globally. The limit is {times}.',
+
+    commands.BucketType.user: 'You have used this command too many times. '
+                              'The personal limit is {times}.',
+
+    commands.BucketType.guild: 'Too many people have used this command '
+                               '{here}. The limit is {times}.',
+
+    commands.BucketType.channel: 'Too many people have used this command '
+                                 '{here}. The limit is {times}.',
+
+    commands.BucketType.member: 'You have used this command too many times '
+                                '{here}. The personal limit is {times}.',
+
+    commands.BucketType.category: 'Too many people have used this command in '
+                                  'this server category. The limit is {times}.',
+
+    commands.BucketType.role: 'Too many people with the same role have used '
+                              'this command. The limit is {times}.'
+}
+
+MAX_CONCURRENCY_DESCRIPTIONS = {
+    commands.BucketType.default: 'Too many people are currently using this '
+                                 'command globally. The limit is '
+                                 '{times} concurrently.',
+
+    commands.BucketType.user: 'You are using this command too many times. '
+                              'The personal limit is {times} concurrently.',
+
+    commands.BucketType.guild: 'Too many people are currently using this '
+                               'command {here}. The limit is '
+                               '{times} concurrently.',
+
+    commands.BucketType.channel: 'Too many people are currently using this '
+                                 'command {here}. The limit is '
+                                 '{times} concurrently.',
+
+    commands.BucketType.member: 'You are using this command too many times '
+                                '{here}. The personal limit is '
+                                '{times} concurrently.',
+
+    commands.BucketType.category: 'Too many people are currently using this '
+                                  'command in this server category. '
+                                  'The limit is {times} concurrently.',
+
+    commands.BucketType.role: 'Too many people with the same role are using '
+                              'this command. The limit is '
+                              '{times} concurrently.'
+}
 
 PERMS_TO_ENGLISH = {
     'add_reactions': 'Add Reactions',
@@ -49,6 +106,49 @@ PERMS_TO_ENGLISH = {
     'view_channel': 'Read Messages',
     'view_guild_insights': 'View Guild Insights'
 }
+
+
+class CommandErrorCooldown:
+    """Maps cooldowns to specific errors.
+
+    Args:
+        errors_to_cooldowns (Dictionary[commands.CommandError, Optional[Tuple[int, int, commands.BucketType]]]):
+            A mapping of errors to CooldownMapping arguments.
+            the value can be None to use default parameters.
+
+    """
+
+    __slots__ = ('error_mapping',)
+
+    DEFAULT_COOLDOWN = (1, 10, commands.BucketType.user)
+
+    def __init__(self, errors_to_cooldowns):
+        from_cooldown = commands.CooldownMapping.from_cooldown
+        self.error_mapping = {
+            err: from_cooldown(*args) if args is not None
+                 else from_cooldown(*self.DEFAULT_COOLDOWN)
+            for err, args in errors_to_cooldowns.items()
+        }
+
+    def check_user(self, ctx, error):
+        mapping = self.error_mapping.get(type(error))
+        if mapping is None:
+            return False
+        bucket = mapping.get_bucket(ctx.message)
+        return bucket.update_rate_limit()
+
+
+ERRORS_TO_LIMIT_COOLDOWN_MAPPING = {
+    commands.CommandOnCooldown: None,
+    commands.MaxConcurrencyReached: None,
+    commands.MissingRole: None,
+    commands.MissingAnyRole: None,
+    commands.MissingPermissions: None,
+    commands.NoPrivateMessage: None,
+    commands.NotOwner: None,
+}
+ERRORS_TO_LIMIT = tuple(ERRORS_TO_LIMIT_COOLDOWN_MAPPING)
+error_limiter = CommandErrorCooldown(ERRORS_TO_LIMIT_COOLDOWN_MAPPING)
 
 
 def convert_perms_to_english(perms):
@@ -96,6 +196,10 @@ async def on_command_error(ctx, error):
     # Print error
     if isinstance(error, commands.CommandNotFound):
         return
+    elif isinstance(error, ERRORS_TO_LIMIT):
+        if error_limiter.check_user(ctx, error):
+            # rate limited
+            return
     elif ctx.guild is not None:
         # Command invoked in server
         print(
@@ -136,6 +240,59 @@ async def on_command_error(ctx, error):
 
         return f'{prefix}{name_signature} {arguments}'
 
+    def get_concurrency_description(ctx, error):
+        if not ctx.guild and error.per == commands.BucketType.channel:
+            # Use message for member bucket when in DMs
+            description = MAX_CONCURRENCY_DESCRIPTIONS.get(
+                commands.BucketType.member,
+                'This command has currently reached max concurrency.'
+            )
+        else:
+            description = MAX_CONCURRENCY_DESCRIPTIONS.get(
+                error.per,
+                'This command has currently reached max concurrency.'
+            )
+
+        return description.format(
+            here=get_cooldown_here(ctx, error.per),
+            times=inflector.inflect(
+                '{0} plural("time", {0})'.format(
+                    error.number
+                )
+            )
+        )
+
+    def get_cooldown_description(ctx, error):
+        if (    not ctx.guild
+                and error.cooldown.type == commands.BucketType.channel):
+            # Use message for member bucket when in DMs
+            description = COOLDOWN_DESCRIPTIONS.get(
+                commands.BucketType.member, 'This command is on cooldown.'
+            )
+        else:
+            description = COOLDOWN_DESCRIPTIONS.get(
+                error.cooldown.type, 'This command is on cooldown.'
+            )
+
+        return description.format(
+            here=get_cooldown_here(ctx, error.cooldown.type),
+            times=inflector.inflect(
+                '{0} plural("time", {0}) '
+                'every {1} plural("second", {1})'.format(
+                    error.cooldown.rate,
+                    utils.num(error.cooldown.per)
+                )
+            )
+        )
+
+    def get_cooldown_here(ctx, bucket):
+        if bucket == commands.BucketType.guild:
+            return 'on this server'
+        elif ctx.guild:
+            return 'in this channel'
+        else:
+            return 'in this DM'
+
     def missing_x_to_run(x, missing_perms):
         count = len(missing_perms)
         if count == 1:
@@ -175,12 +332,20 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.ChannelNotReadable):
         await ctx.send('I cannot read messages in the channel.')
     elif isinstance(error, commands.CommandOnCooldown):
-        await ctx.send(
-            inflector.inflect(
-                'This command is on cooldown; '
-                'try again after {0:.1f} plural("second", {0}).'.format(
+        embed = discord.Embed(
+            color=get_bot_color()
+        ).set_footer(
+            text=inflector.inflect(
+                'You can retry in {0:.1f} plural("second", {0}).'.format(
                     error.retry_after
-        )))
+                )
+            ),
+            icon_url=str(ctx.author.avatar_url)
+        )
+
+        embed.description = get_cooldown_description(ctx, error)
+
+        await ctx.send(embed=embed)
     elif isinstance(error, commands.EmojiNotFound):
         await ctx.send(f'I cannot find the given emoji "{error.argument}"')
     elif isinstance(error, commands.ExpectedClosingQuoteError):
@@ -188,7 +353,14 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.InvalidEndOfQuotedStringError):
         await ctx.send('Expected a space after a closing quotation mark.')
     elif isinstance(error, commands.MaxConcurrencyReached):
-        await ctx.send('Too many people are using this command!')
+        embed = discord.Embed(
+            color=get_bot_color()
+        ).set_footer(
+            text=get_concurrency_description(ctx, error),
+            icon_url=str(ctx.author.avatar_url)
+        )
+
+        await ctx.send(embed=embed)
     elif isinstance(error, commands.MessageNotFound):
         await ctx.send('I cannot find the given message.')
     elif isinstance(error, commands.MissingRequiredArgument):

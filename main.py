@@ -84,7 +84,9 @@ def main():
     print('Starting bot')
     try:
         loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
-    except Exception as e:
+    except KeyboardInterrupt:
+        logger.info('KeyboardInterrupt: closing bot')
+    except Exception:
         logger.exception('Exception raised in bot')
     finally:
         loop.run_until_complete(bot.close())

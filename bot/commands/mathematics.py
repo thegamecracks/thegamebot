@@ -150,7 +150,7 @@ class Mathematics(commands.Cog):
     @commands.command(
         name='evaluate',
         aliases=('eval',))
-    @commands.cooldown(1, 2, commands.BucketType.user)
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_evaluate(self, ctx, *, expr: str):
         """Evaluates a simple mathematical expression.
 Syntax:
@@ -288,7 +288,7 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
         name='gcd',
         brief='Greatest common divisor/factor.',
         aliases=('gcf',))
-    @commands.cooldown(5, 25, commands.BucketType.user)
+    @commands.cooldown(5, 30, commands.BucketType.user)
     async def client_gcd(self, ctx, x: int, y: str):
         """Return the Greatest Common Divisor/Factor of one or two integers.
 
@@ -318,7 +318,7 @@ If y is "high", calculates the highest divisor of x other than itself."""
     @commands.command(
         name='isprime',
         aliases=('prime',))
-    @commands.cooldown(5, 25, commands.BucketType.user)
+    @commands.cooldown(5, 30, commands.BucketType.user)
     async def client_isprime(self, ctx, n: int, setting: str = 'high'):
         """Checks if a number is prime.
 n - The number to test.
@@ -396,7 +396,7 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
     @commands.command(
         name='factors',
         aliases=('factor',))
-    @commands.cooldown(5, 25, commands.BucketType.user)
+    @commands.cooldown(5, 30, commands.BucketType.user)
     async def client_factors(self, ctx, n: int):
         """Returns all factors of a number.
 n - The number to test.

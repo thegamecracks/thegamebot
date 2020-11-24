@@ -305,7 +305,7 @@ To remove only one reminder, use the removereminder command."""
 
     @commands.command(name='showreminders')
     @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.cooldown(4, 40, commands.BucketType.channel)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_showreminders(self, ctx):
         """Show all of your reminders."""
         await ctx.channel.trigger_typing()

@@ -83,7 +83,7 @@ EVIDENCES = [
 
 
 def phasmophobia_match_ghost_evidence(evidences):
-    possible_ghosts = GHOST_EVIDENCE.copy()
+    possible_ghosts = GHOST_EVIDENCE
 
     for e in evidences:
         new_ghosts = []
@@ -165,7 +165,7 @@ class Undefined(commands.Cog):
     @commands.command(
         name='echo',
         aliases=('say',))
-    @commands.cooldown(3, 15, commands.BucketType.user)
+    @commands.cooldown(3, 15, commands.BucketType.member)
     async def client_echo(self, ctx, *, content):
         """Repeats what you say."""
         await ctx.send(discord.utils.escape_mentions(content))
@@ -176,13 +176,12 @@ class Undefined(commands.Cog):
 
     @commands.command(
         name='detectenglish',
-        brief='Detects if a word is probably english.',
         aliases=('isenglish', 'english'))
-    @commands.cooldown(3, 10, commands.BucketType.user)
+    @commands.cooldown(3, 10, commands.BucketType.member)
     async def client_english(self, ctx, word: str):
-        """Goes through a list of words and checks if the given word is in it.
+        """Determines if a word is english.
 
-List of words comes from dwyl/english-words github."""
+Dictionary comes from dwyl/english-words github."""
         if word.lower() in WORDLIST:
             await ctx.send(f'{word} is a word.')
         else:
@@ -195,9 +194,10 @@ List of words comes from dwyl/english-words github."""
 
     @commands.command(
         name='getlastmessage')
-    @commands.cooldown(3, 10, commands.BucketType.user)
+    @commands.cooldown(2, 10, commands.BucketType.channel)
     async def client_getlastmessage(self, ctx, ID):
         """Get the last message of a text channel.
+Not for sniping.
 
 This command was written as an answer to:
 https://stackoverflow.com/q/64080277/"""
@@ -226,7 +226,7 @@ https://stackoverflow.com/q/64080277/"""
     @commands.command(
         name='goodday',
         aliases=('gooday', 'gday'))
-    @commands.cooldown(1, 30, commands.BucketType.channel)
+    @commands.cooldown(1, 40, commands.BucketType.channel)
     async def client_goodday(self, ctx):
         """Prints the time, date, and a good day message."""
         await ctx.channel.trigger_typing()
@@ -290,7 +290,7 @@ https://stackoverflow.com/q/64080277/"""
     @client_phasmophobia.command(name='evidence')
     @commands.cooldown(3, 10, commands.BucketType.user)
     async def client_phasmophobia_ghost_evidence(self, ctx, *, evidences):
-        """Phasmophobia: determine ghost(s) based on evidence.
+        """Determine the ghost(s) based on evidence.
 Example usage:
     <command> emf level 5, fingerprints, freezing temp
 Available evidences:
@@ -300,8 +300,14 @@ Fingerprints
 Ghost Orb
 Ghost Writing
 Spirit Box"""
-        evidences = [s.strip() for s in evidences.split(',')]
+        def show_evidence(evidences, has_corrected):
+            if not has_corrected:
+                return ''
+            return f" ({', '.join(evidences)})"
 
+        evidences = [s.strip() for s in evidences.split(',') if s.strip()]
+
+        # Fuzzy match the evidence
         corrected_evidence = False
         for i, e in enumerate(evidences):
             match = utils.fuzzy_match_word(e, EVIDENCES)
@@ -312,20 +318,19 @@ Spirit Box"""
             evidences[i] = match
             corrected_evidence = True
 
+        # Determine ghosts
         ghosts = phasmophobia_match_ghost_evidence(evidences)
 
+        title = None
+        embed = None
         if not ghosts:
-            if corrected_evidence:
-                title = 'No ghosts match the given evidence ({}).'.format(
-                    ', '.join(evidences))
-            else:
-                title = 'No ghosts match the given evidence.'
+            title = 'No ghosts match the given evidence{}.'.format(
+                show_evidence(evidences, corrected_evidence)
+            )
         elif len(ghosts) == 1:
-            if corrected_evidence:
-                title = 'One ghost matches the given evidence ({}).'.format(
-                    ', '.join(evidences))
-            else:
-                title = 'One ghost matches the given evidence.'
+            title = 'One ghost matches the given evidence{}:'.format(
+                show_evidence(evidences, corrected_evidence)
+            )
 
             g = ghosts[0]
             embed = discord.Embed(
@@ -333,17 +338,11 @@ Spirit Box"""
                 color=get_bot_color()
             )
         else:
-            if corrected_evidence:
-                title = '{} ghosts match the given evidence ({}):'.format(
-                    inflector.number_to_words(
-                        len(ghosts), threshold=10).capitalize(),
-                    ', '.join(evidences)
-                )
-            else:
-                title = '{} ghosts match the given evidence:'.format(
-                    inflector.number_to_words(
-                        len(ghosts), threshold=10).capitalize()
-                )
+            title = '{} ghosts match the given evidence{}:'.format(
+                inflector.number_to_words(
+                    len(ghosts), threshold=10).capitalize(),
+                show_evidence(evidences, corrected_evidence)
+            )
 
             embed = discord.Embed(
                 description='\n'.join([

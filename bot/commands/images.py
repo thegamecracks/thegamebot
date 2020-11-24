@@ -26,6 +26,7 @@ class Images(commands.Cog):
     @commands.command(
         name='meow')
     @commands.cooldown(1, 20, commands.BucketType.channel)
+    @commands.max_concurrency(3)
     async def client_getcatimage(self, ctx):
         """cat pic"""
         if CAT_API_KEY is None:

@@ -204,7 +204,7 @@ To remove only one note, use the removenote command."""
 
     @commands.command(name='shownotes')
     @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.cooldown(4, 40, commands.BucketType.channel)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_shownotes(self, ctx):
         """Show all of your notes."""
         await ctx.channel.trigger_typing()

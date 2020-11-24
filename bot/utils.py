@@ -100,6 +100,7 @@ def fuzzy_match_char(s, choices):
     possible = choices
     possible_lower = [s.lower() for s in possible]
 
+    # See if the phrase already exists
     try:
         i = possible_lower.index(s.lower())
         return possible[i]
@@ -142,6 +143,7 @@ def fuzzy_match_word(s, choices):
     possible = choices
     possible_lower = [s.lower() for s in possible]
 
+    # See if the phrase already exists
     try:
         i = possible_lower.index(s.lower())
         return possible[i]

@@ -34,7 +34,7 @@ class Embedding(commands.Cog):
     @commands.command(
         name='embed',
         brief='Create an embed.')
-    @commands.cooldown(3, 20, commands.BucketType.user)
+    @commands.cooldown(3, 30, commands.BucketType.channel)
     async def client_createembed(
             self, ctx,
             color: functools.partial(int, base=16),
