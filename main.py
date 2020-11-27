@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import collections
 import datetime
 import time
 import os
@@ -7,6 +8,7 @@ import os
 import discord
 from discord.ext import commands
 
+from bot import checks
 from bot import database
 from bot import eventhandlers
 from bot.commands import helpcommand
@@ -67,11 +69,14 @@ def main():
         intents=intents
     )
 
+    checks.setup(bot)
+    print('Initialized global checks')
     eventhandlers.setup(bot)
+    print('Registered event handlers')
 
     # Add botvars
-    bot.about_bootup_time = 0
-    bot.about_processed_commands = 0
+    bot.info_bootup_time = 0
+    bot.info_processed_commands = collections.defaultdict(int)
     bot.uptime_last_connect = datetime.datetime.now().astimezone()
     bot.uptime_last_connect_adjusted = bot.uptime_last_connect
     bot.uptime_last_disconnect = bot.uptime_last_connect
@@ -81,7 +86,7 @@ def main():
     # Create task to calculate bootup time
     async def bootup_time(bot, start_time):
         await bot.wait_until_ready()
-        bot.about_bootup_time = time.perf_counter() - start_time
+        bot.info_bootup_time = time.perf_counter() - start_time
 
     # Load extensions
     for name in cogs:

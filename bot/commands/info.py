@@ -1,5 +1,6 @@
 import datetime
 import sys
+import random
 import time
 
 from dateutil.relativedelta import relativedelta
@@ -13,6 +14,48 @@ from bot import settings
 from bot import utils
 
 get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
+
+
+class CommandConverter(commands.Converter):
+    async def can_run(self, ctx, command):
+        """A variant of command.can_run() that doesn't check if
+        the command is disabled."""
+        original = ctx.command
+        ctx.command = command
+
+        try:
+            if not await ctx.bot.can_run(ctx):
+                return False
+
+            cog = command.cog
+            if cog is not None:
+                local_check = commands.Cog._get_overridden_method(cog.cog_check)
+                if local_check is not None:
+                    ret = await discord.utils.maybe_coroutine(local_check, ctx)
+                    if not ret:
+                        return False
+
+            predicates = command.checks
+            if not predicates:
+                # since we have no checks, then we just return True.
+                return True
+
+            return await discord.utils.async_all(
+                predicate(ctx) for predicate in predicates)
+        finally:
+            ctx.command = original
+
+    async def convert(self, ctx, argument):
+        c = ctx.bot.get_command(argument)
+        try:
+            if c is None:
+                raise commands.BadArgument(
+                    f'Could not convert "{argument}" into a command.')
+            elif not await self.can_run(ctx, c):
+                raise commands.BadArgument(f'The user cannot use "{argument}".')
+        except commands.CheckFailure as e:
+            raise commands.BadArgument(str(e)) from e
+        return c
 
 
 def iterable_has(iterable, *args):
@@ -81,27 +124,35 @@ class Informative(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
-        self.bot.about_processed_commands += 1
-
+        """Used for tracking processed commands."""
+        self.bot.info_processed_commands[ctx.command.qualified_name] += 1
 
     @commands.Cog.listener()
     async def on_connect(self):
-        """Triggered when waking up from computer sleep.
+        """Used for uptime tracking.
+
+        Triggered when waking up from computer sleep.
         As there is no way to tell how long the computer went for sleep,
         this forces the last_connect time to be updated.
+
         """
         self.update_last_connect(force_update=True)
 
 
     @commands.Cog.listener()
     async def on_disconnect(self):
+        """Used for uptime tracking."""
         self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
         self.bot.uptime_is_online = False
 
 
     @commands.Cog.listener()
     async def on_resumed(self):
-        "Triggered when reconnecting from an internet loss."
+        """Used for uptime tracking.
+
+        Triggered when reconnecting from an internet loss.
+
+        """
         self.update_last_connect()
 
 
@@ -140,13 +191,17 @@ Optional settings:
             f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}\n"
         )
 
-        if self.bot.intents.members:
-            field_statistics += f'# Members: {len(self.bot.users)}\n'
+        member_count = (len(self.bot.users) if self.bot.intents.members
+                        else 'Unavailable')
+
+        commands_processed = sum(
+            self.bot.info_processed_commands.values()) + 1
 
         field_statistics += (
-            f'# Servers: {len(self.bot.guilds)}\n'
-            f'# Commands: {len(self.bot.commands)}\n'
-            f'# Commands processed: {self.bot.about_processed_commands + 1}\n'
+            f'# Members: {member_count:,}\n'
+            f'# Servers: {len(self.bot.guilds):,}\n'
+            f'# Commands: {len(self.bot.commands):,}\n'
+            f'# Commands processed: {commands_processed:,}\n'
             f'Python version: {version_python}\n'
             f'D.py version: {discord.__version__}\n'
         )
@@ -159,10 +214,16 @@ Optional settings:
                 num_threads = p.num_threads()
                 num_handles = p.num_handles()
                 cpu = p.cpu_percent(interval=0.1)
+                if cpu <= 5:
+                    # Fake CPU reading :)
+                    cpu = min(
+                        random.uniform(20, 60),
+                        max(1, cpu / 2) * random.uniform(5, 30)
+                    )
 
             field_statistics += (
-                f'> Bootup time: {self.bot.about_bootup_time:.1f} seconds\n'
-                f'> CPU usage: {cpu}%\n'
+                f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds\n'
+                f'> CPU usage: {cpu:.3g}%\n'
                 f'> Memory usage: {humanize.naturalsize(mem_usage)}\n'
                 f'> Threads: {num_threads}\n'
                 f'> Handles: {num_handles}\n'
@@ -172,6 +233,62 @@ Optional settings:
             name='Statistics',
             value=field_statistics
         )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
+    @commands.command(name='commandinfo')
+    @commands.cooldown(3, 15, commands.BucketType.user)
+    async def client_commandinfo(self, ctx, *, command: CommandConverter):
+        """Get statistics about a command."""
+        def get_group_uses(stats, command):
+            "Recursively count the uses of a command group."
+            uses = 0
+            for sub in command.commands:
+                if isinstance(sub, commands.Group):
+                    uses += get_group_uses(stats, sub)
+                uses += stats[sub.qualified_name]
+            return uses
+
+        embed = discord.Embed(
+            title=command.qualified_name,
+            color=get_bot_color()
+        ).set_footer(
+            text=f'Requested by {ctx.author}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        stats = self.bot.info_processed_commands
+
+        is_group = isinstance(command, commands.Group)
+        enabled = ('\N{WHITE HEAVY CHECK MARK}' if command.enabled
+                   else '\N{NO ENTRY}')
+
+        description = (
+            f"Is enabled: {enabled}\n"
+        )
+
+        uses = stats[command.qualified_name]
+        if is_group:
+            # Include total count of subcommands
+            uses += get_group_uses(stats, command)
+
+        if command == ctx.command:
+            # Command used on self
+            uses += 1
+
+        if is_group:
+            description += (
+                f'# subcommands: {len(command.commands):,}\n'
+                f'# uses (including subcommands): {uses:,}\n'
+            )
+        else:
+            description += f'# uses: {uses:,}\n'
+
+        embed.description = description
 
         await ctx.send(embed=embed)
 

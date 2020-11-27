@@ -102,8 +102,7 @@ class HelpCommand(commands.HelpCommand):
             if ctx.guild is not None:
                 # User sent command in server; only give notification if they
                 # haven't recently received one
-                bucket = message_length_cooldown.get_bucket(ctx.message)
-                if not bucket.update_rate_limit():
+                if not message_length_cooldown.update_rate_limit(ctx.message):
                     await destination.send(
                         'Help message is a bit long; sent it to you in DMs.')
         else:

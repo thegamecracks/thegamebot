@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 import inflect
 
+from bot import checks
 from bot import settings
 from bot import utils
 
@@ -16,6 +17,10 @@ handlers = [
     'on_ready',
     'on_resumed',
 ]
+
+command_handling_blacklist = set()
+# Prevents errors from being processed in this set of commands,
+# specified by the callback name of the command ('client_execute', etc.)
 
 inflector = inflect.engine()
 
@@ -134,22 +139,27 @@ class CommandErrorCooldown:
         mapping = self.error_mapping.get(type(error))
         if mapping is None:
             return False
-        bucket = mapping.get_bucket(ctx.message)
-        return bucket.update_rate_limit()
+        return mapping.update_rate_limit(ctx.message)
 
 
 ERRORS_TO_LIMIT_COOLDOWN_MAPPING = {
-    discord.Forbidden: (1, 5, commands.BucketType.user),
+    commands.BotMissingPermissions: None,
+    commands.BotMissingAnyRole: None,
+    commands.BotMissingRole: None,
     commands.CommandOnCooldown: None,
+    commands.DisabledCommand: None,
     commands.MaxConcurrencyReached: None,
-    commands.MissingRole: None,
     commands.MissingAnyRole: None,
     commands.MissingPermissions: None,
+    commands.MissingRole: None,
     commands.NoPrivateMessage: None,
     commands.NotOwner: None,
+    commands.UserInputError: (5, 30, commands.BucketType.user),
+    checks.UserOnCooldown: (1, 5, commands.BucketType.user),
+    discord.Forbidden: (1, 5, commands.BucketType.user),
 }
 ERRORS_TO_LIMIT = tuple(ERRORS_TO_LIMIT_COOLDOWN_MAPPING)
-error_limiter = CommandErrorCooldown(ERRORS_TO_LIMIT_COOLDOWN_MAPPING)
+command_error_limiter = CommandErrorCooldown(ERRORS_TO_LIMIT_COOLDOWN_MAPPING)
 
 
 def convert_perms_to_english(perms):
@@ -194,17 +204,22 @@ async def on_resumed():
 
 
 async def on_command_error(ctx, error):
-    # Print error
     if isinstance(error, commands.CommandNotFound):
         return
+    elif ctx.command.callback.__name__ in command_handling_blacklist:
+        # command is to be ignored
+        return
     elif (isinstance(error, ERRORS_TO_LIMIT)
-          or isinstance(error, commands.CommandInvokeError)
+          or hasattr(error, 'original')
           and isinstance(error.original, ERRORS_TO_LIMIT)):
+
         error_unpacked = getattr(error, 'original', error)
-        if error_limiter.check_user(ctx, error_unpacked):
-            # rate limited
+        if command_error_limiter.check_user(ctx, error_unpacked):
+            # user is rate limited on receiving a particular error
             return
-    elif ctx.guild is not None:
+
+    # Print error
+    if ctx.guild is not None:
         # Command invoked in server
         print(
             'Command error ({}:{}:{}:"{}")\n  {}: {}'.format(
@@ -268,8 +283,10 @@ async def on_command_error(ctx, error):
 
     def get_cooldown_description(ctx, error):
         if (    not ctx.guild
-                and error.cooldown.type == commands.BucketType.channel):
-            # Use message for member bucket when in DMs
+                and error.cooldown.type in (
+                    commands.BucketType.channel,
+                    commands.BucketType.guild)):
+            # in DMs; use member in place of channel/guild bucket
             description = COOLDOWN_DESCRIPTIONS.get(
                 commands.BucketType.member, 'This command is on cooldown.'
             )
@@ -290,9 +307,9 @@ async def on_command_error(ctx, error):
         )
 
     def get_cooldown_here(ctx, bucket):
-        if bucket == commands.BucketType.guild:
-            return 'on this server'
-        elif ctx.guild:
+        if ctx.guild:
+            if bucket == commands.BucketType.guild:
+                return 'on this server'
             return 'in this channel'
         else:
             return 'in this DM'
@@ -309,7 +326,9 @@ async def on_command_error(ctx, error):
 
     # Send an error message
     if isinstance(error, commands.BadBoolArgument):
-        await ctx.send('Expected a boolean answer for a parameter.')
+        # error.param is instance of inspect.Parameter
+        await ctx.send('Expected a boolean answer for parameter '
+                       f'"{error.param.name}".')
     elif isinstance(error, commands.BotMissingPermissions):
         await ctx.send(
             'I am {}'.format(
@@ -340,7 +359,7 @@ async def on_command_error(ctx, error):
             color=get_bot_color()
         ).set_footer(
             text=inflector.inflect(
-                'You can retry in {0:.1f} plural("second", {0}).'.format(
+                'You can retry in {0:.2g} plural("second", {0}).'.format(
                     error.retry_after
                 )
             ),
@@ -350,6 +369,8 @@ async def on_command_error(ctx, error):
         embed.description = get_cooldown_description(ctx, error)
 
         await ctx.send(embed=embed)
+    elif isinstance(error, commands.DisabledCommand):
+        await ctx.send('This command is currently disabled.')
     elif isinstance(error, commands.EmojiNotFound):
         await ctx.send(f'I cannot find the given emoji "{error.argument}"')
     elif isinstance(error, commands.ExpectedClosingQuoteError):
@@ -379,9 +400,8 @@ async def on_command_error(ctx, error):
                 )
             )
         )
-    elif isinstance(error, (
-            commands.MissingRole,
-            commands.MissingAnyRole)):
+    elif isinstance(error, (commands.MissingRole,
+                            commands.MissingAnyRole)):
         await ctx.send('You are {}'.format(
             missing_x_to_run('role', convert_roles(error.missing_perms))
         ))
@@ -393,14 +413,27 @@ async def on_command_error(ctx, error):
         await ctx.send('The given channel must be marked as NSFW.')
     elif isinstance(error, commands.UnexpectedQuoteError):
         await ctx.send('Did not expect a quotation mark.')
-    elif isinstance(error, (
-            commands.UserNotFound,
-            commands.MemberNotFound)):
+    elif isinstance(error, (commands.UserNotFound,
+                            commands.MemberNotFound)):
         await ctx.send('I cannot find the given user.')
     elif isinstance(error, commands.UserInputError):
         # NOTE: This is a superclass of several other errors
         await ctx.send('Failed to parse your parameters.\n'
                        f'Usage: `{get_command_signature()}`')
+    elif isinstance(error, checks.UserOnCooldown):
+        # User has invoked too many commands
+        embed = discord.Embed(
+            color=get_bot_color()
+        ).set_footer(
+            text=inflector.inflect(
+                'You are using commands too frequently. '
+                'You can retry in {0:.2g} plural("second", {0}).'.format(
+                    error.retry_after)
+            ),
+            icon_url=str(ctx.author.avatar_url)
+        )
+
+        await ctx.send(embed=embed)
     elif (isinstance(error, commands.CommandInvokeError)
           and isinstance(error.original, discord.Forbidden)
           and error.original.code == 50007):
