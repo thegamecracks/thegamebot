@@ -14,8 +14,6 @@ from bot import settings
 
 DATABASE_USERS = './data/userdb.db'
 
-dbconn_users = database.DatabaseConnection(DATABASE_USERS)
-
 
 def get_prefix():
     """Return a function for getting the bot prefix.
@@ -27,7 +25,7 @@ def get_prefix():
         commands.Bot(command_prefix=get_prefix())
 
     """
-    db = prefixdatabase.PrefixDatabase(dbconn_users)
+    db = prefixdatabase.PrefixDatabase(DATABASE_USERS)
 
     async def inner(bot, message):
         guild = message.guild
@@ -51,6 +49,7 @@ def get_prefix():
 
 
 def setup_database_users(connection):
+    "Setup the tables for the Users database."
     userdatabase.setup(connection)
     notedatabase.setup(connection)
     reminderdatabase.setup(connection)

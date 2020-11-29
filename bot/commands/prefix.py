@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.database import PrefixDatabase, dbconn_users
+from bot.database import PrefixDatabase, DATABASE_USERS
 from bot import utils
 
 inflector = inflect.engine()
@@ -23,7 +23,7 @@ class Prefix(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.prefixdb = PrefixDatabase(dbconn_users)
+        self.prefixdb = PrefixDatabase(DATABASE_USERS)
 
 
 

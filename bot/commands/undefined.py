@@ -441,11 +441,11 @@ Up to date as of 3.20.15.0."""
         elif len(result) > 1:
             # Get the first 5 results and convert to UnturnedItem,
             # then list the possible matches
-            too_many_results = len(result) > 5
+            amount = len(result)
             result = [get_item_by_name(name) for name in result[:5]]
 
             description = '\n'.join([entry.name for entry in result])
-            if too_many_results:
+            if amount > 5:
                 description += '\n...'
 
             embed = discord.Embed(
@@ -453,7 +453,13 @@ Up to date as of 3.20.15.0."""
                 description=description
             )
 
-            await ctx.send('Multiple items were matched:', embed=embed)
+            await ctx.send(
+                '{} items were matched:'.format(
+                    inflector.number_to_words(
+                        amount, threshold=10).capitalize()
+                ),
+                embed=embed
+            )
 
 
 

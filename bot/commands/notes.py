@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.database import NoteDatabase, dbconn_users
+from bot.database import NoteDatabase, DATABASE_USERS
 from bot import utils
 
 inflector = inflect.engine()
@@ -17,7 +17,7 @@ class Notes(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.notedb = NoteDatabase(dbconn_users)
+        self.notedb = NoteDatabase(DATABASE_USERS)
         self.cache = {}  # user_id: notes
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,

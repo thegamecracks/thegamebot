@@ -38,7 +38,7 @@ disabled_intents = [
 ]
 
 
-def main():
+async def main():
     start_time = time.perf_counter()
 
     parser = argparse.ArgumentParser()
@@ -92,24 +92,25 @@ def main():
     for name in cogs:
         bot.load_extension(name)
 
-    # Start the bot
-    loop = asyncio.get_event_loop()
+    # Clean up
+    del parser, args, attr, name
+
+    # Create tasks
+    loop = asyncio.get_running_loop()
 
     loop.create_task(bootup_time(bot, start_time))
 
-    bot_args = [TOKEN]
-    bot_kwargs = dict()
+    # Start the bot
     print('Starting bot')
     try:
-        loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
+        await bot.start(TOKEN)
     except KeyboardInterrupt:
         logger.info('KeyboardInterrupt: closing bot')
     except Exception:
         logger.exception('Exception raised in bot')
     finally:
-        loop.run_until_complete(bot.close())
-        loop.close()
+        await bot.close()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
