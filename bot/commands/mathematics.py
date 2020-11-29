@@ -172,7 +172,7 @@ To reveal the evaluation of your expression, add --debug to your expression."""
             expr = expr.replace('--debug', '').strip()
 
         msg = []
-        with ctx.channel.typing():
+        with ctx.typing():
             postfix, tokens = mathparser.Postfix.from_infix(expr)
             if debugging:
                 msg.append('```\n')

@@ -1,5 +1,7 @@
 import asyncio
 import calendar
+import collections
+import csv
 import random
 import time
 
@@ -14,6 +16,10 @@ inflector = inflect.engine()
 
 get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
 
+WORDLIST_PATH = 'data/wordlist.txt'
+UNTURNED_ITEM_IDS_PATH = 'data/unturned_item_ids.csv'
+
+# goodday command
 CLIENT_GOODDAY_VARS = {
     'nightmessage': 'Have a good night.',
     'morningmessage': 'Have a good morning.',
@@ -25,10 +31,13 @@ CLIENT_GOODDAY_VARS = {
     'evening': 22,
     'firstday': calendar.SUNDAY
 }
-with open('data/wordlist.txt') as f:
+
+# detectenglish command
+with open(WORDLIST_PATH) as f:
     WORDLIST = set(f.read().split())
 
 
+# phasmophobia commands
 class Ghost:
     __slots__ = ('name', 'evidences', 'url')
 
@@ -100,6 +109,20 @@ def phasmophobia_match_ghost_evidence(evidences):
     return possible_ghosts
 
 
+# unturned commands
+UNTURNED_ITEM_IDS = {}
+UnturnedItem = collections.namedtuple(
+    'UnturnedItem', ['id', 'name', 'rarity', 'url'])
+with open(UNTURNED_ITEM_IDS_PATH) as f:
+    reader = csv.reader(f)
+    header = next(reader)
+    for id_, name, rarity, url in reader:
+        id_ = int(id_)
+        UNTURNED_ITEM_IDS[id_] = UnturnedItem(id_, name, rarity, url)
+del reader, header, id_, name, rarity
+
+
+# dmtest/test command
 def generate_test_message():
     kwargs = {
         'made': random.choice(('designed', 'designated', 'made', 'meant')),
@@ -151,24 +174,10 @@ class Undefined(commands.Cog):
 
 
 
-    @commands.command(
-        name='dmtest')
+    @commands.command(name='dmtest')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_dmtest(self, ctx):
         await ctx.author.send(generate_test_message())
-
-
-
-
-
-
-    @commands.command(
-        name='echo',
-        aliases=('say',))
-    @commands.cooldown(3, 15, commands.BucketType.member)
-    async def client_echo(self, ctx, *, content):
-        """Repeats what you say."""
-        await ctx.send(discord.utils.escape_mentions(content))
 
 
 
@@ -192,8 +201,7 @@ Dictionary comes from dwyl/english-words github."""
 
 
 
-    @commands.command(
-        name='getlastmessage')
+    @commands.command(name='getlastmessage')
     @commands.cooldown(2, 10, commands.BucketType.channel)
     async def client_getlastmessage(self, ctx, ID):
         """Get the last message of a text channel.
@@ -359,11 +367,92 @@ Spirit Box"""
 
 
 
-    @commands.command(
-        name='test')
+    @commands.command(name='test')
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_test(self, ctx):
         await ctx.send(generate_test_message())
+
+
+
+
+
+    @commands.group(name='unturned', invoke_without_command=True)
+    async def client_unturned(self, ctx):
+        """Commands related to the game Unturned."""
+
+
+    @client_unturned.command(name='item')
+    @commands.cooldown(3, 10, commands.BucketType.user)
+    async def client_unturned_item(self, ctx, *, item):
+        """Search for an Unturned item by ID or name.
+Information was pre-scraped from https://unturneditems.com/.
+Up to date as of 3.20.15.0."""
+        def get_item_by_name(name):
+            result = discord.utils.get(UNTURNED_ITEM_IDS.values(), name=name)
+            if result is None:
+                raise ValueError(f'Could not find {name!r}')
+            return result
+
+        def item_embed(entry):
+            id_, name, rarity, url = (entry.id, entry.name,
+                                      entry.rarity, entry.url)
+
+            return discord.Embed(
+                color=(  0x777777 if rarity == 'Common'
+                    else 0x71BA51 if rarity == 'Uncommon'
+                    else 0x3D8EB9 if rarity == 'Rare'
+                    else 0x8870FF if rarity == 'Epic'
+                    else 0xD33257 if rarity == 'Legendary'
+                    else 0x637C63
+                ),
+                description=(
+                    f'[{name}]({url})\n'
+                    f'ID: {id_}\n'
+                    f'Rarity: {rarity}'
+                )
+            )
+
+        # Search by ID
+        try:
+            item_id = int(item)
+        except ValueError:
+            pass
+        else:
+            entry = UNTURNED_ITEM_IDS.get(item_id)
+
+            if entry is None:
+                return await ctx.send('Could not find an item with that ID.')
+
+            return await ctx.send(embed=item_embed(entry))
+
+        # Search by name
+        result = utils.fuzzy_match_word(
+            item, tuple(entry.name for entry in UNTURNED_ITEM_IDS.values()),
+            return_possible=True
+        )
+
+        if isinstance(result, str):
+            entry = get_item_by_name(result)
+            await ctx.send(embed=item_embed(entry))
+        elif not result:
+            await ctx.send('Could not find an item with that name.')
+        elif len(result) > 1:
+            # Get the first 5 results and convert to UnturnedItem,
+            # then list the possible matches
+            too_many_results = len(results) > 5
+            result = [get_item_by_name(name) for name in result[:5]]
+
+            description = '\n'.join([entry.name for entry in results])
+            if too_many_results:
+                description += '\n...'
+
+            embed = discord.Embed(
+                color=get_bot_color(),
+                description=description
+            )
+
+            await ctx.send('Multiple items were matched:', embed=embed)
+
 
 
 

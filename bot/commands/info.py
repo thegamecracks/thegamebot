@@ -2,6 +2,7 @@ import datetime
 import sys
 import random
 import time
+import typing
 
 from dateutil.relativedelta import relativedelta
 import discord
@@ -77,6 +78,16 @@ class Informative(commands.Cog):
     DATETIME_DIFFERENCE_PRECISION = {'minutes': False, 'seconds': False}
 
     UPTIME_ALLOWED_DOWNTIME = 10
+
+    COMMANDINFO_BUCKETTYPE_DESCRIPTIONS = {
+        commands.BucketType.default:  'globally',
+        commands.BucketType.user:     'per user',
+        commands.BucketType.guild:    'per guild',
+        commands.BucketType.channel:  'per text channel',
+        commands.BucketType.member:   'per user',
+        commands.BucketType.category: 'per channel category',
+        commands.BucketType.role:     'per role'
+    }
 
     def __init__(self, bot):
         self.bot = bot
@@ -175,7 +186,7 @@ Optional settings:
         ).set_thumbnail(
             url=self.bot.user.avatar_url
         ).set_footer(
-            text=f'Requested by {ctx.author}',
+            text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
         )
 
@@ -242,7 +253,7 @@ Optional settings:
 
     @commands.command(name='commandinfo')
     @commands.cooldown(3, 15, commands.BucketType.user)
-    async def client_commandinfo(self, ctx, *, command: CommandConverter):
+    async def client_commandinfo(self, ctx, *, command):
         """Get statistics about a command."""
         def get_group_uses(stats, command):
             "Recursively count the uses of a command group."
@@ -253,11 +264,18 @@ Optional settings:
                 uses += stats[sub.qualified_name]
             return uses
 
+        # Search for the command
+        try:
+            command = await CommandConverter().convert(ctx, command)
+        except commands.BadArgument:
+            return await ctx.send("That command doesn't exist.")
+
+        # Create a response
         embed = discord.Embed(
             title=command.qualified_name,
             color=get_bot_color()
         ).set_footer(
-            text=f'Requested by {ctx.author}',
+            text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
         )
 
@@ -267,10 +285,44 @@ Optional settings:
         enabled = ('\N{WHITE HEAVY CHECK MARK}' if command.enabled
                    else '\N{NO ENTRY}')
 
-        description = (
-            f"Is enabled: {enabled}\n"
-        )
+        # Write description
+        description = ''
 
+        # Insert cog
+        if command.cog is not None:
+            description += (
+                f'Categorized under: __{command.cog.qualified_name}__\n')
+
+        # Insert aliases
+        if len(command.aliases) == 1:
+            description += f"Alias: {command.aliases[0]}\n"
+        elif len(command.aliases) > 1:
+            description += f"Aliases: {', '.join(command.aliases)}\n"
+
+        # Insert parent
+        if command.parent is not None:
+            description += f'Parent command: {command.parent.name}\n'
+
+        # Insert enabled status
+        description += f"Is enabled: {enabled}\n"
+
+        # Insert hidden status
+        if command.hidden:
+            description += 'Is hidden: \N{WHITE HEAVY CHECK MARK}\n'
+
+        # Insert cooldown
+        cooldown = command._buckets._cooldown
+        if cooldown is not None:
+            cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
+                cooldown.type, '')
+            description += (
+                'Cooldown settings: '
+                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}\n'
+            )
+        else:
+            description += 'Cooldown settings: unlimited\n'
+
+        # Insert uses
         uses = stats[command.qualified_name]
         if is_group:
             # Include total count of subcommands
@@ -288,6 +340,7 @@ Optional settings:
         else:
             description += f'# uses: {uses:,}\n'
 
+        # Finalize embed
         embed.description = description
 
         await ctx.send(embed=embed)
@@ -314,9 +367,12 @@ Optional settings:
     @commands.command(
         name='serverinfo')
     @commands.guild_only()
-    @commands.cooldown(1, 15, commands.BucketType.user)
-    async def client_serverinfo(self, ctx):
+    @commands.cooldown(1, 15, commands.BucketType.channel)
+    async def client_serverinfo(self, ctx, streamer_friendly: bool = True):
         """Get information about the server you are currently in.
+
+streamer_friendly: If yes, hides the server ID and the owner's discriminator.
+
 Format referenced from the Ayana bot."""
         guild = ctx.author.guild
 
@@ -332,7 +388,7 @@ Format referenced from the Ayana bot."""
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
-        owner = guild.owner
+        owner = guild.owner.name if streamer_friendly else str(guild.owner)
         roles = guild.roles
 
         embed = discord.Embed(
@@ -340,12 +396,13 @@ Format referenced from the Ayana bot."""
             timestamp=datetime.datetime.utcnow()
         )
 
-        embed.set_author(name=owner)
+        embed.set_author(name=guild.name)
         embed.set_thumbnail(url=guild.icon_url)
-        embed.add_field(
-            name='ID',
-            value=guild.id
-        )
+        if not streamer_friendly:
+            embed.add_field(
+                name='ID',
+                value=guild.id
+            )
         embed.add_field(
             name='Region',
             value=guild.region
@@ -373,7 +430,7 @@ Format referenced from the Ayana bot."""
             inline=False
         )
         embed.set_footer(
-            text=f'Requested by {ctx.author}',
+            text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
         )
 
@@ -441,9 +498,14 @@ This command uses the IANA timezone database."""
 
     @commands.command(
         name='userinfo')
-    @commands.cooldown(3, 15, commands.BucketType.user)
-    async def client_userinfo(self, ctx, user=None):
+    @commands.cooldown(3, 20, commands.BucketType.user)
+    async def client_userinfo(self, ctx,
+                              streamer_friendly: typing.Optional[bool] = True,
+                              *, user=None):
         """Get information about a user by name or mention.
+
+streamer_friendly: If yes, hides the user's discriminator.
+user: Can be referenced by name, nickname, name#discrim, or by mention.
 
 https://youtu.be/CppEzOOXJ8E used as reference.
 Format referenced from the Ayana bot."""
@@ -519,7 +581,9 @@ Format referenced from the Ayana bot."""
             nickname = None
             roles = None
             status = None
-        author = f'{user} (Bot)' if user.bot else f'{user}'
+        author = (f'{user} (Bot)' if user.bot
+                  else f'{user.name}' if streamer_friendly
+                  else str(user))
         created = (
             utils.timedelta_string(
                 utils.datetime_difference(
@@ -539,12 +603,12 @@ Format referenced from the Ayana bot."""
 
         embed.set_author(name=author)  # icon_url=user.avatar_url
         embed.set_thumbnail(url=user.avatar_url)
-        # embed.set_image(url=user.avatar_url)
-        embed.add_field(
-            name='ID',
-            value=user.id,
-            inline=False
-        )
+        if not streamer_friendly:
+            embed.add_field(
+                name='ID',
+                value=user.id,
+                inline=False
+            )
         embed.add_field(
             name='Mention',
             value=user.mention,
@@ -608,7 +672,7 @@ Format referenced from the Ayana bot."""
                 inline=False
             )
         embed.set_footer(
-            text=f'Requested by {ctx.author}',
+            text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
         )
 

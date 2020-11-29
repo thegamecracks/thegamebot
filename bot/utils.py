@@ -85,59 +85,26 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def fuzzy_match_char(s, choices):
-    """Matches a string with a given evidence by characters (case-insensitive).
-
-    Args:
-        s (str)
-        choices (List[str])
-
-    Returns:
-        None
-        str
-
-    """
-    possible = choices
-    possible_lower = [s.lower() for s in possible]
-
-    # See if the phrase already exists
-    try:
-        i = possible_lower.index(s.lower())
-        return possible[i]
-    except ValueError:
-        pass
-
-    length = len(s)
-    for i, char in enumerate(s.lower()):
-        new = []
-
-        for p, pl in zip(possible, possible_lower):
-            if len(pl) >= length and pl[i] == char:
-                new.append(p)
-
-        possible = new
-
-        count = len(possible)
-        if count == 0:
-            return None
-        elif count == 1:
-            return possible[0]
-
-        possible_lower = [s.lower() for s in possible]
-
-    return None
-
-
-def fuzzy_match_word(s, choices):
+def fuzzy_match_word(s, choices, return_possible=False):
     """Matches a string with a given evidence by token (case-insensitive).
 
+    Choices can be matched even if the given string has tokens out of order:
+        >>> fuzzy_match_word('orb ghost', ['Ghost Orb', 'Ghost Writing'])
+        'Ghost Orb'
+
+    `choices` does not get mutated.
+
     Args:
         s (str)
-        choices (List[str])
+        choices (Iterable[str])
+        return_possible (bool): If this is True and there are multiple matches,
+            a list of those matches will be returned.
 
     Returns:
         None
         str
+        List[str]:
+            Returned if `return_possible` and there are multiple matches.
 
     """
     possible = choices
@@ -162,13 +129,13 @@ def fuzzy_match_word(s, choices):
 
         count = len(possible)
         if count == 0:
-            return None
+            return
         elif count == 1:
             return possible[0]
 
         possible_lower = [s.lower() for s in possible]
 
-    return None
+    return possible if return_possible and possible else None
 
 
 def timedelta_string(
