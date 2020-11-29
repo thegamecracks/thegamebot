@@ -406,10 +406,12 @@ Up to date as of 3.20.15.0."""
                     else 0x637C63
                 ),
                 description=(
-                    f'[{name}]({url})\n'
+                    f'[**{name}**]({url})\n'
                     f'ID: {id_}\n'
                     f'Rarity: {rarity}'
                 )
+            ).set_thumbnail(
+                url=f'https://unturneditems.com/media/{id_}.png'
             )
 
         # Search by ID
@@ -439,10 +441,10 @@ Up to date as of 3.20.15.0."""
         elif len(result) > 1:
             # Get the first 5 results and convert to UnturnedItem,
             # then list the possible matches
-            too_many_results = len(results) > 5
+            too_many_results = len(result) > 5
             result = [get_item_by_name(name) for name in result[:5]]
 
-            description = '\n'.join([entry.name for entry in results])
+            description = '\n'.join([entry.name for entry in result])
             if too_many_results:
                 description += '\n...'
 
