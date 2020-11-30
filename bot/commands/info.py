@@ -14,8 +14,6 @@ import pytz
 from bot import settings
 from bot import utils
 
-get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
-
 
 class CommandConverter(commands.Converter):
     async def can_run(self, ctx, command):
@@ -182,7 +180,7 @@ Optional settings:
             title='About',
             description=('I do random stuff, whatever <@153551102443257856> '
                          'adds to me'),
-            color=get_bot_color()
+            color=utils.get_bot_color()
         ).set_thumbnail(
             url=self.bot.user.avatar_url
         ).set_footer(
@@ -202,8 +200,10 @@ Optional settings:
             f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}\n"
         )
 
-        member_count = (len(self.bot.users) if self.bot.intents.members
-                        else 'Unavailable')
+        if self.bot.intents.members:
+            member_count = sum(not u.bot for u in self.bot.users)
+        else:
+            member_count = 'Unavailable'
 
         commands_processed = sum(
             self.bot.info_processed_commands.values()) + 1
@@ -273,7 +273,7 @@ Optional settings:
         # Create a response
         embed = discord.Embed(
             title=command.qualified_name,
-            color=get_bot_color()
+            color=utils.get_bot_color()
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
@@ -342,6 +342,39 @@ Optional settings:
 
         # Finalize embed
         embed.description = description
+
+        await ctx.send(embed=embed)
+
+
+
+
+
+    @commands.command(name='invite')
+    @commands.cooldown(1, 60, commands.BucketType.channel)
+    async def client_invite(self, ctx):
+        "Get the bot's invite link."
+        perms = discord.Permissions(
+            add_reactions=True,
+            read_messages=True,
+            send_messages=True,
+            embed_links=True,
+            attach_files=True,
+            read_message_history=True,
+            external_emojis=True,
+            change_nickname=True,
+            connect=True,
+            speak=True
+        )
+
+        link = discord.utils.oauth_url(self.bot.user.id, perms)
+
+        embed = discord.Embed(
+            color=utils.get_bot_color(),
+            description=f'[OAuth2 Invite Link]({link})'
+        ).set_footer(
+            text=f'Requested by {ctx.author.name}',
+            icon_url=ctx.author.avatar_url
+        )
 
         await ctx.send(embed=embed)
 

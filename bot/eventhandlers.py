@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import discord
@@ -7,8 +8,6 @@ import inflect
 from bot import checks
 from bot import settings
 from bot import utils
-
-get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
 
 handlers = [
     'on_command_error',
@@ -23,6 +22,10 @@ command_handling_blacklist = set()
 # specified by the callback name of the command ('client_execute', etc.)
 
 inflector = inflect.engine()
+
+COOLDOWN_MAX_QUEUE_TIME = 3
+# Specifies the maximum time commands on cooldown can be queued
+# instead of sending a cooldown message
 
 COOLDOWN_DESCRIPTIONS = {
     commands.BucketType.default: 'Too many people have used this command '
@@ -355,8 +358,29 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.ChannelNotReadable):
         await ctx.send('I cannot read messages in the channel.')
     elif isinstance(error, commands.CommandOnCooldown):
+        if error.retry_after <= COOLDOWN_MAX_QUEUE_TIME:
+            # Cooldown's gonna reset soon; queue the command and inform
+            # the user via reaction
+            reacted = True
+            try:
+                await ctx.message.add_reaction('\N{HOURGLASS}')
+            except Exception:
+                # Could not react; use typing instead
+                reacted = False
+                await ctx.trigger_typing()
+
+            await asyncio.sleep(error.retry_after)
+
+            if reacted:
+                try:
+                    await ctx.message.remove_reaction('\N{HOURGLASS}', ctx.me)
+                except Exception:
+                    pass
+
+            return await ctx.reinvoke()
+
         embed = discord.Embed(
-            color=get_bot_color()
+            color=utils.get_bot_color()
         ).set_footer(
             text=inflector.inflect(
                 'You can retry in {0:.2g} plural("second", {0}).'.format(
@@ -379,7 +403,7 @@ async def on_command_error(ctx, error):
         await ctx.send('Expected a space after a closing quotation mark.')
     elif isinstance(error, commands.MaxConcurrencyReached):
         embed = discord.Embed(
-            color=get_bot_color()
+            color=utils.get_bot_color()
         ).set_footer(
             text=get_concurrency_description(ctx, error),
             icon_url=str(ctx.author.avatar_url)
@@ -423,7 +447,7 @@ async def on_command_error(ctx, error):
     elif isinstance(error, checks.UserOnCooldown):
         # User has invoked too many commands
         embed = discord.Embed(
-            color=get_bot_color()
+            color=utils.get_bot_color()
         ).set_footer(
             text=inflector.inflect(
                 'You are using commands too frequently. '

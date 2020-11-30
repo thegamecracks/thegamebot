@@ -24,6 +24,8 @@ class Prefix(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.prefixdb = PrefixDatabase(DATABASE_USERS)
+        self.mention_prefix_cooldown = commands.CooldownMapping.from_cooldown(
+            1, 15, commands.BucketType.member)
 
 
 
@@ -51,6 +53,10 @@ class Prefix(commands.Cog):
         # if ctx.valid:
         #     return
         if message.content not in bot_mentions:
+            return
+
+        # Check cooldown
+        if self.mention_prefix_cooldown.update_rate_limit(message):
             return
 
         # Get prefix(es)

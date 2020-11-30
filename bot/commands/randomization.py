@@ -48,7 +48,7 @@ class Randomization(commands.Cog):
     @commands.command(
         name='coinflip',
         aliases=('coin',))
-    @commands.cooldown(1, 1.5, commands.BucketType.user)
+    @commands.cooldown(3, 20, commands.BucketType.user)
     async def client_coinflip(self, ctx, n: int = 1):
         """Flip a number of coins.
 Example:
@@ -92,7 +92,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='dice',
         aliases=('roll',))
-    @commands.cooldown(1, 1.5, commands.BucketType.user)
+    @commands.cooldown(4, 20, commands.BucketType.user)
     async def client_dice(self, ctx, dice='d6', *args):
         """Roll a number of dice.
 Example:
@@ -106,20 +106,17 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         def roll():
             return random.randint(1, sides)
 
-        if 'd' in dice:
-            amount, sides = dice.split('d')[:2]
-            if not amount:
-                # "/sides" syntax
-                amount = 1
+        try:
+            if 'd' in dice:
+                amount, sides = dice.split('d')
+                amount = int(amount) if amount else 1
+                sides = int(sides) if sides else 6
             else:
-                amount = int(amount)
-            if not sides:
-                sides = 6
-            else:
-                sides = int(sides)
-        else:
-            # "amount/" syntax
-            amount, sides = int(dice), 6
+                # implied sides
+                amount, sides = int(dice), 6
+        except ValueError:
+            # excepts "2d6d6" (dice.split) and failed integer conversions
+            return await ctx.send('Failed to parse parameter "dice".')
 
         skip_delay = False
 
@@ -162,7 +159,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='8ball',
         aliases=('eightball',))
-    @commands.cooldown(1, 5, commands.BucketType.user)
+    @commands.cooldown(2, 12, commands.BucketType.user)
     async def client_eightball(self, ctx, *, question: str = ''):
         """Answers a yes or no question."""
         await ctx.trigger_typing()
@@ -177,6 +174,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='pick',
         aliases=('choose', 'select'))
+    @commands.cooldown(4, 20, commands.BucketType.user)
     async def client_pick(self, ctx, choice1, choice2, *choices):
         """Select one of your given choices.
 Ayana command used as reference."""

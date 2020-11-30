@@ -82,6 +82,7 @@ async def main():
     bot.uptime_last_disconnect = bot.uptime_last_connect
     bot.uptime_total_downtime = datetime.timedelta()
     bot.uptime_is_online = False
+    print('Added botvars')
 
     # Create task to calculate bootup time
     async def bootup_time(bot, start_time):
@@ -89,11 +90,13 @@ async def main():
         bot.info_bootup_time = time.perf_counter() - start_time
 
     # Load extensions
-    for name in cogs:
+    for i, name in enumerate(cogs, start=1):
         bot.load_extension(name)
+        print(f'Loaded extension {i}/{len(cogs)}', end='\r', flush=True)
+    print()
 
     # Clean up
-    del parser, args, attr, name
+    del parser, args, attr, i, name
 
     # Create tasks
     loop = asyncio.get_running_loop()

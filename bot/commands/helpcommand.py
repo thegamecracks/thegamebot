@@ -6,8 +6,7 @@ import discord
 from discord.ext import commands
 
 from bot import settings
-
-get_bot_color = lambda: int(settings.get_setting('bot_color'), 16)
+from bot import utils
 
 
 message_length_cooldown = commands.CooldownMapping.from_cooldown(
@@ -124,7 +123,7 @@ class HelpCommand(commands.HelpCommand):
 
         embed = discord.Embed(
             title=f'Page {page_num}/{total_pages}',
-            color=get_bot_color(),
+            color=utils.get_bot_color(),
             description=(
                 'Type {0}help [command] for more info on a command.\n'
                 'You can also type {0}help [category] for '
@@ -178,7 +177,7 @@ class HelpCommand(commands.HelpCommand):
                 # All commands in this cog are hidden
                 return discord.Embed(
                     title='Category help unavailable',
-                    color=get_bot_color(),
+                    color=utils.get_bot_color(),
                     description=(
                         'This category exists, but you cannot access any '
                         'of its commands here.'
@@ -189,7 +188,7 @@ class HelpCommand(commands.HelpCommand):
 
         embed = discord.Embed(
             title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
-            color=get_bot_color(),
+            color=utils.get_bot_color(),
             description=(
                 f'{cog.description}\nType {self.clean_prefix}help [command] '
                 'for more info on a command.'
@@ -313,7 +312,7 @@ class HelpCommand(commands.HelpCommand):
         """
         embed = discord.Embed(
             title=self.get_command_signature(group),
-            color=get_bot_color(),
+            color=utils.get_bot_color(),
             description=group.description
         )
 
@@ -339,7 +338,7 @@ class HelpCommand(commands.HelpCommand):
 
         embed = discord.Embed(
             title=command.qualified_name,
-            color=get_bot_color(),
+            color=utils.get_bot_color(),
             description=description
         )
         if command.cog is not None:
