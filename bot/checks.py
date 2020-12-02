@@ -19,7 +19,7 @@ GlobalCheckPredicate = collections.namedtuple(
 # Errors
 class UserOnCooldown(commands.CheckFailure):
     """Raised when a user has invoked too many commands
-    and is being ratelimited."""
+    and is being globally ratelimited."""
     __slots__ = ('retry_after',)
 
     def __init__(self, retry_after, *args, **kwargs):
@@ -63,7 +63,7 @@ def is_bot_admin():
         if ctx.author.id in settings.get_setting('admin_ids'):
             return True
         else:
-            raise InvalidBotAdmin
+            raise InvalidBotAdmin()
     return commands.check(predicate)
 
 
@@ -72,7 +72,7 @@ def is_bot_owner():
         if ctx.author.id in settings.get_setting('owner_ids'):
             return True
         else:
-            raise InvalidBotOwner
+            raise InvalidBotOwner()
     return commands.check(predicate)
 
 

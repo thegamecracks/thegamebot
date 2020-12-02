@@ -191,7 +191,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
 
     @commands.group(name='presence', invoke_without_command=True)
     @checks.is_bot_admin()
-    @commands.cooldown(2, 10, commands.BucketType.user)
+    @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
@@ -332,6 +332,7 @@ title: The title to show."""
     @client_presence.command(
         name='status',
         aliases=('state',))
+    @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_status(self, ctx, status: utils.parse_status = 'online'):
         """Sets the current status.
 Options:

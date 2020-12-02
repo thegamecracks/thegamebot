@@ -1,6 +1,7 @@
 import asyncio
 import calendar
 import collections
+from concurrent.futures import ThreadPoolExecutor
 import csv
 import json
 import math
@@ -11,14 +12,13 @@ import discord
 from discord.ext import commands
 import inflect
 
+from bot import checks
 from bot import settings
 from bot import utils
 
 inflector = inflect.engine()
 
 WORDLIST_PATH = 'data/wordlist.txt'
-UNTURNED_ITEM_IDS_PATH = 'data/unturned_item_ids.csv'
-UNTURNED_ITEM_RECIPES_PATH = 'data/unturned_recipes.json'
 
 # goodday command
 CLIENT_GOODDAY_VARS = {
@@ -130,63 +130,114 @@ class UnturnedItem:
         )
 
 
-UNTURNED_ITEM_IDS = {}
+class UnturnedDatabase:
+    UNTURNED_ITEM_IDS_PATH = 'data/unturned_item_ids.csv'
+    UNTURNED_ITEM_RECIPES_PATH = 'data/unturned_recipes.json'
 
-with open(UNTURNED_ITEM_RECIPES_PATH) as f:
-    recipes = json.load(f)
+    def __init__(self, items):
+        self.items = items
 
-with open(UNTURNED_ITEM_IDS_PATH) as f:
-    reader = csv.reader(f)
-    header = next(reader)
-    for id_, name, rarity, url in reader:
-        rec = recipes.get(id_)
-        dimensions = rec['dimensions'] if rec else None
-        recipe_data = (
-            {'primitive': rec['primitive'],
-             'recipes': rec['recipes']}
-            if rec else None
+    @classmethod
+    def _get_items_from_files(cls):
+        with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
+            recipes = json.load(f)
+
+        items = {}
+        with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            for id_, name, rarity, url in reader:
+                rec = recipes.get(id_)
+                dimensions = rec['dimensions'] if rec else None
+                recipe_data = (
+                    {'primitive': rec['primitive'],
+                     'recipes': rec['recipes']}
+                    if rec else None
+                )
+                id_ = int(id_)
+                items[id_] = UnturnedItem(
+                    id_, name, rarity, url, dimensions, recipe_data)
+
+        return items
+
+    @classmethod
+    async def _get_items_from_files_nonblocking(cls):
+        executor = ThreadPoolExecutor()
+        loop = asyncio.get_running_loop()
+
+        with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
+            recipes = json.loads(await loop.run_in_executor(executor, f.read))
+
+        with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
+            raw_lines = await loop.run_in_executor(executor, f.readlines)
+
+        items = {}
+        reader = csv.reader(raw_lines)
+        next(reader)  # skip header
+
+        for ID, name, rarity, url in reader:
+            rec = recipes.get(ID)
+            dimensions = rec['dimensions'] if rec else None
+            recipe_data = (
+                {'primitive': rec['primitive'],
+                 'recipes': rec['recipes']}
+                if rec else None
+            )
+
+            ID = int(ID)
+            items[ID] = UnturnedItem(ID, name, rarity, url,
+                                     dimensions, recipe_data)
+
+        return items
+
+    def reload_items(self):
+        """Regenerate self.items from the data files."""
+        self.items = self._get_items_from_files()
+
+    async def reload_items_nonblocking(self):
+        """Regenerate self.items from the data files.
+        Uses a thread pool to read files."""
+        self.items = await self._get_items_from_files_nonblocking()
+
+    def unturned_get_item(self, search):
+        """Search for an item from UNTURNED_ITEM_IDS either by name or ID.
+
+        Returns:
+            List[UnturnedItem]: multiple matches were found.
+            None: no matches were found.
+            UnturnedItem: the search term matches one item.
+
+        """
+        def get_item_by_name(name):
+            result = discord.utils.get(self.items.values(), name=name)
+            if result is None:
+                raise ValueError(f'Could not find an item with that name.')
+            return result
+
+        # Search by ID
+        try:
+            item_id = int(search)
+        except ValueError:
+            pass
+        else:
+            return self.items.get(item_id)
+
+        # Search by name
+        result = utils.fuzzy_match_word(
+            search, tuple(entry.name for entry in self.items.values()),
+            return_possible=True
         )
-        id_ = int(id_)
-        UNTURNED_ITEM_IDS[id_] = UnturnedItem(
-            id_, name, rarity, url, dimensions, recipe_data)
-del dimensions, reader, header, id_, name, rarity, rec, recipe_data, recipes
 
+        if isinstance(result, str):
+            return get_item_by_name(result)
+        elif isinstance(result, collections.abc.Iterable):
+            return [get_item_by_name(name) for name in result]
+        elif result is None:
+            return
 
-def unturned_get_item(search):
-    """Search for an item from UNTURNED_ITEM_IDS either by name or ID.
-
-    Returns:
-        List[UnturnedItem]: multiple matches were found.
-        None: no matches were found.
-        UnturnedItem: the search term matches one item.
-
-    """
-    def get_item_by_name(name):
-        result = discord.utils.get(UNTURNED_ITEM_IDS.values(), name=name)
-        if result is None:
-            raise ValueError(f'Could not find an item with that name.')
-        return result
-
-    # Search by ID
-    try:
-        item_id = int(search)
-    except ValueError:
-        pass
-    else:
-        return UNTURNED_ITEM_IDS.get(item_id)
-
-    # Search by name
-    result = utils.fuzzy_match_word(
-        search, tuple(entry.name for entry in UNTURNED_ITEM_IDS.values()),
-        return_possible=True
-    )
-
-    if isinstance(result, str):
-        return get_item_by_name(result)
-    elif isinstance(result, collections.abc.Iterable):
-        return [get_item_by_name(name) for name in result]
-    elif result is None:
-        return
+    @classmethod
+    def from_files(cls):
+        return cls(cls._get_items_from_files())
 
 
 # dmtest/test command
@@ -236,6 +287,7 @@ class Undefined(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.unturneddb = UnturnedDatabase.from_files()
 
 
 
@@ -542,19 +594,21 @@ Up to date as of 3.20.15.0."""
                     # Distinguish between consumed and required items
                     items_consumed, items_required = [], []
                     for raw_id, quantity in items_raw:
-                        item = unturned_get_item(raw_id)
+                        item = self.unturneddb.unturned_get_item(raw_id)
                         if quantity == 0:
                             items_required.append(item.name)
                         else:
                             items_consumed.append((item, quantity))
 
                     rec_str = ''
+                    first = True
                     # List consumed items
-                    for i, item in enumerate(items_consumed):
+                    for item in items_consumed:
                         rec_str += '> '
-                        if i != 0:
+                        if not first:
                             rec_str += '+ '
                         rec_str += f'{item[1]} x {item[0].name}\n'
+                        first = False
 
                     # Show product
                     rec_str += f'> = {amount} x {name}\n'
@@ -564,23 +618,30 @@ Up to date as of 3.20.15.0."""
                             inflector.join(items_required)
                         )
 
-                    if skills:
-                        rec_str += f'> (Requires {inflector.join(skills)})\n'
+                    requires = skills.copy()
+
+                    # Include other conditions in requirements
+                    if recipe['requires_heat']:
+                        requires.append('Heat')
+
+                    if requires:
+                        rec_str += f'> (Requires {inflector.join(requires)})\n'
 
                     recipes_str.append(rec_str)
 
                 recipes_str = '> OR:\n'.join(recipes_str)
 
-                description += f'Recipes:\n{recipes_str}\n'
+                if recipes_str:
+                    description += f'Recipes:\n{recipes_str}\n'
 
             return discord.Embed(
-                color=self.unturned_get_rarity_color(entry),
+                color=self.unturned_get_rarity_color(rarity),
                 description=description
             ).set_thumbnail(
                 url=f'https://unturneditems.com/media/{id_}.png'
             )
 
-        result = unturned_get_item(item)
+        result = self.unturneddb.unturned_get_item(item)
 
         if isinstance(result, list):
             content, embed = self.unturned_multiple_matches(result)
@@ -605,12 +666,19 @@ Note: There are only a few items with recipe data since I have to manually enter
             """Return the requirements for a recipe.
 
             Dictionary returned is structured like so:
-                'tree': [[item, amount, [...]], ...]
+                'tree': [
+                    [item, amount,
+                     [...],
+                     {'other': True, ...}],
+                    ...
+                ],
                 # stores the tree structure that is being pathed
                 'remainders': [[item, amount], ...],
                 # any excess materials
                 'skills': {'Crafting': 3, ...},
                 # all skills that are needed
+                'other': {'requires_heat': True, ...},
+                # other information about the recipe
                 'total_raw': [[item, amount], ...],
                 # contains all the raw materials required
 
@@ -640,12 +708,14 @@ Note: There are only a few items with recipe data since I have to manually enter
 
             [incomplete documentation]
             """
-            def create_output(tree=None, remainders=None,
-                              skills=None, total_raw=None):
+            def create_output(*, tree=None, remainders=None,
+                              skills=None, total_raw=None,
+                              other=None):
                 d = {
                     'tree': tree if tree is not None else [],
                     'remainders': remainders if remainders is not None else [],
-                    'skills': skills if skills is not None else {}
+                    'skills': skills if skills is not None else {},
+                    'other': other if other is not None else {}
                 }
                 if total_raw is not None:
                     d['total_raw'] = total_raw
@@ -655,7 +725,7 @@ Note: There are only a few items with recipe data since I have to manually enter
                 skill_dict = {}
                 for s in skills:
                     skill_name, level = s.split()
-                    skill_dict[skill_name] = level
+                    skill_dict[skill_name] = int(level)
                 return skill_dict
 
             def get_total_raw(tree):
@@ -663,7 +733,7 @@ Note: There are only a few items with recipe data since I have to manually enter
                 materials = {}
                 if not tree:
                     return materials
-                for item, amount, branch in tree:
+                for item, amount, branch, _other in tree:
                     if branch:
                         # Item is broken down into more materials
                         branch_raw = get_total_raw(branch)
@@ -696,15 +766,23 @@ Note: There are only a few items with recipe data since I have to manually enter
 
             materials, amount_produced = recipe['recipe'], recipe['amount']
 
+            other = {'requires_heat': recipe.get('requires_heat', False)}
+
             if amount is None:
                 amount = recipe['amount']
+
+            if amount == 0:
+                # Item is only required but not consumed
+                if top_level:
+                    raise ValueError('amount cannot be 0')
+                return create_output()
 
             if top_level:
                 frontier = set()
 
             if item.id in frontier:
                 # Item already seen; do not recurse into its recipes
-                return create_output([[item, amount, []]])
+                return create_output(tree=[[item, amount, [], other]])
 
             frontier.add(item.id)
 
@@ -718,14 +796,9 @@ Note: There are only a few items with recipe data since I have to manually enter
                 # Recipe will result in excess produce
                 remainders.append((item, amount % amount_produced))
 
-            if amount == 0:
-                # Item is only required but not consumed
-                if top_level:
-                    raise ValueError('amount cannot be 0')
-                return create_output()
-
+            # Recursively get requirements of recipe materials
             for mat_id, mat_amount in materials:
-                mat = unturned_get_item(mat_id)
+                mat = self.unturneddb.unturned_get_item(mat_id)
                 if mat is None:
                     raise ValueError(
                         f'unknown item in recipe: {mat_id}')
@@ -742,7 +815,7 @@ Note: There are only a few items with recipe data since I have to manually enter
                 )
 
                 tree.append(
-                    [mat, amount_to_craft, mat_req['tree']]
+                    [mat, amount_to_craft, mat_req['tree'], mat_req['other']]
                 )
 
                 remainders.extend(mat_req['remainders'])
@@ -751,6 +824,12 @@ Note: There are only a few items with recipe data since I have to manually enter
                 for name, level in mat_req['skills'].items():
                     skills.setdefault(name, 0)
                     skills[name] = max(skills[name], level)
+
+                # Collect other booleans if top level
+                if top_level:
+                    for k, v in mat_req['other'].items():
+                        other.setdefault(k, False)
+                        other[k] = max(other[k], v)
 
             # collect items
             if top_level:
@@ -763,18 +842,30 @@ Note: There are only a few items with recipe data since I have to manually enter
                 collected_remainders = list(collected_remainders.values())
 
                 return create_output(
-                    tree,
-                    collected_remainders,
-                    skills,
-                    total_raw
+                    tree=tree,
+                    remainders=collected_remainders,
+                    skills=skills,
+                    total_raw=total_raw,
+                    other=other
                 )
             return create_output(
-                tree,
-                remainders,
-                skills
+                tree=tree,
+                remainders=remainders,
+                skills=skills,
+                other=other
             )
 
-        def tree_str(tree, indent=1):
+        def humanize_other(other):
+            """Convert a dictionary of other booleans from
+            get_recipe_requirements into a list of human-readable strings."""
+            d = {'requires_heat': 'Heat'}
+            s = []
+            for k, v in other.items():
+                if v:
+                    s.append(d[k])
+            return s
+
+        def tree_str(tree, level=1):
             """Example tree produced by get_recipe_requirements:
 
             Wire:
@@ -789,14 +880,21 @@ Note: There are only a few items with recipe data since I have to manually enter
                 return tree
 
             s = []
-            for item, amount, branch in tree:
+            indent = '> ' * level
+
+            for item, amount, branch, other in tree:
                 if amount:
                     # Skip unconsumed items, those are handled separately
-                    s.append(f"{'> ' * indent}{amount} x {item.name}")
-                s.extend(tree_str(branch, indent=indent + 1))
+                    s.append(f'{indent}{amount} x {item.name}')
+
+                for other_str in humanize_other(other):
+                    s.append(f"{'> ' * (level + 1)}{other_str}")
+
+                s.extend(tree_str(branch, level=level + 1))
+
             return s
 
-        result = unturned_get_item(item)
+        result = self.unturneddb.unturned_get_item(item)
 
         if isinstance(result, list):
             content, embed = self.unturned_multiple_matches(result)
@@ -809,6 +907,20 @@ Note: There are only a few items with recipe data since I have to manually enter
             return await ctx.send(
                 "Unfortunately I don't have the recipe data for this.")
 
+        if amount <= 0:
+            return await ctx.send(
+                embed=discord.Embed(
+                    color=utils.get_bot_color(),
+                    description=(
+                        f'{result.name}\n'
+                        f'ID: {result.id}\n'
+                        'Total raw:\n**nothing**'
+                    )
+                ).set_thumbnail(
+                    url=f'https://unturneditems.com/media/{result.id}.png'
+                )
+            )
+
         requirements = get_recipe_requirements(result, amount)
         tree = requirements['tree']
         remainders = requirements['remainders']
@@ -816,7 +928,7 @@ Note: There are only a few items with recipe data since I have to manually enter
         total_raw = requirements['total_raw']
 
         description = (
-            f'{result.name}\n'
+            f'{amount} {inflector.plural(result.name, amount)}\n'
             f'ID: {result.id}\n'
         )
 
@@ -834,22 +946,26 @@ Note: There are only a few items with recipe data since I have to manually enter
                 items_consumed.append((item, quantity))
 
         description += 'Total raw:\n'
-        
+
+        # List consumed and required items
         for item, amount in items_consumed:
             description += f'> {amount} x {item.name}\n'
-
         for item in items_required:
             description += f'> {item}\n'
 
+        # List excess material
         if remainders:
             description += 'Remainders:\n'
             for item, amount in remainders:
                 description += f'> {amount} x {item.name}\n'
 
-        if skills:
-            # Parse skill dict back into list of strings
-            skills_list = [f'{k} {v}' for k, v in skills.items()]
-            description += f'Skills required: {inflector.join(skills_list)}\n'
+        # Parse skill dict back into list of strings
+        # and add other conditions here
+        requires = [f'{k} {v}' for k, v in skills.items()]
+        requires.extend(humanize_other(requirements['other']))
+
+        if requires:
+            description += f'Requires {inflector.join(requires)}\n'
 
         embed = discord.Embed(
             color=self.unturned_get_rarity_color(result.rarity),
@@ -859,6 +975,15 @@ Note: There are only a few items with recipe data since I have to manually enter
         )
 
         await ctx.send(embed=embed)
+
+
+    @client_unturned.command(name='reload')
+    @checks.is_bot_admin()
+    @commands.cooldown(1, 20, commands.BucketType.default)
+    async def client_unturned_reload_db(self, ctx):
+        """Reload the item database."""
+        await self.unturneddb.reload_items_nonblocking()
+        await ctx.send('Item database reloaded.')
 
 
 

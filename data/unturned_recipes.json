@@ -1,10 +1,63 @@
 {
+    "1098": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        3
+                    ],
+                    [
+                        285,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 2"
+                ]
+            }
+        ]
+    },
+    "1113": {
+        "dimensions": [
+            1,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        67,
+                        5
+                    ],
+                    [
+                        65,
+                        2
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
     "1119": {
         "dimensions": [
             1,
             2
         ],
-        "name": "Barbed Wire Fence",
         "primitive": false,
         "recipes": [
             {
@@ -19,7 +72,208 @@
                         2
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
+            }
+        ]
+    },
+    "1158": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        65,
+                        2
+                    ],
+                    [
+                        66,
+                        2
+                    ],
+                    [
+                        70,
+                        1
+                    ],
+                    [
+                        75,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1194": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        6
+                    ],
+                    [
+                        285,
+                        6
+                    ],
+                    [
+                        73,
+                        2
+                    ],
+                    [
+                        75,
+                        2
+                    ],
+                    [
+                        1240,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1208": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        2
+                    ],
+                    [
+                        72,
+                        1
+                    ],
+                    [
+                        69,
+                        1
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "1219": {
+        "dimensions": [
+            3,
+            3
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        5
+                    ],
+                    [
+                        285,
+                        3
+                    ],
+                    [
+                        75,
+                        2
+                    ],
+                    [
+                        28,
+                        2
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1220": {
+        "dimensions": [
+            1,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        2
+                    ],
+                    [
+                        285,
+                        2
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "1222": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        65,
+                        3
+                    ],
+                    [
+                        285,
+                        4
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
             }
         ]
     },
@@ -28,7 +282,6 @@
             2,
             1
         ],
-        "name": "Metal Shutter",
         "primitive": false,
         "recipes": [
             {
@@ -43,7 +296,100 @@
                         1
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
+            }
+        ]
+    },
+    "1227": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        285,
+                        7
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "1229": {
+        "dimensions": [
+            3,
+            3
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        4
+                    ],
+                    [
+                        72,
+                        3
+                    ],
+                    [
+                        69,
+                        2
+                    ],
+                    [
+                        75,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 2"
+                ]
+            }
+        ]
+    },
+    "1234": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        66,
+                        5
+                    ],
+                    [
+                        285,
+                        7
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
             }
         ]
     },
@@ -52,7 +398,6 @@
             2,
             1
         ],
-        "name": "Metal Doubledoor",
         "primitive": false,
         "recipes": [
             {
@@ -67,8 +412,193 @@
                         1
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1248": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        2
+                    ],
+                    [
+                        285,
+                        2
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1249": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        3
+                    ],
+                    [
+                        285,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1250": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        362,
+                        1
+                    ],
+                    [
+                        68,
+                        3
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1255": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        1222,
+                        1
+                    ],
+                    [
+                        285,
+                        2
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1260": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        6
+                    ],
+                    [
+                        64,
+                        5
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1261": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        5
+                    ],
+                    [
+                        285,
+                        5
+                    ],
+                    [
+                        1178,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 2"
                 ]
             }
         ]
@@ -78,7 +608,6 @@
             2,
             2
         ],
-        "name": "Triangular Metal Floor",
         "primitive": false,
         "recipes": [
             {
@@ -89,6 +618,7 @@
                         3
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -100,7 +630,6 @@
             2,
             2
         ],
-        "name": "Triangular Metal Roof",
         "primitive": false,
         "recipes": [
             {
@@ -111,6 +640,7 @@
                         3
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -122,7 +652,6 @@
             2,
             2
         ],
-        "name": "Metal Wardrobe",
         "primitive": false,
         "recipes": [
             {
@@ -141,8 +670,75 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1297": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        2
+                    ]
+                ],
+                "requires_heat": true,
+                "skills": [
+                    "Cooking 1"
+                ]
+            }
+        ]
+    },
+    "1298": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        1297,
+                        2
+                    ]
+                ],
+                "requires_heat": true,
+                "skills": [
+                    "Cooking 1"
+                ]
+            }
+        ]
+    },
+    "1299": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        1297,
+                        2
+                    ]
+                ],
+                "requires_heat": true,
+                "skills": [
+                    "Cooking 1"
                 ]
             }
         ]
@@ -152,7 +748,6 @@
             1,
             1
         ],
-        "name": "Metal Hatch",
         "primitive": false,
         "recipes": [
             {
@@ -167,6 +762,85 @@
                         2
                     ]
                 ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "1409": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        67,
+                        4
+                    ],
+                    [
+                        285,
+                        7
+                    ],
+                    [
+                        66,
+                        5
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "141": {
+        "dimensions": [
+            1,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        2
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "1413": {
+        "dimensions": [
+            1,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        2
+                    ],
+                    [
+                        285,
+                        2
+                    ]
+                ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
@@ -176,7 +850,6 @@
             1,
             2
         ],
-        "name": "Metal Ramp Wall",
         "primitive": false,
         "recipes": [
             {
@@ -187,8 +860,69 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
+                ]
+            }
+        ]
+    },
+    "1470": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        3
+                    ],
+                    [
+                        285,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 2"
+                ]
+            }
+        ]
+    },
+    "1509": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        1297,
+                        1
+                    ],
+                    [
+                        67,
+                        2
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
                 ]
             }
         ]
@@ -198,7 +932,6 @@
             1,
             1
         ],
-        "name": "Metal Bar",
         "primitive": false,
         "recipes": [
             {
@@ -213,6 +946,7 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             },
             {
@@ -227,6 +961,7 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
@@ -236,7 +971,6 @@
             2,
             2
         ],
-        "name": "Vault Door",
         "primitive": false,
         "recipes": [
             {
@@ -255,6 +989,7 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 3"
                 ]
@@ -266,7 +1001,6 @@
             2,
             2
         ],
-        "name": "Metal Locker",
         "primitive": false,
         "recipes": [
             {
@@ -285,6 +1019,7 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 3"
                 ]
@@ -296,7 +1031,6 @@
             2,
             2
         ],
-        "name": "Metal Floor",
         "primitive": false,
         "recipes": [
             {
@@ -307,6 +1041,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -318,7 +1053,6 @@
             1,
             2
         ],
-        "name": "Metal Doorway",
         "primitive": false,
         "recipes": [
             {
@@ -329,6 +1063,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -340,7 +1075,6 @@
             1,
             2
         ],
-        "name": "Metal Wall",
         "primitive": false,
         "recipes": [
             {
@@ -351,6 +1085,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -362,7 +1097,6 @@
             1,
             2
         ],
-        "name": "Metal Window",
         "primitive": false,
         "recipes": [
             {
@@ -373,6 +1107,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -384,7 +1119,6 @@
             2,
             2
         ],
-        "name": "Metal Roof",
         "primitive": false,
         "recipes": [
             {
@@ -395,6 +1129,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -406,7 +1141,6 @@
             2,
             1
         ],
-        "name": "Metal Pillar",
         "primitive": false,
         "recipes": [
             {
@@ -417,6 +1151,7 @@
                         3
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -428,7 +1163,6 @@
             2,
             2
         ],
-        "name": "Metal Stairs",
         "primitive": false,
         "recipes": [
             {
@@ -439,6 +1173,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -450,7 +1185,6 @@
             2,
             2
         ],
-        "name": "Metal Hole",
         "primitive": false,
         "recipes": [
             {
@@ -461,6 +1195,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -472,7 +1207,6 @@
             2,
             2
         ],
-        "name": "Metal Ramp",
         "primitive": false,
         "recipes": [
             {
@@ -483,6 +1217,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -494,7 +1229,6 @@
             2,
             1
         ],
-        "name": "Metal Door",
         "primitive": false,
         "recipes": [
             {
@@ -509,6 +1243,7 @@
                         1
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
@@ -518,7 +1253,6 @@
             2,
             1
         ],
-        "name": "Metal Ladder",
         "primitive": false,
         "recipes": [
             {
@@ -529,6 +1263,7 @@
                         6
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 3"
                 ]
@@ -540,7 +1275,6 @@
             1,
             2
         ],
-        "name": "Barbed Wire",
         "primitive": false,
         "recipes": [
             {
@@ -551,6 +1285,7 @@
                         2
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
@@ -560,7 +1295,6 @@
             1,
             2
         ],
-        "name": "Metal Rampart",
         "primitive": false,
         "recipes": [
             {
@@ -571,6 +1305,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -582,7 +1317,6 @@
             2,
             1
         ],
-        "name": "Metal Post",
         "primitive": false,
         "recipes": [
             {
@@ -593,6 +1327,7 @@
                         3
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -604,7 +1339,6 @@
             1,
             2
         ],
-        "name": "Metal Garage",
         "primitive": false,
         "recipes": [
             {
@@ -615,6 +1349,7 @@
                         5
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 2"
                 ]
@@ -626,7 +1361,6 @@
             1,
             2
         ],
-        "name": "Metal Gate",
         "primitive": false,
         "recipes": [
             {
@@ -641,18 +1375,60 @@
                         1
                     ]
                 ],
+                "requires_heat": false,
                 "skills": [
                     "Crafting 3"
                 ]
             }
         ]
     },
+    "458": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        4
+                    ],
+                    [
+                        285,
+                        4
+                    ],
+                    [
+                        28,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 2"
+                ]
+            }
+        ]
+    },
+    "64": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": true,
+        "recipes": []
+    },
     "65": {
         "dimensions": [
             1,
             1
         ],
-        "name": "Wire",
         "primitive": false,
         "recipes": [
             {
@@ -667,16 +1443,24 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
+    },
+    "66": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": true,
+        "recipes": []
     },
     "67": {
         "dimensions": [
             1,
             1
         ],
-        "name": "Metal Scrap",
         "primitive": true,
         "recipes": [
             {
@@ -691,6 +1475,7 @@
                         0
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
@@ -700,7 +1485,6 @@
             2,
             2
         ],
-        "name": "Metal Sheet",
         "primitive": false,
         "recipes": [
             {
@@ -711,8 +1495,97 @@
                         2
                     ]
                 ],
+                "requires_heat": false,
                 "skills": []
             }
         ]
+    },
+    "69": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": true,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        66,
+                        4
+                    ],
+                    [
+                        75,
+                        1
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "70": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": true,
+        "recipes": []
+    },
+    "71": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": true,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        67,
+                        2
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "72": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        67,
+                        4
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "73": {
+        "dimensions": [
+            1,
+            2
+        ],
+        "primitive": true,
+        "recipes": []
+    },
+    "75": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": true,
+        "recipes": []
     }
 }

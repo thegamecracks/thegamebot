@@ -20,7 +20,7 @@ id,name,rarity,url
 21,8x Scope,Rare,https://unturneditems.com/8x-scope
 22,Red Cross Scope,Uncommon,https://unturneditems.com/red-cross-scope
 27,Tophat,Common,https://unturneditems.com/tophat
-28,Gas Can (Portable),Uncommon,https://unturneditems.com/gas-can
+28,Portable Gas Can,Uncommon,https://unturneditems.com/gas-can
 29,Maple Fortification,Uncommon,https://unturneditems.com/maple-fortification
 30,Maple Barricade,Uncommon,https://unturneditems.com/maple-barricade
 31,Maple Floor,Uncommon,https://unturneditems.com/maple-floor
@@ -64,8 +64,8 @@ id,name,rarity,url
 69,Tape,Common,https://unturneditems.com/tape
 70,Glue,Common,https://unturneditems.com/glue
 71,Nails,Common,https://unturneditems.com/nails
-72,Can,Common,https://unturneditems.com/can
-73,Explosives (Raw),Uncommon,https://unturneditems.com/explosives
+72,Metal Can,Common,https://unturneditems.com/can
+73,Raw Explosives,Uncommon,https://unturneditems.com/explosives
 74,Bricks,Common,https://unturneditems.com/bricks
 75,Chemicals,Common,https://unturneditems.com/chemicals
 76,Blowtorch,Uncommon,https://unturneditems.com/blowtorch
@@ -444,7 +444,7 @@ id,name,rarity,url
 455,Birch Gate,Common,https://unturneditems.com/birch-gate
 456,Pine Gate,Rare,https://unturneditems.com/pine-gate
 457,Metal Gate,Epic,https://unturneditems.com/metal-gate
-458,Generator,Rare,https://unturneditems.com/generator
+458,Portable Generator,Rare,https://unturneditems.com/generator
 459,Spotlight,Rare,https://unturneditems.com/spotlight
 460,Bread,Uncommon,https://unturneditems.com/bread
 461,Tuna Sandwich,Rare,https://unturneditems.com/tuna-sandwich
@@ -600,7 +600,7 @@ id,name,rarity,url
 1095,Maple Sign,Uncommon,https://unturneditems.com/maple-sign
 1096,Birch Sign,Common,https://unturneditems.com/birch-sign
 1097,Pine Sign,Rare,https://unturneditems.com/pine-sign
-1098,Locked Metal Sign,Epic,https://unturneditems.com/locked-metal-sign
+1098,Metal Sign,Epic,https://unturneditems.com/locked-metal-sign
 1099,Makeshift Vehicle,Rare,https://unturneditems.com/makeshift-vehicle
 1100,C4 Sticky Grenade,Epic,https://unturneditems.com/c4
 1101,Landmine,Epic,https://unturneditems.com/landmine
@@ -719,7 +719,7 @@ id,name,rarity,url
 1216,Brick Window,Rare,https://unturneditems.com/brick-window
 1217,Brick Doorframe,Rare,https://unturneditems.com/brick-doorframe
 1218,Brick Garageframe,Rare,https://unturneditems.com/brick-garageframe
-1219,Oil Derrick (Pump Jack),Rare,https://unturneditems.com/oil-derrick
+1219,Pump Jack,Rare,https://unturneditems.com/oil-derrick
 1220,Metal Rifle Rack,Epic,https://unturneditems.com/metal-rifle-rack
 1221,Metal Trophy Case,Epic,https://unturneditems.com/metal-trophy-case
 1222,Cagelight,Rare,https://unturneditems.com/cagelight
@@ -740,7 +740,7 @@ id,name,rarity,url
 1237,Pine Doubledoor,Rare,https://unturneditems.com/pine-doubledoor
 1238,Metal Doubledoor,Epic,https://unturneditems.com/metal-doubledoor
 1239,Slippery Metal Plate,Epic,https://unturneditems.com/slippery-metal-plate
-1240,Remote Detonator,Rare,https://unturneditems.com/remote-detonator
+1240,Detonator,Rare,https://unturneditems.com/remote-detonator
 1241,Breaching Charge (Demolition Charge),Epic,https://unturneditems.com/breaching-charge
 1242,Makeshift Grenade,Common,https://unturneditems.com/makeshift-grenade
 1243,Cot / Bedframe,Common,https://unturneditems.com/cot-bedframe
@@ -1006,7 +1006,7 @@ id,name,rarity,url
 1506,Kaiser Bottom,Rare,https://unturneditems.com/kaiser-bottom
 1507,Socketwrench,Uncommon,https://unturneditems.com/socketwrench
 1508,Compass,Rare,https://unturneditems.com/compass
-1509,Wall Clock,Epic,https://unturneditems.com/wall-clock
+1509,Clock,Epic,https://unturneditems.com/wall-clock
 1510,Explosive Chewing Gum,Epic,https://unturneditems.com/explosive-chewing-gum
 1511,Arctic Alicepack,Common,https://unturneditems.com/arctic-alicepack
 1512,Arctic Ghillie Top,Common,https://unturneditems.com/arctic-ghillie-top

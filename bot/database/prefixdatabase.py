@@ -101,6 +101,10 @@ class PrefixDatabase(guild_db.GuildDatabase):
 
         query = await self.get_one(
             'Prefixes', where=f'guild_id={guild_id}', as_Row=as_Row)
+
+        if query is None:
+            return
+
         prefix = query['prefix']
 
         self.prefix_cache[guild_id] = prefix
