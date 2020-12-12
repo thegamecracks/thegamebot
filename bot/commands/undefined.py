@@ -7,6 +7,7 @@ import json
 import math
 import random
 import time
+import typing
 
 import discord
 from discord.ext import commands
@@ -322,22 +323,13 @@ Dictionary comes from dwyl/english-words github."""
 
     @commands.command(name='getlastmessage')
     @commands.cooldown(2, 10, commands.BucketType.channel)
-    async def client_getlastmessage(self, ctx, ID):
+    async def client_getlastmessage(self, ctx, channel: discord.TextChannel):
         """Get the last message of a text channel.
 Not for sniping.
 
 This command was written as an answer to:
 https://stackoverflow.com/q/64080277/"""
-        channel = self.bot.get_channel(int(ID))
-        if channel is None:
-            return await ctx.send('Could not find that channel.')
-        elif not isinstance(channel, discord.TextChannel):
-            # NOTE: get_channel can return a TextChannel, VoiceChannel,
-            # or CategoryChannel
-            return await ctx.send('The channel must be a text channel.')
-
-        message = await channel.fetch_message(
-            channel.last_message_id)
+        message = await channel.fetch_message(channel.last_message_id)
         # NOTE: channel.last_message_id could return None; needs a check
 
         await ctx.send(
@@ -655,7 +647,8 @@ Up to date as of 3.20.15.0."""
 
     @client_unturned.command(name='craft', aliases=['c'])
     @commands.cooldown(3, 10, commands.BucketType.user)
-    async def client_unturned_craft(self, ctx, amount: int, *, item):
+    async def client_unturned_craft(
+            self, ctx, amount: typing.Optional[int] = 1, *, item):
         """Get the materials required to craft an item.
 
 amount: The number of the given item to craft. This parameter must be included.
@@ -752,7 +745,7 @@ Note: There are only a few items with recipe data since I have to manually enter
 
             if (    item.recipe_data is None
                     or not item.recipe_data['recipes']
-                    or item.recipe_data['primitive']):
+                    or item.recipe_data['primitive'] and not top_level):
                 # No recipes/primitive item
                 if top_level:
                     return create_output(total_raw=[[item, amount]])
@@ -927,8 +920,17 @@ Note: There are only a few items with recipe data since I have to manually enter
         skills = requirements['skills']
         total_raw = requirements['total_raw']
 
+        # Fix inflector sometimes not properly pluralizing the name
+        # if it starts with a capital letter
+        is_name_capitalized = result.name[0].isupper()
+        plural_name = result.name
+        plural_name = plural_name[0].lower() + plural_name[1:]
+        plural_name = inflector.plural(plural_name, amount)
+        if is_name_capitalized:
+            plural_name = plural_name[0].upper() + plural_name[1:]
+
         description = (
-            f'{amount} {inflector.plural(result.name, amount)}\n'
+            f'{amount} {plural_name}\n'
             f'ID: {result.id}\n'
         )
 

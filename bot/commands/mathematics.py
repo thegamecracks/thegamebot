@@ -54,7 +54,7 @@ class Mathematics(commands.Cog):
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_subtract(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the difference of x and y."""
-        await ctx.send(f'{x-y}:G')
+        await ctx.send(f'{x-y:G}')
 
 
     @client_subtract.error
@@ -490,8 +490,13 @@ Temperature conversions:
             unit = 'celsius'
 
         # Parse the measurement
-        parsed_unit = Q_(unit_val, unit_str)
-        converted_unit = parsed_unit.to(unit)
+        try:
+            parsed_unit = Q_(unit_val, unit_str)
+            converted_unit = parsed_unit.to(unit)
+        except (pint.DimensionalityError,
+                pint.OffsetUnitCalculusError,
+                pint.UndefinedUnitError) as e:
+            return await ctx.send(str(e))
 
         # Round quantity to 3 digits or as integer
         quantity = decimal.Decimal(f'{converted_unit.magnitude:.3f}')
@@ -499,17 +504,6 @@ Temperature conversions:
         await ctx.send('{quantity}{unit:~} ({unit})'.format(
             quantity=quantity,
             unit=converted_unit.units))
-
-
-    @client_convertunit.error
-    async def client_convertunit_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, pint.DimensionalityError):
-            await ctx.send(str(error))
-        elif isinstance(error, pint.OffsetUnitCalculusError):
-            await ctx.send(str(error))
-        elif isinstance(error, pint.UndefinedUnitError):
-            await ctx.send(str(error))
 
 
 

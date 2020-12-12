@@ -1,4 +1,78 @@
 {
+    "1050": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        6
+                    ],
+                    [
+                        285,
+                        6
+                    ],
+                    [
+                        269,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1091": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        4
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
+    "1092": {
+        "dimensions": [
+            1,
+            1
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        1
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
+            }
+        ]
+    },
     "1098": {
         "dimensions": [
             2,
@@ -325,6 +399,36 @@
             }
         ]
     },
+    "1228": {
+        "dimensions": [
+            3,
+            3
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        68,
+                        4
+                    ],
+                    [
+                        72,
+                        3
+                    ],
+                    [
+                        69,
+                        2
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 2"
+                ]
+            }
+        ]
+    },
     "1229": {
         "dimensions": [
             3,
@@ -359,6 +463,32 @@
                 "requires_heat": false,
                 "skills": [
                     "Crafting 2"
+                ]
+            }
+        ]
+    },
+    "1230": {
+        "dimensions": [
+            3,
+            3
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        458,
+                        7
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
                 ]
             }
         ]
@@ -410,6 +540,40 @@
                     [
                         67,
                         1
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1244": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        459,
+                        1
+                    ],
+                    [
+                        1220,
+                        1
+                    ],
+                    [
+                        1008,
+                        1
+                    ],
+                    [
+                        76,
+                        0
                     ]
                 ],
                 "requires_heat": false,
@@ -764,6 +928,74 @@
                 ],
                 "requires_heat": false,
                 "skills": []
+            }
+        ]
+    },
+    "1372": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        459,
+                        1
+                    ],
+                    [
+                        1220,
+                        1
+                    ],
+                    [
+                        1008,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
+            }
+        ]
+    },
+    "1373": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        459,
+                        1
+                    ],
+                    [
+                        1220,
+                        1
+                    ],
+                    [
+                        1008,
+                        1
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": [
+                    "Crafting 3"
+                ]
             }
         ]
     },
@@ -1413,6 +1645,34 @@
                 "skills": [
                     "Crafting 2"
                 ]
+            }
+        ]
+    },
+    "459": {
+        "dimensions": [
+            2,
+            2
+        ],
+        "primitive": false,
+        "recipes": [
+            {
+                "amount": 1,
+                "recipe": [
+                    [
+                        65,
+                        2
+                    ],
+                    [
+                        285,
+                        5
+                    ],
+                    [
+                        76,
+                        0
+                    ]
+                ],
+                "requires_heat": false,
+                "skills": []
             }
         ]
     },

@@ -34,16 +34,14 @@ class Notes(commands.Cog):
 
     async def delete_note_by_note_id(self, note_id, pop=False):
         "Remove a note by note_id and update the cache."
-        deleted = await self.notedb.delete_note_by_note_id(
-            note['note_id'], pop=True)
+        deleted = await self.notedb.delete_note_by_note_id(note_id, pop=True)
 
-        updated_ids = frozenset(note.user_id for note in deleted)
+        updated_ids = frozenset(note['user_id'] for note in deleted)
 
         for user_id in updated_ids:
             del self.cache[user_id]
 
-        if pop:
-            return deleted
+        return deleted if pop else None
 
     async def get_notes(self, user_id):
         notes = self.cache.get(user_id)

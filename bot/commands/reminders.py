@@ -119,13 +119,19 @@ Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
         await ctx.channel.trigger_typing()
 
-        total_reminders = len(
-            await self.get_reminders(ctx.author.id))
+        total_reminders = len(await self.get_reminders(ctx.author.id))
 
         if total_reminders < 5:
             # Get current time in UTC without microseconds
             utcnow = datetime.datetime.utcnow().replace(microsecond=0)
-            td, content = parse_timedelta(time_and_reminder, utcnow)
+            try:
+                td, content = parse_timedelta(time_and_reminder, utcnow)
+            except ValueError:
+                return await self.send_with_disclaimer(
+                    ctx,
+                    'Could not understand your reminder request. Check this '
+                    "command's help page for allowed syntax."
+                )
 
             if td.total_seconds() < 30:
                 return await self.send_with_disclaimer(
@@ -159,17 +165,6 @@ You can have a maximum of 5 reminders."""
             await self.send_with_disclaimer(
                 ctx, 'Sorry, but you have reached your maximum limit '
                 'of 5 reminders.'
-            )
-
-
-    @client_addreminder.error
-    async def client_addreminder_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, ValueError):
-            await self.send_with_disclaimer(
-                ctx,
-                'Could not understand your reminder request. Check this '
-                "command's help page for allowed syntax."
             )
 
 
@@ -408,6 +403,11 @@ To remove only one reminder, use the removereminder command."""
         seconds = td.total_seconds()
 
         await asyncio.sleep(seconds)
+
+        if await self.reminderdb.get_one(
+                'Reminders', where=f'reminder_id={reminder_id}') is None:
+            # Reminder was deleted during wait; don't send
+            return
 
         user = self.bot.get_user(user_id)
 

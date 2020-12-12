@@ -59,10 +59,7 @@ class CommandConverter(commands.Converter):
 
 def iterable_has(iterable, *args):
     "Used for parsing *args in commands."
-    for s in args:
-        if s in iterable:
-            return True
-    return False
+    return any(s in iterable for s in args)
 
 
 class Informative(commands.Cog):
