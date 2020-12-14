@@ -30,9 +30,14 @@ def conn_wrapper(conn, func):
 
 class Graphing(commands.Cog):
     qualified_name = 'Graphing'
-    description = 'Commands for graphing certain things.'
+    description = (
+        'Commands for graphing certain things.\n'
+        'Most of the text-related commands can support obtaining text by: '
+        'file attachment; the "text" parameter; replying to a message; '
+        'or the last message that was sent.'
+    )
 
-    FREQUENCY_ANALYSIS_FILESIZE_LIMIT = 100_000
+    TEXT_ANALYSIS_FILESIZE_LIMIT = 300_000
     # Maximum file size allowed for client_frequencyanalysis in number of bytes
 
     WORD_COUNT_NUM_TO_SHOW = 15
@@ -52,6 +57,12 @@ class Graphing(commands.Cog):
         """Obtain text from the user either in an attachment or from
         the text argument.
 
+        Lookup strategy:
+            1. Check the invoker's attachments for downloadable text files
+            2. Check the invoker's content
+            3. Check the referenced message's content if available
+            4. Check the last message's content before the invokation
+
         Returns:
             Tuple[bool, str]:
                 The boolean indicates whether it was successful at getting
@@ -66,13 +77,13 @@ class Graphing(commands.Cog):
                 # Image/video file
                 return False, 'Attachment must be a text file.'
 
-            if a.size >= self.FREQUENCY_ANALYSIS_FILESIZE_LIMIT:
+            if a.size >= self.TEXT_ANALYSIS_FILESIZE_LIMIT:
                 return (
                     False, 
                     'Unfortunately I cannot analyse files '
                     'over {} in size.'.format(
                         humanize.naturalsize(
-                            self.FREQUENCY_ANALYSIS_FILESIZE_LIMIT
+                            self.TEXT_ANALYSIS_FILESIZE_LIMIT
                         )
                     )
                 )
@@ -81,8 +92,42 @@ class Graphing(commands.Cog):
             # Raises: discord.HTTPException, discord.Forbidden,
             # discord.NotFound, UnicodeError
 
+        ref = ctx.message.reference
+        perms = ctx.me.permissions_in(ctx.channel)
+
+        if not text and ref is not None:
+            # Try grabbing the content of the message the user replied to.
+            # First check the cache, then fetch the message
+            if ref.cached_message is not None:
+                text = ref.cached_message.content
+            elif perms.read_message_history:
+                channel = self.bot.get_channel(ref.channel_id)
+                if channel is not None:
+                    message = await channel.fetch_message(ref.message_id)
+                    if message is not None:
+                        text = message.content
+        if not text and perms.read_message_history:
+            # Try grabbing the content of the last message sent
+            # (will not work if there is no message before it or
+            #  the bot is missing read message history perms)
+            message = await ctx.channel.history(
+                limit=1, before=ctx.message).flatten()
+            text = message[0].content if message else ''
+
         if not text:
-            return False, 'There is no text to analyse.'
+            response = 'There is no text to analyse.'
+            if not perms.read_message_history:
+                if ref is not None:
+                    response = (
+                        'I need the Read Message History permission to be '
+                        'able to read the message you replied to.'
+                    )
+                else:
+                    response = (
+                        'I need the Read Message History permission to be '
+                        'able to read the last message that was sent.'
+                    )
+            return False, response
 
         lowered_text = text.lower()
         if not any(c in lowered_text for c in string.ascii_lowercase):
@@ -179,7 +224,7 @@ class Graphing(commands.Cog):
         """Do a frequency analysis of a given text.
 This only processes letters from the english alphabet.
 
-Text can be provided in the command or as a file uploaded with the message."""
+To see the different methods you can use to provide text, check the help message for this command's category."""
         success, text = await self.get_text(ctx, text)
         if not success:
             return await ctx.send(text)
@@ -229,7 +274,7 @@ Text can be provided in the command or as a file uploaded with the message."""
         """
         text = text.lower()
 
-        alphabet = frozenset(string.ascii_lowercase)
+        alphabet = frozenset(string.ascii_lowercase + "'")
         words = collections.Counter()
 
         last_i = 0
@@ -254,7 +299,8 @@ Text can be provided in the command or as a file uploaded with the message."""
         max_word_count = top_words[0][1]
 
         sizes = [count / max_word_count for word, count in top_words]
-        labels = [f'{word.title()} ({count})' for word, count in top_words]
+        labels = [f'{word.capitalize()} ({count})'
+                  for word, count in top_words]
 
         word_colors = plt.cm.hsv([
             0.8 * i / len(top_words)
@@ -335,7 +381,7 @@ Text can be provided in the command or as a file uploaded with the message."""
         """Count the occurrences of each word in a given text.
 This only processes letters from the english alphabet.
 
-Text can be provided in the command or as a file uploaded with the message."""
+To see the different methods you can use to provide text, check the help message for this command's category."""
         success, text = await self.get_text(ctx, text)
         if not success:
             return await ctx.send(text)
