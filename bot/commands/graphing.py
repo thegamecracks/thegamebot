@@ -1,9 +1,12 @@
 import asyncio
 import collections
-import functools
+import contextlib
+##import functools
 import io
-import multiprocessing
+##import multiprocessing
+import random
 import string
+import textwrap
 import typing
 import warnings
 
@@ -11,21 +14,24 @@ import aiohttp
 import discord
 from discord.ext import commands
 import humanize
+import matplotlib
+import matplotlib.animation as animation
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 
+from bot import checks
 from bot import utils
 
 
-def conn_wrapper(conn, func):
-    @functools.wraps
-    def wrapper(*args, **kwargs):
-        output = func(*args, **kwargs)
-        conn.send(output)
-        return output
-    return wrapper
+##def conn_wrapper(conn, func):
+##    @functools.wraps
+##    def wrapper(*args, **kwargs):
+##        output = func(*args, **kwargs)
+##        conn.send(output)
+##        return output
+##    return wrapper
 
 
 class Graphing(commands.Cog):
@@ -151,8 +157,7 @@ class Graphing(commands.Cog):
             BytesIO
 
         """
-        def get_bot_color_hex():
-            return '#' + hex(utils.get_bot_color())[2:]
+        bot_color = '#' + hex(utils.get_bot_color())[2:]
 
         text = text.lower()
 
@@ -186,7 +191,7 @@ class Graphing(commands.Cog):
                      + ax.get_xticklabels() + ax.get_yticklabels()):
             item.set_family('calibri')
             item.set_fontsize(18)
-            item.set_color(get_bot_color_hex())
+            item.set_color(bot_color)
             # Add shadow
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
@@ -203,9 +208,9 @@ class Graphing(commands.Cog):
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
         # Color the spines and ticks
-        ax.spines['bottom'].set_color(get_bot_color_hex())
-        ax.spines['left'].set_color(get_bot_color_hex())
-        ax.tick_params(colors=get_bot_color_hex())
+        for spine in ax.spines.values():
+            spine.set_color(bot_color)
+        ax.tick_params(colors=bot_color)
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
@@ -252,7 +257,6 @@ To see the different methods you can use to provide text, check the help message
             warnings.simplefilter('ignore', UserWarning)
             f = await loop.run_in_executor(
                 None, self.frequency_analysis, ctx, text)
-
         f.seek(0)
 
         await ctx.send(file=discord.File(f, 'Frequency Analysis.png'))
@@ -272,6 +276,8 @@ To see the different methods you can use to provide text, check the help message
             BytesIO
 
         """
+        bot_color = '#' + hex(utils.get_bot_color())[2:]
+
         text = text.lower()
 
         alphabet = frozenset(string.ascii_lowercase + "'")
@@ -348,7 +354,7 @@ To see the different methods you can use to provide text, check the help message
         all_text = texts + autotexts
         for item in ([ax.title] + all_text):
             item.set_family('calibri')
-            item.set_color('#FF8002')
+            item.set_color(bot_color)
         ax.title.set_fontsize(18)
         for item in all_text:
             # Add shadow
@@ -394,10 +400,173 @@ To see the different methods you can use to provide text, check the help message
             warnings.simplefilter('ignore', UserWarning)
             f = await loop.run_in_executor(
                 None, self.word_count_pie, ctx, text)
-
         f.seek(0)
 
         await ctx.send(file=discord.File(f, 'Word Count Pie Chart.png'))
+
+
+
+
+
+    def test_bar_graphs_3d(self):
+        """Generates four 2D bar graphs layered in a 3D plot.
+
+        Code from: https://matplotlib.org/3.3.3/gallery/mplot3d/bars3d.html#sphx-glr-gallery-mplot3d-bars3d-py
+
+        Returns:
+            Tuple[Figure, Axes]
+
+        """
+        bot_color = '#' + hex(utils.get_bot_color())[2:]
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        colors = ['r', 'g', 'b', 'y']
+        yticks = [3, 2, 1, 0]
+        scale = random.uniform(0.2, 100)
+        for c, k in zip(colors, yticks):
+            # Generate the random data for the y=k 'layer'.
+            xs = np.arange(20)
+            ys = np.random.rand(20) * scale
+
+            # Plot the bar graph given by xs and ys on the plane y=k
+            # with 80% opacity.
+            ax.bar(xs, ys, zs=k, zdir='y', color=[c] * len(xs), alpha=0.8)
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+
+        # On the y axis let's only label the discrete values that
+        # we have data for.
+        ax.set_yticks(yticks)
+
+        # Set fonts
+        for item in ([ax.xaxis.label, ax.yaxis.label, ax.zaxis.label]
+                     + ax.get_xticklabels() + ax.get_yticklabels()
+                     + ax.get_zticklabels()):
+            item.set_family('calibri')
+            item.set_color(bot_color)
+
+        # Set spine and pane colors
+        for axis in (ax.w_xaxis, ax.w_yaxis, ax.w_zaxis):
+            axis.line.set_color(bot_color)
+            axis.set_pane_color((1, 1, 1, 0.1))
+
+        # Set tick colors
+        ax.tick_params(colors=bot_color)
+
+        # Create transparent background
+        ax.set_facecolor('#00000000')
+        fig.patch.set_facecolor('#36393F4D')
+
+        return fig, ax
+
+
+    def test_bar_graphs_3d_image(self, elevation=None, azimuth=None):
+        """Generates a PNG image from test_bar_graphs_3d.
+
+        Returns:
+            BytesIO
+
+        """
+        fig, ax = self.test_bar_graphs_3d()
+
+        # Rotate graph projection
+        ax.view_init(elevation, azimuth)
+
+        f = io.BytesIO()
+        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
+        # bbox_inches, pad_inches: removes padding around the graph
+
+        return f
+
+
+    @commands.command(name='test3dgraph')
+    @commands.cooldown(3, 120, commands.BucketType.channel)
+    @commands.max_concurrency(3, wait=True)
+    async def client_test3dgraph(
+            self, ctx, elevation: int = None, azimuth: int = None):
+        """Generate a graph with some random data."""
+        await ctx.trigger_typing()
+
+        loop = asyncio.get_running_loop()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            f = await loop.run_in_executor(
+                None, self.test_bar_graphs_3d_image, elevation, azimuth)
+        f.seek(0)
+
+        await ctx.send(file=discord.File(f, '3D Graph Test.png'))
+
+
+
+
+
+    def test_bar_graphs_3d_gif(
+            self, start=300, frames=30, direction=-1, duration=3):
+        """Generates a rotating 3D plot GIF from test_bar_graphs_3d.
+
+        Unfortunately there is no way to save these GIFs into memory, so
+        the file has to be written to disk.
+
+        Resources:
+            FuncAnimation: https://matplotlib.org/api/_as_gen/matplotlib.animation.FuncAnimation.html
+            Animating a rotating graph: https://stackoverflow.com/questions/18344934/animate-a-rotating-3d-graph-in-matplotlib
+            Saving to GIF: https://holypython.com/how-to-save-matplotlib-animations-the-ultimate-guide/
+
+        Args:
+            start (float): The azimuth to start at.
+            frames (int): The number of azimuths to generate.
+            direction (Literal[1, -1]):
+                 1: Rotate right
+                -1: Rotate left
+            duration (float): The time in seconds for the animation to last.
+
+        """
+        fig, ax = self.test_bar_graphs_3d()
+
+        def azimuth_rotation():
+            "Generates the azimuths rotating around the graph."
+            step = direction * 360 / frames
+
+            azimuth = start
+            for _ in range(frames):
+                yield azimuth
+                azimuth += step
+
+        def run(data):
+            "Takes an azimuth from generate_azimuths."
+            ax.view_init(elev=30, azim=data)
+            return ()
+
+        anim = animation.FuncAnimation(
+            fig, run, list(azimuth_rotation()),
+            interval=duration / frames,
+            blit=True
+        )
+
+        writer = animation.PillowWriter(fps=frames / duration)
+        anim.save('data/3D Graph Animation Test.gif', writer=writer)
+
+
+    @commands.command(name='test3dgraphanimation')
+    @commands.cooldown(1, 30, commands.BucketType.default)
+    @commands.max_concurrency(1, wait=True)
+    @checks.is_bot_owner()
+    async def client_test3dgraphanimation(self, ctx):
+        """Generate an animating graph with some random data."""
+        loop = asyncio.get_running_loop()
+
+        with ctx.typing():
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', UserWarning)
+                await loop.run_in_executor(None, self.test_bar_graphs_3d_gif)
+
+        with open('data/3D Graph Animation Test.gif', 'rb') as f:
+            await ctx.send(file=discord.File(f, '3D Graph Animation Test.gif'))
 
 
 

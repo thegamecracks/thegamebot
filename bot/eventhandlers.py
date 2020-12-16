@@ -1,4 +1,5 @@
 import asyncio
+import random
 import time
 
 import discord
@@ -17,7 +18,9 @@ handlers = [
     'on_resumed',
 ]
 
-command_handling_blacklist = set()
+COMMAND_ERROR_IGNORE_EXCEPTIONS = (commands.CommandNotFound,)
+# Prevents errors from being processed in this set of exceptions
+COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
 # specified by the callback name of the command ('client_execute', etc.)
 
@@ -175,6 +178,11 @@ def convert_perms_to_english(perms):
     return new_perms
 
 
+def get_denied_message():
+    return random.choice(settings.get_setting('deniedmessages'))
+
+
+# Events
 async def on_connect():
     print(time.strftime(
         'Connection: Connected to Discord, %c',
@@ -203,9 +211,9 @@ async def on_resumed():
 
 
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
+    if isinstance(error, COMMAND_ERROR_IGNORE_EXCEPTIONS):
         return
-    elif ctx.command.callback.__name__ in command_handling_blacklist:
+    elif ctx.command.callback.__name__ in COMMAND_ERROR_CALLBACK_BLACKLIST:
         # command is to be ignored
         return
     elif (isinstance(error, ERRORS_TO_LIMIT)
@@ -405,8 +413,11 @@ async def on_command_error(ctx, error):
         ))
     elif isinstance(error, commands.NoPrivateMessage):
         await ctx.send('You must be in a server to use this command.')
-    elif isinstance(error, commands.NotOwner):
-        await ctx.send('This command is for the bot owner only.')
+    elif isinstance(error, (
+            commands.NotOwner, checks.InvalidBotOwner,
+            checks.InvalidBotAdmin)):
+        # await ctx.send('This command is for the bot owner only.')
+        await ctx.send(get_denied_message())
     elif isinstance(error, commands.NSFWChannelRequired):
         await ctx.send('The given channel must be marked as NSFW.')
     elif isinstance(error, commands.UnexpectedQuoteError):

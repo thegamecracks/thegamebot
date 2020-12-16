@@ -63,16 +63,19 @@ def is_bot_admin():
         if ctx.author.id in settings.get_setting('admin_ids'):
             return True
         else:
-            raise InvalidBotAdmin()
+            raise InvalidBotAdmin(
+                f"{ctx.author} is not registered as one of the bot's admins.")
     return commands.check(predicate)
 
 
 def is_bot_owner():
     async def predicate(ctx):
-        if ctx.author.id in settings.get_setting('owner_ids'):
+        if (    ctx.author.id in settings.get_setting('owner_ids')
+                or await ctx.bot.is_owner(ctx.author)):
             return True
         else:
-            raise InvalidBotOwner()
+            raise InvalidBotOwner(
+                f"{ctx.author} is not registered as one of the bot's owners.")
     return commands.check(predicate)
 
 
