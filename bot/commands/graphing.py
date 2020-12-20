@@ -1,9 +1,10 @@
 import asyncio
 import collections
 import contextlib
-##import functools
+import functools
 import io
 ##import multiprocessing
+from pathlib import Path
 import random
 import string
 import textwrap
@@ -52,6 +53,8 @@ class Graphing(commands.Cog):
 
     TEXT_SHADOW_ALPHA = 0.6
 
+    TEST_3D_GRAPH_ANIMATION_PATH = 'data/3D Graph Animation Test.gif'
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -59,15 +62,18 @@ class Graphing(commands.Cog):
 
 
 
-    async def get_text(self, ctx, text):
+    async def get_text(self, ctx, text: str, *, message=None):
         """Obtain text from the user either in an attachment or from
         the text argument.
 
         Lookup strategy:
             1. Check the invoker's attachments for downloadable text files
             2. Check the invoker's content
-            3. Check the referenced message's content if available
-            4. Check the last message's content before the invokation
+            3. Check the referenced message's attachments (if available)
+            4. Check the referenced message's content
+            5. Check the last message's attachments (before the invokation)
+            6. Check the last message's content
+        Note that steps 3-6 are done via recursion. 
 
         Returns:
             Tuple[bool, str]:
@@ -76,8 +82,12 @@ class Graphing(commands.Cog):
                 be sent to the user.
 
         """
-        if ctx.message.attachments:
-            a = ctx.message.attachments[0]
+        using_ctx_message = message is None
+        if message is None:
+            message = ctx.message
+
+        if message.attachments:
+            a = message.attachments[0]
 
             if a.width is not None:
                 # Image/video file
@@ -98,27 +108,44 @@ class Graphing(commands.Cog):
             # Raises: discord.HTTPException, discord.Forbidden,
             # discord.NotFound, UnicodeError
 
+        if message is not None and not using_ctx_message and not text:
+            # Check the message content and otherwise if that is empty,
+            # keep it at one level of recursion
+            text = message.content
+            if not text:
+                return False, 'There is no text to analyse.'
+
         ref = ctx.message.reference
         perms = ctx.me.permissions_in(ctx.channel)
 
         if not text and ref is not None:
-            # Try grabbing the content of the message the user replied to.
+            # Try recursing into the message the user replied to.
             # First check the cache, then fetch the message
+            message = None
             if ref.cached_message is not None:
-                text = ref.cached_message.content
+                message = ref.cached_message
             elif perms.read_message_history:
                 channel = self.bot.get_channel(ref.channel_id)
                 if channel is not None:
                     message = await channel.fetch_message(ref.message_id)
-                    if message is not None:
-                        text = message.content
+
+            if message is not None:
+                ref_text = await self.get_text(ctx, text, message=message)
+
+                if ref_text[0] is True:
+                    return ref_text
+
         if not text and perms.read_message_history:
-            # Try grabbing the content of the last message sent
+            # Try recursing into the last message sent
             # (will not work if there is no message before it or
-            #  the bot is missing read message history perms)
+            #  the bot is missing Read Message History perms)
             message = await ctx.channel.history(
                 limit=1, before=ctx.message).flatten()
-            text = message[0].content if message else ''
+
+            if message:
+                ref_text = await self.get_text(ctx, text, message=message[0])
+                if ref_text[0] is True:
+                    return ref_text
 
         if not text:
             response = 'There is no text to analyse.'
@@ -280,13 +307,14 @@ To see the different methods you can use to provide text, check the help message
 
         text = text.lower()
 
-        alphabet = frozenset(string.ascii_lowercase + "'")
+        alphabet = frozenset(string.ascii_lowercase)
+        chars_after_start = frozenset("'")
         words = collections.Counter()
 
         last_i = 0
         reading_word = False
         for i, c in enumerate(text):
-            if c in alphabet:
+            if c in alphabet or reading_word and c in chars_after_start:
                 reading_word = True
             else:
                 if reading_word:
@@ -506,7 +534,7 @@ To see the different methods you can use to provide text, check the help message
 
 
     def test_bar_graphs_3d_gif(
-            self, start=300, frames=30, direction=-1, duration=3):
+            self, fp=None, start=300, frames=30, direction=-1, duration=3):
         """Generates a rotating 3D plot GIF from test_bar_graphs_3d.
 
         Unfortunately there is no way to save these GIFs into memory, so
@@ -518,6 +546,8 @@ To see the different methods you can use to provide text, check the help message
             Saving to GIF: https://holypython.com/how-to-save-matplotlib-animations-the-ultimate-guide/
 
         Args:
+            fp (Optional[str]): The filepath to save the animation to.
+                If not supplied, defaults to self.TEST_3D_GRAPH_ANIMATION_PATH.
             start (float): The azimuth to start at.
             frames (int): The number of azimuths to generate.
             direction (Literal[1, -1]):
@@ -525,7 +555,12 @@ To see the different methods you can use to provide text, check the help message
                 -1: Rotate left
             duration (float): The time in seconds for the animation to last.
 
+        Returns:
+            str: The filepath that the animation was saved to.
+
         """
+        if fp is None:
+            fp = self.TEST_3D_GRAPH_ANIMATION_PATH
         fig, ax = self.test_bar_graphs_3d()
 
         def azimuth_rotation():
@@ -548,24 +583,44 @@ To see the different methods you can use to provide text, check the help message
             blit=True
         )
 
-        writer = animation.PillowWriter(fps=frames / duration)
-        anim.save('data/3D Graph Animation Test.gif', writer=writer)
+        anim.save(fp, writer='pillow', fps=frames / duration)
+
+        return fp
 
 
     @commands.command(name='test3dgraphanimation')
     @commands.cooldown(1, 30, commands.BucketType.default)
     @commands.max_concurrency(1, wait=True)
     @checks.is_bot_owner()
-    async def client_test3dgraphanimation(self, ctx):
+    async def client_test3dgraphanimation(
+            self, ctx, frames: int = 30, duration: int = 3):
         """Generate an animating graph with some random data."""
         loop = asyncio.get_running_loop()
+
+        if duration < 1:
+            return await ctx.send('Duration must be at least 1 second.')
+        if frames < 1:
+            return await ctx.send('There must be at least 1 frame.')
+
+        func = functools.partial(
+            self.test_bar_graphs_3d_gif,
+            frames=frames,
+            duration=duration
+        )
 
         with ctx.typing():
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', UserWarning)
-                await loop.run_in_executor(None, self.test_bar_graphs_3d_gif)
+                fp = await loop.run_in_executor(None, func)
 
-        with open('data/3D Graph Animation Test.gif', 'rb') as f:
+        filesize_limit = (ctx.guild.filesize_limit if ctx.guild is not None
+                          else 8_000_000)
+        filesize = Path(fp).stat().st_size
+        if filesize > filesize_limit:
+            return await ctx.send(
+                'Unfortunately the file is too large to upload.')
+
+        with open(fp, 'rb') as f:
             await ctx.send(file=discord.File(f, '3D Graph Animation Test.gif'))
 
 
