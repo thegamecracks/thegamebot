@@ -511,22 +511,24 @@ Temperature conversions:
 
     @commands.command(
         name='numberbase',
-        aliases=('numbase', 'base'))
+        aliases=('base',))
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_numberbase(self, ctx,
         base_in: int, base_out: int, n,
-            mapping: str = string.digits + string.ascii_uppercase \
-                + string.ascii_lowercase + '-+'):
+            mapping: str = None):
         """Converts a number to another base.
 Accepted bases are 2, 64, and all in-between.
-By default, base 64 uses 0-9, A-Z, a-z, "-", and "+", where "+" = 63.
+Base 64 uses the URL safe mapping of 0-9, A-Z, a-z, "-", and "_".
 Decimals cannot be converted.
 When base_in <= 36 and the mapping is the default,
 letters are case-insensitive but will print out capitalized.
 
-base_in - The number's base.
-base_out - The base to output as.
-n - The number to convert."""
+base_in: The number's base.
+base_out: The base to output as.
+n: The number to convert."""
+        if mapping is None:
+            mapping = (string.digits + string.ascii_uppercase
+                       + string.ascii_lowercase + '-_')
         await ctx.send(
             utils.convert_base(
                 base_in, base_out, n,

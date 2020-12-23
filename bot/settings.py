@@ -85,7 +85,7 @@ def setup():
     SETTINGS_DEFAULT = {
         'admin_ids': [153551102443257856, ],
         'bgtask_ListGuildsDelay': 600,
-        'bgtask_RandomPresenceMinDelay': 120,
+        'bgtask_RandomPresenceMinDelay': 180,
         'bgtask_RandomPresenceMaxDelay': 600,
         'bgtask_RandomPresenceOnStartup': True,
         'bgtask_RandomPresenceRandomStatusChance': 30,

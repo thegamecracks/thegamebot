@@ -38,9 +38,9 @@ from bot import utils
 class Graphing(commands.Cog):
     qualified_name = 'Graphing'
     description = (
-        'Commands for graphing certain things.\n'
+        'Commands for graphing things.\n'
         'Most of the text-related commands can support obtaining text by: '
-        'file attachment; the "text" parameter; replying to a message; '
+        'the "text" parameter; file attachment; replying to a message; '
         'or the last message that was sent.'
     )
 
