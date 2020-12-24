@@ -35,8 +35,8 @@ class Reminders(commands.Cog):
             self.send_reminders_tasks = {}  # reminder_id: Task
             self.send_reminders.start()
         else:
-            self.description += (
-                '\nThe bot currently cannot send reminders at this time.')
+            self.description += ('\n**NOTE**: The bot currently '
+                                 'cannot send reminders at this time.')
 
     def cog_unload(self):
         self.send_reminders.cancel()

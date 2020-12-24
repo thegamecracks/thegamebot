@@ -86,8 +86,6 @@ class Database(metaclass=Singleton):
     async def delete_rows(self, table: str, *, where: str, pop=False):
         """Delete one or more rows from a table.
 
-        This method requires a where parameter unlike get_rows.
-
         Args:
             table (str)
             where (str)
@@ -113,7 +111,7 @@ class Database(metaclass=Singleton):
         if pop:
             return rows
 
-    async def get_one(self, table: str, *, where: str, as_Row=True):
+    async def get_one(self, table: str, *, where: str = '1', as_Row=True):
         """Get one row from a table.
 
         If as_Row, rows will be returned as aiosqlite.Row objects.
@@ -137,15 +135,14 @@ class Database(metaclass=Singleton):
 
         return row
 
-    async def get_rows(
-            self, table: str, *, where: str = None, as_Row=True):
+    async def get_rows(self, table: str, *, where: str = '1', as_Row=True):
         """Get a list of rows from a table.
 
         Args:
             table (str)
             where (Optional[str]):
-                An optional parameter specifying a filter.
-                If left as None, returns all rows in the table.
+                An optional parameter specifying a condition.
+                By default, returns all rows in the table.
             as_Row (bool):
                 If True, rows will be returned as aiosqlite.Row objects.
                 Otherwise, rows are returned as tuples.
@@ -160,10 +157,7 @@ class Database(metaclass=Singleton):
             if as_Row:
                 db.row_factory = aiosqlite.Row
 
-            if where is not None:
-                c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
-            else:
-                c = await db.execute(f'SELECT * FROM {table}')
+            c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
 
             rows = await c.fetchall()
             await c.close()
@@ -198,14 +192,14 @@ class Database(metaclass=Singleton):
         self.set_last_change(datetime.datetime.now(), table)
 
     async def yield_rows(
-            self, table: str, *, where: str = None, as_Row=True):
+            self, table: str, *, where: str = '1', as_Row=True):
         """Yield a list of rows from a table.
 
         Args:
             table (str)
             where (Optional[str]):
-                An optional parameter specifying a filter.
-                If left as None, returns all rows in the table.
+                An optional parameter specifying a condition.
+                By default, yields all rows in the table.
             as_Row (bool):
                 If True, rows will be returned as aiosqlite.Row objects.
                 Otherwise, rows are returned as tuples.
@@ -220,10 +214,7 @@ class Database(metaclass=Singleton):
             if as_Row:
                 db.row_factory = aiosqlite.Row
 
-            if where is not None:
-                c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
-            else:
-                c = await db.execute(f'SELECT * FROM {table}')
+            c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
 
             async for row in c:
                 yield row

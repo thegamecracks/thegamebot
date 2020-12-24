@@ -18,7 +18,8 @@ handlers = [
     'on_resumed',
 ]
 
-COMMAND_ERROR_IGNORE_EXCEPTIONS = (commands.CommandNotFound,)
+COMMAND_ERROR_IGNORE_EXCEPTIONS = (
+    commands.CommandNotFound, commands.CheckFailure)
 # Prevents errors from being processed in this set of exceptions
 COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
@@ -334,7 +335,8 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.BadBoolArgument):
         # error.param is instance of inspect.Parameter
         await ctx.send('Expected a boolean answer for parameter '
-                       f'"{error.param.name}".')
+                       f'"{error.param.name}".\n'
+                       f'Usage: `{get_command_signature()}`')
     elif isinstance(error, commands.BotMissingPermissions):
         await ctx.send(
             'I am {}'.format(
@@ -396,7 +398,8 @@ async def on_command_error(ctx, error):
         await ctx.send('I cannot find the given message.')
     elif isinstance(error, commands.MissingRequiredArgument):
         # error.param is instance of inspect.Parameter
-        await ctx.send(f'Missing argument "{error.param.name}"')
+        await ctx.send(f'Missing argument "{error.param.name}"\n'
+                       f'Usage: `{get_command_signature()}`')
     elif isinstance(error, commands.MissingPermissions):
         await ctx.send(
             'You are {}'.format(
