@@ -115,7 +115,7 @@ class IrishSquad(commands.Cog):
             ))
         else:
             await ctx.send(inflector.inflect(
-                "{} has {0} plural('charge', {0}).".format(
+                "{0} has {1} plural('charge', {1}).".format(
                     user.display_name, charges)
             ))
 
