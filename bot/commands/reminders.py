@@ -196,11 +196,6 @@ To remove several reminders, use the removereminders command."""
                 ctx, 'Reminder successfully deleted!')
 
 
-    @client_removereminder.error
-    async def client_removereminder_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -240,11 +235,6 @@ To remove only one reminder, use the removereminder command."""
                 await self.delete_reminder_by_id(reminder['reminder_id'])
             await self.send_with_disclaimer(
                 ctx, 'Reminders successfully deleted!')
-
-
-    @client_removereminders.error
-    async def client_removereminders_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -290,11 +280,6 @@ To remove only one reminder, use the removereminder command."""
             await self.send_with_disclaimer(ctx, embed=embed)
 
 
-    @client_showreminder.error
-    async def client_showreminder_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -329,11 +314,6 @@ To remove only one reminder, use the removereminder command."""
             embed.add_field(name=f'Reminder {i:,}', value=content)
 
         await self.send_with_disclaimer(ctx, embed=embed)
-
-
-    @client_showreminders.error
-    async def client_showreminders_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 

@@ -65,6 +65,7 @@ def is_bot_admin():
         else:
             raise InvalidBotAdmin(
                 f"{ctx.author} is not registered as one of the bot's admins.")
+
     return commands.check(predicate)
 
 
@@ -76,6 +77,18 @@ def is_bot_owner():
         else:
             raise InvalidBotOwner(
                 f"{ctx.author} is not registered as one of the bot's owners.")
+
+    return commands.check(predicate)
+
+
+def is_in_guild(guild_id):
+    async def predicate(ctx):
+        guild = ctx.bot.get_guild(guild_id)
+        if guild is None:
+            return False
+
+        return guild.get_member(ctx.author.id) is not None
+
     return commands.check(predicate)
 
 

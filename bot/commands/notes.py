@@ -83,11 +83,6 @@ You can have a maximum of 20 notes."""
                 'Sorry, but you have reached your maximum limit of 20 notes.')
 
 
-    @client_addnote.error
-    async def client_addnote_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -112,11 +107,6 @@ To remove several notes, use the removenotes command."""
         else:
             await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Note successfully deleted!')
-
-
-    @client_removenote.error
-    async def client_removenote_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -156,11 +146,6 @@ To remove only one note, use the removenote command."""
             await ctx.send('Notes successfully deleted!')
 
 
-    @client_removenotes.error
-    async def client_removenotes_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -190,11 +175,6 @@ To remove only one note, use the removenote command."""
                 timestamp=datetime.datetime.fromisoformat(
                     note['time_of_entry'])
             ))
-
-
-    @client_shownote.error
-    async def client_shownote_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -229,11 +209,6 @@ To remove only one note, use the removenote command."""
             embed.add_field(name=f'Note {i:,}', value=content)
 
         await ctx.send(embed=embed)
-
-
-    @client_shownotes.error
-    async def client_shownotes_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 

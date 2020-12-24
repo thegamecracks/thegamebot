@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from . import database
 from . import guilddatabase
+from . import irishdatabase
 from . import notedatabase
 from . import prefixdatabase
 from . import reminderdatabase
@@ -13,6 +14,7 @@ from . import userdatabase
 from bot import settings
 
 DATABASE_USERS = './data/userdb.db'
+DATABASE_IRISH = './data/irishdb.db'
 
 
 def get_prefix():
@@ -59,5 +61,11 @@ def setup_database_users(connection):
     print('Verified guild database')
 
 
+def setup_database_guild_specific():
+    irishdatabase.setup(sqlite3.connect(DATABASE_IRISH))
+    print('Verified guild-specific databases')
+
+
 def setup():
     setup_database_users(sqlite3.connect(DATABASE_USERS))
+    setup_database_guild_specific()

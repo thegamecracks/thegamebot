@@ -23,6 +23,7 @@ cogs = [
     'bot.commands.embedding',
     'bot.commands.games',
     'bot.commands.graphing',
+    'bot.commands.guildirish',
     'bot.commands.images',
     'bot.commands.info',
     'bot.commands.notes',

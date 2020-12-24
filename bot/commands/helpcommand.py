@@ -127,7 +127,8 @@ class HelpCommand(commands.HelpCommand):
             description=(
                 'Type {0}help [command] for more info on a command.\n'
                 'You can also type {0}help [category] for '
-                'more info on a category.'.format(self.clean_prefix)
+                'more info on a category (do not type spaces in the '
+                "category's name).".format(self.clean_prefix)
             )
         )
 
