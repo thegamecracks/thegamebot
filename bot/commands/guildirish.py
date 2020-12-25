@@ -1,9 +1,8 @@
-import asyncio
-
 import discord
 from discord.ext import commands
 import inflect
 
+from bot.classes.confirmation import Confirmation
 from bot.database import IrishDatabase, DATABASE_IRISH
 from bot import checks
 from bot import utils
@@ -167,46 +166,19 @@ class IrishSquad(commands.Cog):
     async def client_charges_reset(self, ctx):
         """Reset the number of charges everyone has.
 This requires a confirmation."""
-        embed = discord.Embed(
-            color=utils.get_bot_color(),
-            description="**Are you sure you want to reset Irish Squad's "
-                        'number of charges?**'
-        ).set_author(
-            name=ctx.author.display_name,
-            icon_url=ctx.author.avatar_url
-        )
+        prompt = Confirmation(ctx, utils.get_bot_color())
 
-        message = await ctx.send(embed=embed)
-
-        emoji = {'\N{WHITE HEAVY CHECK MARK}': 0x77B255,
-                 '\N{CROSS MARK}': 0xDD2E44}
-        for e in emoji:
-            await message.add_reaction(e)
-
-        def check(r, u):
-            return r.emoji in emoji and u == ctx.author
-
-        try:
-            reaction, user = await self.bot.wait_for(
-                'reaction_add', check=check, timeout=30
-            )
-        except asyncio.TimeoutError:
-            embed.color = emoji['\N{CROSS MARK}']
-            embed.description = 'Cancelled charge wipe.'
-            return await message.edit(embed=embed)
-        else:
-            confirmed = reaction.emoji == '\N{WHITE HEAVY CHECK MARK}'
+        confirmed = await prompt.confirm(
+            "Are you sure you want to reset Irish Squad's number of charges?")
 
         if confirmed:
             await self.db.delete_rows('Charges', where='1')
 
-            embed.color = emoji['\N{WHITE HEAVY CHECK MARK}']
-            embed.description = 'Completed charge wipe!'
+            await prompt.update('Completed charge wipe!',
+                                prompt.emoji_yes.color)
         else:
-            embed.color = emoji['\N{CROSS MARK}']
-            embed.description = 'Cancelled charge wipe.'
-
-        await message.edit(embed=embed)
+            await prompt.update('Cancelled charge wipe.',
+                                prompt.emoji_no.color)
 
 
 
