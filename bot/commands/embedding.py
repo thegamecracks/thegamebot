@@ -34,7 +34,7 @@ class Embedding(commands.Cog):
     @commands.command(
         name='embed',
         brief='Create an embed.')
-    @commands.cooldown(3, 20, commands.BucketType.user)
+    @commands.cooldown(3, 30, commands.BucketType.channel)
     async def client_createembed(
             self, ctx,
             color: functools.partial(int, base=16),
@@ -160,15 +160,7 @@ These are the limits set by Discord:
 
 These commands only work in servers."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
-        # Reset cooldown as its limited to 1 command every 10 seconds
         ctx.command.reset_cooldown(ctx)
-
-
-    @client_hyperlink.error
-    async def client_hyperlink_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, commands.NoPrivateMessage):
-            await ctx.send('This command only works in servers.')
 
 
     @client_hyperlink.command(name='procedure')
@@ -220,6 +212,7 @@ You will be DM'd for your parameters."""
         embed = discord.Embed(
             title=f'{ctx.author.display_name}',
             description=f'[{text}]({link})',
+            color=utils.get_user_color(ctx.author),
             timestamp=datetime.datetime.now().astimezone()
         )
 
@@ -263,6 +256,7 @@ You will be DM'd for your parameters."""
         embed = discord.Embed(
             title=f'{ctx.author.display_name}',
             description=message.content,
+            color=utils.get_user_color(ctx.author),
             timestamp=datetime.datetime.now().astimezone()
         )
 

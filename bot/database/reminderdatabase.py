@@ -7,7 +7,7 @@ from . import userdatabase as user_db
 
 TABLE_REMINDERS = """
 CREATE TABLE IF NOT EXISTS Reminders (
-    reminder_id INTEGER PRIMARY KEY NOT NULL,
+    reminder_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     user_id INTEGER NOT NULL,
     due TIMESTAMP,
     content TEXT NOT NULL,

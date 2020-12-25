@@ -1,4 +1,4 @@
-from decimal import Decimal
+import decimal
 import io
 import math
 import string
@@ -16,8 +16,8 @@ FILE_FIBONACCI = 'data/fibonacci.txt'
 PINT_UREG = pint.UnitRegistry()
 Q_ = PINT_UREG.Quantity
 
-to_hex = lambda x: Decimal(int(x, 16))
-dec_or_hex = Union[Decimal, to_hex]
+to_hex = lambda x: decimal.Decimal(int(x, 16))
+dec_or_hex = Union[decimal.Decimal, to_hex]
 
 
 class Mathematics(commands.Cog):
@@ -54,7 +54,7 @@ class Mathematics(commands.Cog):
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_subtract(self, ctx, x: dec_or_hex, y: dec_or_hex):
         """Returns the difference of x and y."""
-        await ctx.send(f'{x-y}:G')
+        await ctx.send(f'{x-y:G}')
 
 
     @client_subtract.error
@@ -150,7 +150,7 @@ class Mathematics(commands.Cog):
     @commands.command(
         name='evaluate',
         aliases=('eval',))
-    @commands.cooldown(1, 2, commands.BucketType.user)
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_evaluate(self, ctx, *, expr: str):
         """Evaluates a simple mathematical expression.
 Syntax:
@@ -169,10 +169,10 @@ Example expression: (1+3) ** -2 - 7 // 9e2
 To reveal the evaluation of your expression, add --debug to your expression."""
         debugging = '--debug' in expr
         if debugging:
-            expr = expr.replace('--debug', '')
+            expr = expr.replace('--debug', '').strip()
 
         msg = []
-        with ctx.channel.typing():
+        with ctx.typing():
             postfix, tokens = mathparser.Postfix.from_infix(expr)
             if debugging:
                 msg.append('```\n')
@@ -204,12 +204,12 @@ To reveal the evaluation of your expression, add --debug to your expression."""
             await ctx.send(f'Undefined Syntax Error occurred: {error}')
         elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
-        elif isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
         elif isinstance(error, ValueError):
             await ctx.send(str(error))
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
+        elif isinstance(error, decimal.Overflow):
+            await ctx.send('Could not calculate due to overflow.')
 
 
 
@@ -288,7 +288,7 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
         name='gcd',
         brief='Greatest common divisor/factor.',
         aliases=('gcf',))
-    @commands.cooldown(5, 25, commands.BucketType.user)
+    @commands.cooldown(5, 30, commands.BucketType.user)
     async def client_gcd(self, ctx, x: int, y: str):
         """Return the Greatest Common Divisor/Factor of one or two integers.
 
@@ -318,7 +318,7 @@ If y is "high", calculates the highest divisor of x other than itself."""
     @commands.command(
         name='isprime',
         aliases=('prime',))
-    @commands.cooldown(5, 25, commands.BucketType.user)
+    @commands.cooldown(5, 30, commands.BucketType.user)
     async def client_isprime(self, ctx, n: int, setting: str = 'high'):
         """Checks if a number is prime.
 n - The number to test.
@@ -396,7 +396,7 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
     @commands.command(
         name='factors',
         aliases=('factor',))
-    @commands.cooldown(5, 25, commands.BucketType.user)
+    @commands.cooldown(5, 30, commands.BucketType.user)
     async def client_factors(self, ctx, n: int):
         """Returns all factors of a number.
 n - The number to test.
@@ -490,8 +490,13 @@ Temperature conversions:
             unit = 'celsius'
 
         # Parse the measurement
-        parsed_unit = Q_(unit_val, unit_str)
-        converted_unit = parsed_unit.to(unit)
+        try:
+            parsed_unit = Q_(unit_val, unit_str)
+            converted_unit = parsed_unit.to(unit)
+        except (pint.DimensionalityError,
+                pint.OffsetUnitCalculusError,
+                pint.UndefinedUnitError) as e:
+            return await ctx.send(str(e))
 
         # Round quantity to 3 digits or as integer
         quantity = decimal.Decimal(f'{converted_unit.magnitude:.3f}')
@@ -501,38 +506,29 @@ Temperature conversions:
             unit=converted_unit.units))
 
 
-    @client_convertunit.error
-    async def client_convertunit_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, pint.DimensionalityError):
-            await ctx.send(str(error))
-        elif isinstance(error, pint.OffsetUnitCalculusError):
-            await ctx.send(str(error))
-        elif isinstance(error, pint.UndefinedUnitError):
-            await ctx.send(str(error))
-
-
 
 
 
     @commands.command(
         name='numberbase',
-        aliases=('numbase', 'base'))
+        aliases=('base',))
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_numberbase(self, ctx,
         base_in: int, base_out: int, n,
-            mapping: str = string.digits + string.ascii_uppercase \
-                + string.ascii_lowercase + '-+'):
+            mapping: str = None):
         """Converts a number to another base.
 Accepted bases are 2, 64, and all in-between.
-By default, base 64 uses 0-9, A-Z, a-z, "-", and "+", where "+" = 63.
+Base 64 uses the URL safe mapping of 0-9, A-Z, a-z, "-", and "_".
 Decimals cannot be converted.
 When base_in <= 36 and the mapping is the default,
 letters are case-insensitive but will print out capitalized.
 
-base_in - The number's base.
-base_out - The base to output as.
-n - The number to convert."""
+base_in: The number's base.
+base_out: The base to output as.
+n: The number to convert."""
+        if mapping is None:
+            mapping = (string.digits + string.ascii_uppercase
+                       + string.ascii_lowercase + '-_')
         await ctx.send(
             utils.convert_base(
                 base_in, base_out, n,

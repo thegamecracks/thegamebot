@@ -48,7 +48,7 @@ class Randomization(commands.Cog):
     @commands.command(
         name='coinflip',
         aliases=('coin',))
-    @commands.cooldown(1, 1.5, commands.BucketType.user)
+    @commands.cooldown(3, 20, commands.BucketType.user)
     async def client_coinflip(self, ctx, n: int = 1):
         """Flip a number of coins.
 Example:
@@ -60,8 +60,11 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         def flip(sides=('Heads', 'Tails')):
             return random.choice(sides)
 
+        skip_delay = False
+
         if n <= 0:
             result = 'Cannot flip less than zero coins.'
+            skip_delay = True
         elif n == 1:
             result = f'Flipped __{flip()}__.'
         elif n <= 20:
@@ -75,10 +78,12 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
             result = '\n'.join(result)
         else:
             result = 'Cannot flip over 20 coins.'
+            skip_delay = True
 
-        async with ctx.channel.typing():
+        if not skip_delay:
+            await ctx.trigger_typing()
             await asyncio.sleep(1.5)
-            await ctx.send(result)
+        await ctx.send(result)
 
 
 
@@ -87,7 +92,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='dice',
         aliases=('roll',))
-    @commands.cooldown(1, 1.5, commands.BucketType.user)
+    @commands.cooldown(4, 20, commands.BucketType.user)
     async def client_dice(self, ctx, dice='d6', *args):
         """Roll a number of dice.
 Example:
@@ -101,27 +106,29 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         def roll():
             return random.randint(1, sides)
 
-        if 'd' in dice:
-            amount, sides = dice.split('d')[:2]
-            if not amount:
-                # "/sides" syntax
-                amount = 1
+        try:
+            if 'd' in dice:
+                amount, sides = dice.split('d')
+                amount = int(amount) if amount else 1
+                sides = int(sides) if sides else 6
             else:
-                amount = int(amount)
-            if not sides:
-                sides = 6
-            else:
-                sides = int(sides)
-        else:
-            # "amount/" syntax
-            amount, sides = int(dice), 6
+                # implied sides
+                amount, sides = int(dice), 6
+        except ValueError:
+            # excepts "2d6d6" (dice.split) and failed integer conversions
+            return await ctx.send('Failed to parse parameter "dice".')
+
+        skip_delay = False
 
         if amount <= 0:
             result = 'Cannot roll less than zero dice.'
+            skip_delay = True
         elif sides <= 0:
             result = 'Cannot roll with less than zero sides.'
+            skip_delay = True
         elif sides > 20:
             result = 'Cannot roll with over 20 sides.'
+            skip_delay = True
         elif amount == 1:
             result = f'Rolled a __{roll()}__.'
         elif amount <= 20:
@@ -138,10 +145,12 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
                 result = f'Rolled a total of __{dice}__.'
         else:
             result = 'Cannot roll over 20 dice.'
+            skip_delay = True
 
-        async with ctx.channel.typing():
+        if not skip_delay:
+            await ctx.trigger_typing()
             await asyncio.sleep(1.5)
-            await ctx.send(result)
+        await ctx.send(result)
 
 
 
@@ -150,14 +159,13 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='8ball',
         aliases=('eightball',))
-    @commands.cooldown(1, 5, commands.BucketType.user)
+    @commands.cooldown(2, 12, commands.BucketType.user)
     async def client_eightball(self, ctx, *, question: str = ''):
         """Answers a yes or no question."""
-        async with ctx.channel.typing():
-            await asyncio.sleep(random.randint(1, 5))
-            await ctx.send(f'{ctx.author.mention} '
-                           f'{random.choice(CLIENT_EIGHTBALL)}'
-            )
+        await ctx.trigger_typing()
+        await asyncio.sleep(random.randint(1, 5))
+        await ctx.send(
+            f'{ctx.author.mention} {random.choice(CLIENT_EIGHTBALL)}')
 
 
 
@@ -166,19 +174,20 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     @commands.command(
         name='pick',
         aliases=('choose', 'select'))
+    @commands.cooldown(4, 20, commands.BucketType.user)
     async def client_pick(self, ctx, choice1, choice2, *choices):
         """Select one of your given choices.
 Ayana command used as reference."""
         choices = list(choices)
         choices += [choice1, choice2]
-        async with ctx.channel.typing():
-            await asyncio.sleep(1)
-            await ctx.send(
-                random.choice(CLIENT_PICK_DIALOGUE).format(
-                    choice=random.choice(choices),
-                    mention=ctx.author.mention
-                )
+        await ctx.trigger_typing()
+        await asyncio.sleep(1)
+        await ctx.send(
+            random.choice(CLIENT_PICK_DIALOGUE).format(
+                choice=random.choice(choices),
+                mention=ctx.author.mention
             )
+        )
 
 
 

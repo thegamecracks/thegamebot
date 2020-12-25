@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.database import NoteDatabase, dbconn_users
+from bot.database import NoteDatabase, DATABASE_USERS
 from bot import utils
 
 inflector = inflect.engine()
@@ -17,7 +17,7 @@ class Notes(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.notedb = NoteDatabase(dbconn_users)
+        self.notedb = NoteDatabase(DATABASE_USERS)
         self.cache = {}  # user_id: notes
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
@@ -34,16 +34,14 @@ class Notes(commands.Cog):
 
     async def delete_note_by_note_id(self, note_id, pop=False):
         "Remove a note by note_id and update the cache."
-        deleted = await self.notedb.delete_note_by_note_id(
-            note['note_id'], pop=True)
+        deleted = await self.notedb.delete_note_by_note_id(note_id, pop=True)
 
-        updated_ids = frozenset(note.user_id for note in deleted)
+        updated_ids = frozenset(note['user_id'] for note in deleted)
 
         for user_id in updated_ids:
             del self.cache[user_id]
 
-        if pop:
-            return deleted
+        return deleted if pop else None
 
     async def get_notes(self, user_id):
         notes = self.cache.get(user_id)
@@ -85,11 +83,6 @@ You can have a maximum of 20 notes."""
                 'Sorry, but you have reached your maximum limit of 20 notes.')
 
 
-    @client_addnote.error
-    async def client_addnote_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -114,11 +107,6 @@ To remove several notes, use the removenotes command."""
         else:
             await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Note successfully deleted!')
-
-
-    @client_removenote.error
-    async def client_removenote_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -158,11 +146,6 @@ To remove only one note, use the removenote command."""
             await ctx.send('Notes successfully deleted!')
 
 
-    @client_removenotes.error
-    async def client_removenotes_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -176,6 +159,9 @@ To remove only one note, use the removenote command."""
 
         if len(note_list) == 0:
             return await ctx.send("You don't have any notes.")
+
+        if index < 1:
+            return await ctx.send('Index must be 1 or greater.')
 
         try:
             note = note_list[index - 1]
@@ -191,17 +177,12 @@ To remove only one note, use the removenote command."""
             ))
 
 
-    @client_shownote.error
-    async def client_shownote_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
     @commands.command(name='shownotes')
     @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.cooldown(4, 40, commands.BucketType.channel)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_shownotes(self, ctx):
         """Show all of your notes."""
         await ctx.channel.trigger_typing()
@@ -228,11 +209,6 @@ To remove only one note, use the removenote command."""
             embed.add_field(name=f'Note {i:,}', value=content)
 
         await ctx.send(embed=embed)
-
-
-    @client_shownotes.error
-    async def client_shownotes_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 

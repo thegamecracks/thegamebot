@@ -85,11 +85,64 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def datetime_difference_string(
-        current, prior,
+def fuzzy_match_word(s, choices, return_possible=False):
+    """Matches a string with a given evidence by token (case-insensitive).
+
+    Choices can be matched even if the given string has tokens out of order:
+        >>> fuzzy_match_word('orb ghost', ['Ghost Orb', 'Ghost Writing'])
+        'Ghost Orb'
+
+    `choices` does not get mutated.
+
+    Args:
+        s (str)
+        choices (Iterable[str])
+        return_possible (bool): If this is True and there are multiple matches,
+            a list of those matches will be returned.
+
+    Returns:
+        None
+        str
+        List[str]:
+            Returned if `return_possible` and there are multiple matches.
+
+    """
+    possible = choices
+    possible_lower = [s.lower() for s in possible]
+
+    # See if the phrase already exists
+    try:
+        i = possible_lower.index(s.lower())
+        return possible[i]
+    except ValueError:
+        pass
+
+    length = len(s)
+    for word in s.lower().split():
+        new = []
+
+        for p, pl in zip(possible, possible_lower):
+            if word in pl:
+                new.append(p)
+
+        possible = new
+
+        count = len(possible)
+        if count == 0:
+            return
+        elif count == 1:
+            return possible[0]
+
+        possible_lower = [s.lower() for s in possible]
+
+    return possible if return_possible and possible else None
+
+
+def timedelta_string(
+        diff,
         years=True, months=True, weeks=True, days=True,
         hours=True, minutes=True, seconds=True):
-    """Return the difference from prior to current as a string.
+    """Return a string representation of a timedelta.
 
     Can show years, months, weeks, day, hours, and minutes.
 
@@ -97,7 +150,6 @@ def datetime_difference_string(
     def s(n):
         return 's' if n != 1 else ''
 
-    diff = datetime_difference(current, prior)
     message = []
     if diff.years and years:
         message.append(f"{diff.years:,} Year{s(diff.years)}")
@@ -224,13 +276,18 @@ def gcd(a, b='high'):
     return a
 
 
+def get_bot_color():
+    "Return the bot's color from settings."
+    return int(settings.get_setting('bot_color'), 16)
+
+
 def get_user_color(
         user, default_color=None):
     "Return a user's role color if they are in a guild, else default_color."
     return (
         user.color if isinstance(user, discord.Member)
         else default_color if default_color is not None
-        else int(settings.get_setting('bot_color'), 16)
+        else get_bot_color()
     )
 
 

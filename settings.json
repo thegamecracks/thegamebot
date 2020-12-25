@@ -4,7 +4,7 @@
     ],
     "bgtask_ListGuildsDelay": 600,
     "bgtask_RandomPresenceMaxDelay": 600,
-    "bgtask_RandomPresenceMinDelay": 120,
+    "bgtask_RandomPresenceMinDelay": 180,
     "bgtask_RandomPresenceOnStartup": true,
     "bgtask_RandomPresenceRandomStatusChance": 30,
     "bgtask_RandomPresences": [
@@ -48,6 +48,8 @@
          "title": "Skillzhare"},
         {"activity": "listening",
          "title": "beep bop behop"},
+        {"activity": "listening",
+         "title": "The Real Folk Blues"},
         {"activity": "playing",
          "title": "as a car"},
         {"activity": "watching",

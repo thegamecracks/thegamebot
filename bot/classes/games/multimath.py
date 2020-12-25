@@ -70,7 +70,7 @@ class MultimathGame:
             title = f'Multimath started by {ctx.author.name}'
             description.append('Allowed users: everyone')
         else:
-            users = [u for u in users if u.bot]
+            users = [u for u in users if not u.bot]
             if len(users) == 1 and users[0] == ctx.author:
                 title = f'Multimath started for {users[0].name}'
                 description.append(f'Allowed users: {users[0].name}')
@@ -123,46 +123,59 @@ class MultimathGame:
     def generate_false_answers(self, amount: int = 1, deviation: int = 20):
         "Generate numbers close to self.ans."
         is_decimal = isinstance(self.ans, float)
-        rounder = 10 ** self.precision
+        rounder = 10 ** self.precision  # Used to round off decimals
 
         if is_decimal and self.op.symbol == '/':
-            # Decimal answer from division; make small lower/upper bounds
-            # so answers are harder to figure out
+            # Decimal answer from division; reduce deviation so answers
+            # are harder to figure out and also make sure that the
+            # bounds match the sign of the real answer
             deviation = 1
-            middle = random.random()
+            if self.ans <= deviation:
+                if self.ans > 0:
+                    middle = random.uniform(0, self.ans)
+                else:
+                    middle = random.uniform(deviation - self.ans, deviation)
+            else:
+                middle = random.uniform(0, deviation)
         else:
             middle = random.randint(0, deviation)
+
         lower, upper = self.ans - middle, self.ans + deviation - middle
-        # Generate `amount + 1` non-colliding answers so if it generates
-        # the answer, it can be ignored in the loop, and otherwise the extra
-        # number can be thrown away
-        answers = [
-            n / rounder
-            for n in random.sample(
-                range(
-                    round(math.copysign(lower * rounder, self.ans))
-                    if is_decimal else round(lower * rounder),
-                    round(math.copysign(upper * rounder, self.ans))
-                    if is_decimal else round(upper * rounder),
-                ), amount + 1
-            ) if n != self.ans * rounder
-        ]
-        if len(answers) > amount:
-            # Extra generated number
-            del answers[-1]
 
-        if not is_decimal:
-            # Max amount of potential integers
-            integers = amount // 2
+        # Generate a range of possible answers
+        possible_answers = range(
+            round(lower * rounder),
+            round(upper * rounder) + 1
+        )
+
+        # Check if there are enough possibilities to generate `amount` answers
+        # (subtract 1 to account for the real answer always existing)
+        if len(possible_answers) - 1 < amount:
+            raise ValueError(
+                f'Cannot generate {amount} answers when deviation of '
+                f'{deviation} only allows for {len(possible_answers) - 1} '
+                'invalid answers'
+            )
+
+        integers = amount // 2
+        # For rounding at most half the generated numbers if the real
+        # answer is an integer
+
+        answers = {self.ans}
+        while len(answers) - 1 < amount:
+            n = random.randint(
+                possible_answers.start,
+                possible_answers.stop
+            ) / rounder
             # 50% chance to round number to integer
-            for i, n in enumerate(answers):
-                if not integers:
-                    break
-                elif random.randint(0, 1) and round(n) not in answers:
-                    answers[i] = round(n)
-                    integers -= 1
+            if not is_decimal and integers and random.randint(0, 1):
+                n = round(n)
+                integers -= 1
 
-        return answers
+            answers.add(n)
+
+        answers.remove(self.ans)
+        return list(answers)
 
 
 class BotMultimathGame:
@@ -180,13 +193,14 @@ class BotMultimathGame:
         Args:
             channel (Optional[discord.TextChannel]):
                 The channel to send the message to.
-                If None, uses the channel in self._ctx.
+                If None, uses `self._ctx.channel`.
             users (Optional[Union[True, List[discord.User]]]):
                 A list of users that can participate in the game.
                 If None, the author of self._ctx will be the only participant.
                 If True, anyone can participate.
         """
         async def finish_and_show_score(header, last_answerer=None):
+            "Display the final score and who got it wrong >:("
             if last_answerer is None:
                 last_answerer = self._ctx.author
             embed_finish = self.game.embed_finish(last_answerer)

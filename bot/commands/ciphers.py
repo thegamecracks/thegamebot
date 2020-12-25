@@ -64,7 +64,7 @@ Source: https://morsecode.world/international/morse.html
 "_" : ..--.-
 "'" : .----.
 '"' : .-..-.
-"\\n" : .-.-
+<new line> : .-.-
 "<AA>": .-.-        New line ("\\n")
 "<AR>": .-.-.       End of message ("+")
 "<AS>": .-...       Wait ("&")
@@ -206,7 +206,7 @@ class Ciphers(commands.Cog):
         name='caesarcipher',
         brief='The Caesar Cipher.',
         aliases=('ciphercaesar', 'caesarcode', 'caesarshift'))
-    @commands.cooldown(1, 3, commands.BucketType.user)
+    @commands.cooldown(2, 5, commands.BucketType.member)
     async def client_ciphercaesar(self, ctx, shift: int, *, string: str):
         """Takes an amount of letters to shift and a string.
 shift: An integer amount of letters to shift. Can be a negative integer.
@@ -226,7 +226,7 @@ string: A string to cipher."""
         name='atbashcipher',
         brief='The Atbash Cipher.',
         aliases=('atbcipher', 'atbc', 'atbash'))
-    @commands.cooldown(1, 3, commands.BucketType.user)
+    @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_atbash(self, ctx, *, string: str):
         """Takes a string and maps each letter to the reverse alphabet."""
         await ctx.send(self.cipheratbash(string))
@@ -280,7 +280,7 @@ for x in range(key):
         name='columnarcipher',
         brief='The Columnar Transposition Cipher.',
         aliases=('transcipher', 'tpcipher'))
-    @commands.cooldown(1, 3, commands.BucketType.user)
+    @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_ciphercolumnar(self, ctx, key: int, *, string: str):
         """See http://inventwithpython.com/cracking/chapter7.html
 key: The integer key to use in the cipher.
@@ -347,7 +347,7 @@ This will be the ciphertext."""
         name='otpcipher',
         brief='The One-time Pad Cipher.',
         aliases=('otpc',))
-    @commands.cooldown(1, 3, commands.BucketType.user)
+    @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_cipherotp(self, ctx, mode: str, text: str, key: str):
         """Cipher/decipher alphanumeric text (excluding spaces) \
 using the one-time pad cipher.
@@ -441,9 +441,9 @@ key: The one time key to use."""
                                 MORSECODE_PROSIGNS_INVERTED.get(c, c)
                             )
                     s[i] = ''.join(decode)
-            return ' '.join(s)
+            return ' '.join(s).upper()
         else:
-            s = s.split(' ')
+            s = s.lower().split(' ')
             for i, word in enumerate(s):
                 prosign = MORSECODE_PROSIGNS.get(word)
                 if prosign is None:
@@ -471,7 +471,7 @@ key: The one time key to use."""
         name='morsecode',
         brief='The morse code encrypter/decrypter.',
         aliases=('morse', 'mc', 'mcode'))
-    @commands.cooldown(1, 3, commands.BucketType.user)
+    @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_morsecode(self, ctx,
         mode: str, spacing: str, *, string: str):
         """Translates text to morse code and back.
@@ -531,12 +531,12 @@ Other characters will be passed through."""
 
     @commands.command(
         name='morsecodetable',
-        brief='An interational morse code table.',
+        brief='The interational morse code table.',
         aliases=('mcodetable', 'mct', 'morsetable'))
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def client_morsecodetable(self, ctx):
-        """Displays a table for interational morse code."""
-        await ctx.send('```' + MORSECODE_DICTIONARY_STRING + '```')
+        """DMs the interational morse code table."""
+        await ctx.author.send('```' + MORSECODE_DICTIONARY_STRING + '```')
 
 
 
@@ -575,7 +575,7 @@ Other characters will be passed through."""
     @commands.command(
         name='vigenerecipher',
         brief='The Vigenere Cipher.')
-    @commands.cooldown(1, 3, commands.BucketType.user)
+    @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_vigenerecipher(self, ctx,
         mode: str, key: str, *, text: str):
         """Encrypt.

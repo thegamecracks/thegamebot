@@ -1,8 +1,14 @@
+import argparse
 import asyncio
+import collections
+import datetime
+import time
 import os
 
-from discord.ext import commands
 import discord
+from discord.ext import commands
+
+from bot import checks
 from bot import database
 from bot import eventhandlers
 from bot.commands import helpcommand
@@ -16,6 +22,9 @@ cogs = [
     'bot.commands.ciphers',
     'bot.commands.embedding',
     'bot.commands.games',
+    'bot.commands.graphing',
+    'bot.commands.guildirish',
+    'bot.commands.images',
     'bot.commands.info',
     'bot.commands.notes',
     'bot.commands.prefix',
@@ -25,21 +34,36 @@ cogs = [
     'bot.commands.undefined',
 ]
 
+disabled_intents = [
+    'bans', 'integrations', 'webhooks', 'invites',
+    'voice_states', 'typing'
+]
 
-def main():
+
+async def main():
+    start_time = time.perf_counter()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-M', '--members', action='store_true',
+                        help='Enable privileged members intent.')
+    parser.add_argument('-P', '--presences', action='store_true',
+                        help='Enable privileged presences intent.')
+
+    args = parser.parse_args()
+
     # Set up databases
     database.setup()
 
     # Set up client
-    TOKEN = os.environ['PyDiscordBotToken']
-
+    TOKEN = os.getenv('PyDiscordBotToken')
     logger = discordlogger.get_logger()
-
     settings.setup()
 
     intents = discord.Intents.default()
-    intents.presences = False
-    intents.members = True
+    intents.members = args.members
+    intents.presences = args.presences
+    for attr in disabled_intents:
+        setattr(intents, attr, False)
 
     bot = commands.Bot(
         command_prefix=database.get_prefix(),
@@ -47,23 +71,51 @@ def main():
         intents=intents
     )
 
+    checks.setup(bot)
+    print('Initialized global checks')
     eventhandlers.setup(bot)
+    print('Registered event handlers')
 
-    for name in cogs:
+    # Add botvars
+    bot.info_bootup_time = 0
+    bot.info_processed_commands = collections.defaultdict(int)
+    bot.uptime_last_connect = datetime.datetime.now().astimezone()
+    bot.uptime_last_connect_adjusted = bot.uptime_last_connect
+    bot.uptime_last_disconnect = bot.uptime_last_connect
+    bot.uptime_total_downtime = datetime.timedelta()
+    bot.uptime_is_online = False
+    print('Added botvars')
+
+    # Create task to calculate bootup time
+    async def bootup_time(bot, start_time):
+        await bot.wait_until_ready()
+        bot.info_bootup_time = time.perf_counter() - start_time
+
+    # Load extensions
+    for i, name in enumerate(cogs, start=1):
         bot.load_extension(name)
+        print(f'Loaded extension {i}/{len(cogs)}', end='\r', flush=True)
+    print()
 
-    loop = asyncio.get_event_loop()
-    bot_args = [TOKEN]
-    bot_kwargs = dict()
+    # Clean up
+    del parser, args, attr, i, name
 
+    # Create tasks
+    loop = asyncio.get_running_loop()
+
+    loop.create_task(bootup_time(bot, start_time))
+
+    # Start the bot
+    print('Starting bot')
     try:
-        loop.run_until_complete(bot.start(*bot_args, **bot_kwargs))
-    except Exception as e:
+        await bot.start(TOKEN)
+    except KeyboardInterrupt:
+        logger.info('KeyboardInterrupt: closing bot')
+    except Exception:
         logger.exception('Exception raised in bot')
     finally:
-        loop.run_until_complete(bot.close())
-        loop.close()
+        await bot.close()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

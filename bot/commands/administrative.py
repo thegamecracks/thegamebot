@@ -1,20 +1,23 @@
+"""
+The "execute" command is in part from RoboDanny which is released under MPL-2.0.
+See https://www.mozilla.org/en-US/MPL/2.0/ for full license details.
+"""
 import contextlib
 import io
-import random
 import textwrap
 import time
+import typing
 
 import discord
 from discord.ext import commands
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
 
 from bot import checks
 from bot import settings
 from bot import utils
 from bot.other import discordlogger
-
-
-def get_denied_message():
-    return random.choice(settings.get_setting('deniedmessages'))
 
 
 def get_user_for_log(ctx):
@@ -68,13 +71,6 @@ Will reset cooldowns for all subcommands in a group."""
         await ctx.send('Cooldown reset.')
 
 
-    @client_cooldown.error
-    async def client_cooldown_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message())
-
-
 
 
 
@@ -87,15 +83,16 @@ Will reset cooldowns for all subcommands in a group."""
         """
         # remove ```py\n``` or ```py```
         if content.startswith('```') and content.endswith('```'):
-            # return '\n'.join(content.split('\n')[1:-1])
-            return content.lstrip('```py').rstrip('```').strip()
+            return content.lstrip('```py').strip('```').strip()
         return content
 
 
     @commands.command(name='execute')
     @checks.is_bot_owner()
-    async def client_execute(self, ctx, sendIOtoDM: bool, *, x: str):
+    async def client_execute(
+            self, ctx, sendIOtoDM: typing.Optional[bool] = False, *, x: str):
         """Run python code in an async condition.
+Graphs can be generated if a Figure is returned.
 
 Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
         async def send(*args, **kwargs):
@@ -112,13 +109,13 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
         to_compile = f'async def func():\n{textwrap.indent(x, "  ")}'
 
         environment = {
-            'author': ctx.author,
+            'discord': discord,
+            'commands': commands,
             'bot': self.bot,
             'ctx': ctx,
-            'channel': ctx.channel,
-            'discord': discord,
-            'guild': ctx.guild,
-            'message': ctx.message,
+            'matplotlib': matplotlib,
+            'plt': plt,
+            'np': np,
             '_': self._last_result
         }
 
@@ -147,20 +144,25 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
             error_message = utils.exception_message()
             return await ctx.send(f'```py\n{error_message}```')
 
+        # If matplotlib figure was returned, generate an image from it
+        image = None
+        if isinstance(result, matplotlib.figure.Figure):
+            image = io.BytesIO()
+            result.savefig(
+                image, format='png', bbox_inches='tight', pad_inches=0)
+            image.seek(0)
+            image = discord.File(image, 'Graph.png')
+            result = None
+
         # Get output and truncate it, and display result if its not None
         out = f.getvalue() + f'{result}' * (result is not None)
         out = utils.truncate_message(out, 1991)  # -9 to add code blocks
 
         # Return output
         if out:
-            await send(f'```py\n{out}```')
-
-
-    @client_execute.error
-    async def client_execute_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message())
+            await send(f'```py\n{out}```', file=image)
+        elif image is not None:
+            await send(file=image)
 
 
 
@@ -174,29 +176,15 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
         await ctx.send('Cleared cache.')
 
 
-    @client_clearsettingscache.error
-    async def client_clearsettingscache_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message())
-
-
 
 
 
     @commands.group(name='presence', invoke_without_command=True)
     @checks.is_bot_admin()
-    @commands.cooldown(2, 10, commands.BucketType.user)
+    @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
-
-
-    @client_presence.error
-    async def client_presence_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotAdmin):
-            await ctx.send(get_denied_message())
 
 
     @client_presence.command(name='competing')
@@ -327,6 +315,7 @@ title: The title to show."""
     @client_presence.command(
         name='status',
         aliases=('state',))
+    @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_status(self, ctx, status: utils.parse_status = 'online'):
         """Sets the current status.
 Options:
@@ -370,7 +359,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 pass
             try:
                 self.bot.load_extension(ext)
-            except commands.errors.ExtensionNotFound:
+            except (ModuleNotFoundError, commands.errors.ExtensionNotFound):
                 return 'Could not find the extension.'
             except commands.errors.NoEntryPointError:
                 return 'This extension is missing a setup.'
@@ -378,7 +367,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 return 'This extension failed to be reloaded.'
 
         if extension == 'all':
-            # Note: must convert dict into list as extensions is mutated
+            # NOTE: must cast dict into list as extensions is mutated
             # during reloading
             for ext in list(self.bot.extensions):
                 result = reload(ext)
@@ -481,9 +470,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
     @client_sendmessage.error
     async def client_sendmessage_error(self, ctx, error):
         error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotAdmin):
-            await ctx.send(get_denied_message())
-        elif isinstance(error, AttributeError):
+        if isinstance(error, AttributeError):
             if "'NoneType' object has no attribute" in str(error):
                 await ctx.send('I cannot find the given channel.')
         elif isinstance(error, discord.Forbidden):
@@ -503,13 +490,6 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         print('Shutting down')
         await ctx.send('Shutting down.')
         await self.bot.logout()
-
-
-    @client_shutdown.error
-    async def client_shutdown_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message())
 
 
 

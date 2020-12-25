@@ -85,7 +85,7 @@ def setup():
     SETTINGS_DEFAULT = {
         'admin_ids': [153551102443257856, ],
         'bgtask_ListGuildsDelay': 600,
-        'bgtask_RandomPresenceMinDelay': 120,
+        'bgtask_RandomPresenceMinDelay': 180,
         'bgtask_RandomPresenceMaxDelay': 600,
         'bgtask_RandomPresenceOnStartup': True,
         'bgtask_RandomPresenceRandomStatusChance': 30,
@@ -128,6 +128,8 @@ def setup():
              'title': 'Skillzhare'},
             {'activity': 'listening',
              'title': 'beep bop behop'},
+            {'activity': 'listening',
+             'title': 'The Real Folk Blues'},
             {'activity': 'playing',
              'title': 'as a car'},
             {'activity': 'watching',

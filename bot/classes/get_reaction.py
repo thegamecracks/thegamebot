@@ -59,3 +59,8 @@ async def get_reaction(client, message, reactions=None,
     finally:
         for task in pending_tasks:
             task.cancel()
+        # If any exception happened in any other done tasks
+        # we don't care about the exception, but don't want the noise of
+        # non-retrieved exceptions
+        for task in completed_tasks:
+            task.exception()

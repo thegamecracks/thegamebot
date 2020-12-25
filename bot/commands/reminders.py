@@ -9,117 +9,11 @@ from discord.ext import commands, tasks
 import inflect
 
 from bot import utils
-from bot.classes.timeobj import Time
-from bot.database import ReminderDatabase, dbconn_users
+from bot.classes.timeobj import parse_timedelta
+from bot.database import ReminderDatabase, DATABASE_USERS
 from bot.other import discordlogger
 
-DAYS = {
-    k: value
-    for days, value in (
-        (('mon', 'monday'), 0),
-        (('tue', 'tuesday'), 1),
-        (('wed', 'wednesday'), 2),
-        (('thu', 'thur', 'thursday'), 3),
-        (('fri', 'friday'), 4),
-        (('sat', 'saturday'), 5),
-        (('sun', 'sunday'), 6)
-    ) for k in days
-}
-
 inflector = inflect.engine()
-
-
-def parse_reminder(s, utcnow=None):
-    """
-    Examples:
-        at 10pm [x] (x can be any message)
-        in 10 sec/min/h/days [x]
-        on wednesday [x]
-
-    Args:
-        s (str): The string to parse.
-        utcnow (Optional[datetime.datetime]): A naive datetime representing
-            what time it currently is in UTC. If None, defaults to
-            datetime.datetime.utcnow(). This argument is only needed when
-            a time is given in the format of 
-
-    Returns:
-        Tuple[datetime.timedelta, str]
-    """
-    def next_token():
-        nonlocal s
-
-        if s is None:
-            return ''
-
-        parts = s.split(None, 1)
-
-        length = len(parts)
-        if length == 2:
-            token, s = parts[0], parts[1]
-        elif length == 1:
-            token, s = parts[0], ''
-
-        return token.lower()
-
-    if utcnow is None:
-        utcnow = datetime.datetime.utcnow()
-
-    preposition = next_token()
-
-    if preposition in ('at', 'in', 'on'):
-        when = next_token()
-
-        # Try converting to day
-        when_weekday = DAYS.get(when)
-        if when_weekday is not None:
-            # determine whether it refers to this week or next
-            weekday = utcnow.weekday()
-            days = when_weekday - weekday + 7*(when_weekday <= weekday)
-            td = datetime.timedelta(days=days)
-            return td, s
-
-        # Try converting to Time
-        try:
-            utcwhen = Time.from_string(when)
-        except (ValueError, TypeError) as e:
-            pass
-        else:
-            # Get time difference with utcnow rounding down seconds
-            # NOTE: Time objects automatically handle underflowing,
-            # so no code is needed beyond this
-            diff = utcwhen - utcnow.replace(second=0)
-            td = datetime.timedelta(hours=diff.hour, minutes=diff.minute)
-            return td, s
-
-        # Try converting into time diff
-        try:
-            num = int(when)
-            if num <= 0:
-                raise ValueError('time cannot be negative')
-        except ValueError:
-            pass
-        else:
-            unit = next_token()
-            if unit in ('sec', 'second', 'seconds'):
-                unit = 'seconds'
-            elif unit in ('min', 'minute', 'minutes'):
-                unit = 'minutes'
-            elif unit in ('h', 'hr', 'hrs', 'hour', 'hours'):
-                unit = 'hours'
-            elif unit in ('d', 'day', 'days'):
-                unit = 'days'
-            else:
-                unit = None
-
-            if unit is not None:
-                kwargs = {unit: num}
-                td = datetime.timedelta(**kwargs)
-                return td, s
-
-        raise ValueError('Invalid time')
-    else:
-        raise ValueError(f'Invalid preposition: {preposition!r}')
 
 
 class Reminders(commands.Cog):
@@ -131,7 +25,7 @@ class Reminders(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.reminderdb = ReminderDatabase(dbconn_users)
+        self.reminderdb = ReminderDatabase(DATABASE_USERS)
         self.cache = {}  # user_id: reminders
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
@@ -141,8 +35,8 @@ class Reminders(commands.Cog):
             self.send_reminders_tasks = {}  # reminder_id: Task
             self.send_reminders.start()
         else:
-            self.description += (
-                '\nThe bot currently cannot send reminders at this time.')
+            self.description += ('\n**NOTE**: The bot currently '
+                                 'cannot send reminders at this time.')
 
     def cog_unload(self):
         self.send_reminders.cancel()
@@ -198,9 +92,7 @@ class Reminders(commands.Cog):
 
     async def send_with_disclaimer(
             self, messageable, content=None, *args, **kwargs):
-        if content is None:
-            content = ''
-        if not self.bot.intents.members:
+        if content is not None and not self.bot.intents.members:
             content += ('\nNote: the bot currently cannot send '
                         'reminders at this time.')
 
@@ -227,13 +119,19 @@ Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
         await ctx.channel.trigger_typing()
 
-        total_reminders = len(
-            await self.get_reminders(ctx.author.id))
+        total_reminders = len(await self.get_reminders(ctx.author.id))
 
         if total_reminders < 5:
             # Get current time in UTC without microseconds
             utcnow = datetime.datetime.utcnow().replace(microsecond=0)
-            td, content = parse_reminder(time_and_reminder, utcnow)
+            try:
+                td, content = parse_timedelta(time_and_reminder, utcnow)
+            except ValueError:
+                return await self.send_with_disclaimer(
+                    ctx,
+                    'Could not understand your reminder request. Check this '
+                    "command's help page for allowed syntax."
+                )
 
             if td.total_seconds() < 30:
                 return await self.send_with_disclaimer(
@@ -270,17 +168,6 @@ You can have a maximum of 5 reminders."""
             )
 
 
-    @client_addreminder.error
-    async def client_addreminder_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, ValueError):
-            await self.send_with_disclaimer(
-                ctx,
-                'Could not understand your reminder request. Check this '
-                "command's help page for allowed syntax."
-            )
-
-
 
 
     @commands.command(name='removereminder')
@@ -307,11 +194,6 @@ To remove several reminders, use the removereminders command."""
             await self.delete_reminder_by_id(reminder['reminder_id'])
             await self.send_with_disclaimer(
                 ctx, 'Reminder successfully deleted!')
-
-
-    @client_removereminder.error
-    async def client_removereminder_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -355,11 +237,6 @@ To remove only one reminder, use the removereminder command."""
                 ctx, 'Reminders successfully deleted!')
 
 
-    @client_removereminders.error
-    async def client_removereminders_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-
-
 
 
 
@@ -375,6 +252,10 @@ To remove only one reminder, use the removereminder command."""
             return await self.send_with_disclaimer(
                 ctx, "You don't have any reminders.")
 
+        if index < 1:
+            return await self.send_with_disclaimer(
+                ctx, 'Index must be 1 or greater.')
+
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
@@ -389,17 +270,14 @@ To remove only one reminder, use the removereminder command."""
                 timestamp=utcdue
             ).add_field(
                 name='Due in',
-                value=utils.datetime_difference_string(
-                    utcdue,
-                    datetime.datetime.utcnow()
+                value=utils.timedelta_string(
+                    utils.datetime_difference(
+                        utcdue,
+                        datetime.datetime.utcnow()
+                    )
                 )
             ).set_footer(text='Due date')
             await self.send_with_disclaimer(ctx, embed=embed)
-
-
-    @client_showreminder.error
-    async def client_showreminder_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -407,7 +285,7 @@ To remove only one reminder, use the removereminder command."""
 
     @commands.command(name='showreminders')
     @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.cooldown(4, 40, commands.BucketType.channel)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_showreminders(self, ctx):
         """Show all of your reminders."""
         await ctx.channel.trigger_typing()
@@ -436,11 +314,6 @@ To remove only one reminder, use the removereminder command."""
             embed.add_field(name=f'Reminder {i:,}', value=content)
 
         await self.send_with_disclaimer(ctx, embed=embed)
-
-
-    @client_showreminders.error
-    async def client_showreminders_error(self, ctx, error):
-        error = getattr(error, 'original', error)
 
 
 
@@ -511,6 +384,11 @@ To remove only one reminder, use the removereminder command."""
 
         await asyncio.sleep(seconds)
 
+        if await self.reminderdb.get_one(
+                'Reminders', where=f'reminder_id={reminder_id}') is None:
+            # Reminder was deleted during wait; don't send
+            return
+
         user = self.bot.get_user(user_id)
 
         if user is None:
@@ -524,14 +402,14 @@ To remove only one reminder, use the removereminder command."""
             return
 
         if seconds == 0:
-            title = f'Late reminder for {utcwhen.strftime("%c")}'
+            title = f'Late reminder for {utcwhen.strftime("%c UTC")}'
         else:
-            title = f'Reminder for {utcwhen.strftime("%c")}'
+            title = f'Reminder for {utcwhen.strftime("%c UTC")}'
         embed = discord.Embed(
             title=title,
             description=content,
             color=utils.get_user_color(user),
-            timestamp=utcwhen
+            timestamp=datetime.datetime.now().astimezone()
         )
 
         try:
