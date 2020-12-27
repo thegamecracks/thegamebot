@@ -1,27 +1,30 @@
+import contextlib
 import datetime
 import decimal
 import itertools  # rawincount()
 import math
 import pathlib    # exception_message()
-import string
 import sys        # exception_message()
 import traceback  # exception_message()
 
 from dateutil.relativedelta import relativedelta
 import discord
 import inflect
+import prettify_exceptions
 
 from bot import settings
 from bot.other import discordlogger
 
 inflector = inflect.engine()
 
+logger = discordlogger.get_logger()
+
 # Whitelist Digits, Decimal Point, Main Arithmetic,
 # Order of Operations, Function Arithmetic (modulus,),
 # Binary Arithmetic (bitwise NOT, OR, AND, XOR, shifts)
 # Scientific Notation, and Imaginary Part for evaluate command
-CLIENT_EVALUATE_WHITELIST = set(
-    string.digits
+SAFE_EVAL_WHITELIST = frozenset(
+    '0123456789'
     + '.'
     + '*/+-'
     + '%'
@@ -31,8 +34,6 @@ CLIENT_EVALUATE_WHITELIST = set(
     + 'E'
     + 'j'
 )
-
-logger = discordlogger.get_logger()
 
 
 def convert_base(base_in: int, base_out: int, n,
@@ -86,7 +87,7 @@ def datetime_difference(current, prior):
 
 
 def fuzzy_match_word(s, choices, return_possible=False):
-    """Matches a string with a given evidence by token (case-insensitive).
+    """Matches a string to given choices by token (case-insensitive).
 
     Choices can be matched even if the given string has tokens out of order:
         >>> fuzzy_match_word('orb ghost', ['Ghost Orb', 'Ghost Writing'])
@@ -101,10 +102,11 @@ def fuzzy_match_word(s, choices, return_possible=False):
             a list of those matches will be returned.
 
     Returns:
-        None
+        None: Returned if there are multiple matches and
+              `return_possible` is False.
         str
-        List[str]:
-            Returned if `return_possible` and there are multiple matches.
+        List[str]: Returned if there are multiple matches and
+                   `return_possible` is True.
 
     """
     possible = choices
@@ -252,6 +254,26 @@ def exception_message(
     return msg
 
 
+def exception_message_pretty(
+        exc_type=None, exc_value=None, exc_traceback=None,
+        header: str = '', log_handler=logger) -> str:
+    """Create a traceback message using the prettify_exceptions module.
+    This acts similar to `exception_message`."""
+    if exc_type is None and exc_value is None and exc_traceback is None:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+    elif exc_type is None or exc_value is None or exc_traceback is None:
+        raise ValueError('An exception type/value/traceback was passed '
+                         'but is missing the other values')
+
+    if log_handler is not None:
+        log_handler.exception('')
+
+    return '\n'.join(
+        prettify_exceptions.DefaultFormatter().format_exception(
+            exc_type, exc_value, exc_traceback)
+    )
+
+
 def gcd(a, b='high'):
     """Calculate the Greatest Common Divisor of a and b.
 
@@ -373,9 +395,9 @@ def rawincount(filename):
 
 def safe_eval(x):
     """Filters a string before evaluating.
-Uses CLIENT_EVALUATE_WHITELIST as the filter."""
+Uses SAFE_EVAL_WHITELIST as the filter."""
     return num(eval(
-        ''.join([char for char in x if char in CLIENT_EVALUATE_WHITELIST])
+        ''.join([char for char in x if char in SAFE_EVAL_WHITELIST])
     ))
 
 
@@ -467,3 +489,15 @@ def print_error(func):
             print('\t' + repr(args[2]))
             await func(*args, **kwargs)
     return wrapper
+
+
+# Context managers
+@contextlib.contextmanager
+def update_text(before, after):
+    """A context manager for printing one line of text and at the end,
+    writing over it."""
+    after += ' ' * (len(before) - len(after))
+    try:
+        yield print(before, end='\r', flush=True)
+    finally:
+        print(after)

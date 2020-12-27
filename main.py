@@ -71,20 +71,23 @@ async def main():
         intents=intents
     )
 
-    checks.setup(bot)
-    print('Initialized global checks')
-    eventhandlers.setup(bot)
-    print('Registered event handlers')
+    with utils.update_text('Initializing global checks',
+                           'Initialized global checks'):
+        checks.setup(bot)
+    with utils.update_text('Registering event handlers',
+                           'Registered event handlers'):
+        eventhandlers.setup(bot)
 
     # Add botvars
-    bot.info_bootup_time = 0
-    bot.info_processed_commands = collections.defaultdict(int)
-    bot.uptime_last_connect = datetime.datetime.now().astimezone()
-    bot.uptime_last_connect_adjusted = bot.uptime_last_connect
-    bot.uptime_last_disconnect = bot.uptime_last_connect
-    bot.uptime_total_downtime = datetime.timedelta()
-    bot.uptime_is_online = False
-    print('Added botvars')
+    with utils.update_text('Adding botvars',
+                           'Added botvars'):
+        bot.info_bootup_time = 0
+        bot.info_processed_commands = collections.defaultdict(int)
+        bot.uptime_last_connect = datetime.datetime.now().astimezone()
+        bot.uptime_last_connect_adjusted = bot.uptime_last_connect
+        bot.uptime_last_disconnect = bot.uptime_last_connect
+        bot.uptime_total_downtime = datetime.timedelta()
+        bot.uptime_is_online = False
 
     # Create task to calculate bootup time
     async def bootup_time(bot, start_time):
@@ -93,9 +96,9 @@ async def main():
 
     # Load extensions
     for i, name in enumerate(cogs, start=1):
+        print(f'Loading extension {i}/{len(cogs)}', end='\r', flush=True)
         bot.load_extension(name)
-        print(f'Loaded extension {i}/{len(cogs)}', end='\r', flush=True)
-    print()
+    print(f'Loaded all extensions         ')
 
     # Clean up
     del parser, args, attr, i, name

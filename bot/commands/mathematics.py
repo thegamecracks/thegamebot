@@ -102,6 +102,8 @@ class Mathematics(commands.Cog):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
+        elif isinstance(error, ZeroDivisionError):
+            await ctx.send('Division by Zero occurred.')
 
 
 

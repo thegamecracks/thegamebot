@@ -12,6 +12,7 @@ from . import prefixdatabase
 from . import reminderdatabase
 from . import userdatabase
 from bot import settings
+from bot import utils
 
 DATABASE_USERS = './data/userdb.db'
 DATABASE_IRISH = './data/irishdb.db'
@@ -52,18 +53,21 @@ def get_prefix():
 
 def setup_database_users(connection):
     "Setup the tables for the Users database."
-    userdatabase.setup(connection)
-    notedatabase.setup(connection)
-    reminderdatabase.setup(connection)
-    print('Verified user database')
-    guilddatabase.setup(connection)
-    prefixdatabase.setup(connection)
-    print('Verified guild database')
+    with utils.update_text('Verifying user database',
+                           'Verified user database'):
+        userdatabase.setup(connection)
+        notedatabase.setup(connection)
+        reminderdatabase.setup(connection)
+    with utils.update_text('Verifying guild database',
+                           'Verified guild database'):
+        guilddatabase.setup(connection)
+        prefixdatabase.setup(connection)
 
 
 def setup_database_guild_specific():
-    irishdatabase.setup(sqlite3.connect(DATABASE_IRISH))
-    print('Verified guild-specific databases')
+    with utils.update_text('Verifying guild-specific databases',
+                           'Verified guild-specific databases'):
+        irishdatabase.setup(sqlite3.connect(DATABASE_IRISH))
 
 
 def setup():
