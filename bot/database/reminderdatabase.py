@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS Reminders (
     due TIMESTAMP,
     content TEXT NOT NULL,
     FOREIGN KEY(user_id) REFERENCES Users(id)
+        ON DELETE CASCADE
 );
 """
 

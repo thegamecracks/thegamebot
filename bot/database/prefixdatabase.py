@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS Prefixes (
     guild_id INTEGER NOT NULL,
     prefix TEXT NOT NULL,
     FOREIGN KEY(guild_id) REFERENCES Guilds(id)
+        ON DELETE CASCADE
 );
 """
 

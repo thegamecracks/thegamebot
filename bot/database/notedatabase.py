@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS Notes (
     time_of_entry TIMESTAMP,
     content TEXT NOT NULL,
     FOREIGN KEY(user_id) REFERENCES Users(id)
+        ON DELETE CASCADE
 );
 """
 

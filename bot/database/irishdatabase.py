@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS Charges (
     user_id INTEGER NOT NULL,
     amount INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(user_id) REFERENCES Users(id)
+        ON DELETE CASCADE
 )"""
 
 

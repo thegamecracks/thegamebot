@@ -109,7 +109,7 @@ def fuzzy_match_word(s, choices, return_possible=False):
                    `return_possible` is True.
 
     """
-    possible = choices
+    possible = list(choices) if not isinstance(choices, list) else choices
     possible_lower = [s.lower() for s in possible]
 
     # See if the phrase already exists

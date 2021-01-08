@@ -191,6 +191,11 @@ class Database(metaclass=Singleton):
 
         self.set_last_change(datetime.datetime.now(), table)
 
+    async def vacuum(self):
+        """Vacuum the database."""
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute('VACUUM')
+
     async def yield_rows(
             self, table: str, *, where: str = '1', as_Row=True):
         """Yield a list of rows from a table.
