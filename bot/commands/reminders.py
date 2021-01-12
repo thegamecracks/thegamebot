@@ -10,7 +10,7 @@ import inflect
 
 from bot import utils
 from bot.classes.timeobj import parse_timedelta
-from bot.database import ReminderDatabase, DATABASE_USERS
+from bot.database import ReminderDatabase
 from bot.other import discordlogger
 
 inflector = inflect.engine()
@@ -25,7 +25,7 @@ class Reminders(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.reminderdb = ReminderDatabase(DATABASE_USERS)
+        self.reminderdb = ReminderDatabase
         self.cache = {}  # user_id: reminders
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,

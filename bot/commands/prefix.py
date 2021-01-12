@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.database import PrefixDatabase, DATABASE_USERS
+from bot.database import PrefixDatabase
 from bot import utils
 
 inflector = inflect.engine()
@@ -24,7 +24,7 @@ class Prefix(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.prefixdb = PrefixDatabase(DATABASE_USERS)
+        self.prefixdb = PrefixDatabase
         self.mention_prefix_cooldown = commands.CooldownMapping.from_cooldown(
             1, 15, commands.BucketType.member)
 

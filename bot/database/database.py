@@ -3,16 +3,7 @@ import datetime
 import aiosqlite
 
 
-class Singleton(type):
-    # https://stackoverflow.com/q/6760685
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Database(metaclass=Singleton):
+class Database:
     """Provide a higher-level interface to a database.
 
     Methods:
@@ -26,9 +17,6 @@ class Database(metaclass=Singleton):
         row_to_dict(Row)
 
     """
-    # FIXME: using Singleton is probably a dumb way of making sure
-    # caches of subclasses are preserved across instantiations;
-    # why not just have dbsetup create all the instances?
     __slots__ = ['path', 'last_change']
 
     PRAGMAS = 'PRAGMA foreign_keys = 1'

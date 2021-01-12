@@ -3,7 +3,7 @@ from discord.ext import commands
 import inflect
 
 from bot.classes.confirmation import Confirmation
-from bot.database import IrishDatabase, DATABASE_IRISH
+from bot.database import IrishDatabase
 from bot import checks
 from bot import utils
 
@@ -29,7 +29,7 @@ class IrishSquad(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.db = IrishDatabase(DATABASE_IRISH)
+        self.db = IrishDatabase
 
         if not self.bot.intents.members:
             self.description += ('\n**NOTE**: This category will not be '

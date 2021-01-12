@@ -17,6 +17,13 @@ from bot import utils
 DATABASE_USERS = './data/userdb.db'
 DATABASE_IRISH = './data/irishdb.db'
 
+GuildDatabase = guilddatabase.GuildDatabase(DATABASE_USERS)
+IrishDatabase = irishdatabase.IrishDatabase(DATABASE_IRISH)
+NoteDatabase = notedatabase.NoteDatabase(DATABASE_USERS)
+PrefixDatabase = prefixdatabase.PrefixDatabase(DATABASE_USERS)
+ReminderDatabase = reminderdatabase.ReminderDatabase(DATABASE_USERS)
+UserDatabase = userdatabase.UserDatabase(DATABASE_USERS)
+
 
 def get_prefix():
     """Return a function for getting the bot prefix.
@@ -28,8 +35,6 @@ def get_prefix():
         commands.Bot(command_prefix=get_prefix())
 
     """
-    db = prefixdatabase.PrefixDatabase(DATABASE_USERS)
-
     async def inner(bot, message):
         guild = message.guild
 
@@ -41,8 +46,8 @@ def get_prefix():
 
         # Else, fetch guild prefix
         guild_id = guild.id
-        await db.add_prefix(guild_id, add_guild=True)
-        prefix = await db.get_prefix(guild_id)
+        await PrefixDatabase.add_prefix(guild_id, add_guild=True)
+        prefix = await PrefixDatabase.get_prefix(guild_id)
 
         if prefix is not None:
             return commands.when_mentioned_or(prefix)(bot, message)
