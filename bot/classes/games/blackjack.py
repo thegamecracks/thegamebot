@@ -92,9 +92,12 @@ class Hand:
         self.cards.append(card)
 
         # Clear cache and then compute new values
+        self._clear_cache()
+        values = self.values
+
+    def _clear_cache(self):
         self._cache_values = None
         self._cache_soft = None
-        values = self.values
 
     def count(self, rank=None, suit=None) -> int:
         """Count the number of cards with a particular rank and/or suit."""
@@ -140,6 +143,8 @@ class Hand:
             if card.facedown:
                 self[i] = card.replace(facedown=False)
                 revealed += 1
+        if revealed:
+            self._clear_cache()
         return revealed
 
     @property
