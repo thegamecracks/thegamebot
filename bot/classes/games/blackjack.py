@@ -206,14 +206,15 @@ CARDS = tuple(Card(r, s) for r in RANKS for s in SUITS)
 class BotBlackjackGame:
     """A one-use blackjack game."""
 
-    REVEAL_ON_BLACKJACK = True
-    # Reveal the dealer's hand if the player gets a blackjack.
-    # This allows pushes (ties) with blackjacks to occur.
-
+    HIT_ON_SOFT_17 = True
+    # Hit if the dealer has a soft 17.
     REVEAL_DEALER_BLACKJACK = False
     # Reveal the dealer's hand if their hand is a blackjack.
     # As there is no ability to double down, this setting affects
     # the start of the game instead.
+    REVEAL_ON_BLACKJACK = True
+    # Reveal the dealer's hand if the player gets a blackjack.
+    # This allows pushes (ties) with blackjacks to occur.
 
     TIMEOUT = 30
 
@@ -435,7 +436,8 @@ class BotBlackjackGame:
                     # Stand
                     moves.append('stand')
                     dealer.reveal()
-                    while dealer.maximum < 17:
+                    while (dealer.maximum < 17 or self.HIT_ON_SOFT_17
+                            and dealer.soft and dealer.maximum == 17):
                         dealer.append(deck.pop())
                     break
                 else:
