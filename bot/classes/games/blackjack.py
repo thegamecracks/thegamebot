@@ -1,4 +1,5 @@
 import asyncio
+import copy
 from dataclasses import dataclass, field, replace
 import functools
 import itertools
@@ -38,13 +39,13 @@ class Card:
         return f'{self.rank.capitalize()} of {self.suit.capitalize()}s'
 
     @functools.cached_property
-    def value(self) -> Union[int, Tuple[int, int]]:
+    def value(self) -> Tuple[int, ...]:
         rank = self.rank
         if rank in ('JACK', 'QUEEN', 'KING'):
-            return 10
+            return 10,
         elif rank == 'ACE':
             return 1, 11
-        return int(rank)
+        return int(rank),
 
     @functools.cached_property
     def color(self):
@@ -98,6 +99,10 @@ class Hand:
     def _clear_cache(self):
         self._cache_values = None
         self._cache_soft = None
+
+    def copy(self):
+        """Create a new hand with the same cards."""
+        return copy.deepcopy(self)
 
     def count(self, rank=None, suit=None) -> int:
         """Count the number of cards with a particular rank and/or suit."""
@@ -166,8 +171,8 @@ class Hand:
             value = card.value
             if card.facedown:
                 continue
-            elif isinstance(value, int):
-                total += value
+            elif len(value) == 1:
+                total += value[0]
             else:
                 variables.append(value)
 
@@ -201,6 +206,17 @@ CARDS = tuple(Card(r, s) for r in RANKS for s in SUITS)
 class BotBlackjackGame:
     """A one-use blackjack game."""
 
+    REVEAL_ON_BLACKJACK = True
+    # Reveal the dealer's hand if the player gets a blackjack.
+    # This allows pushes (ties) with blackjacks to occur.
+
+    REVEAL_DEALER_BLACKJACK = False
+    # Reveal the dealer's hand if their hand is a blackjack.
+    # As there is no ability to double down, this setting affects
+    # the start of the game instead.
+
+    TIMEOUT = 30
+
     CARD_CLUSTER_1 = 798370146867085332
     CARD_CLUSTER_2 = 798378538809032714
 
@@ -208,8 +224,6 @@ class BotBlackjackGame:
     EMOJI_HIT = 798381258257989653
     EMOJI_STAND = 798381243770470420
     EMOJI_DEFAULT = '\N{NO ENTRY}'
-
-    TIMEOUT = 30
 
     def __init__(self, ctx, *, decks: int):
         self._ctx: commands.Context = ctx
@@ -224,6 +238,24 @@ class BotBlackjackGame:
         self.dealer = Hand([deck.pop(), deck.pop().replace(facedown=True)])
 
         self.deck = deck
+
+    def check_dealer_blackjack(self, hand: Hand, hidden=True) -> bool:
+        """Check if a dealer's hand is, or could be a blackjack.
+
+        Args:
+            hand (Hand): The dealer's hand.
+            hidden (bool): If True, this will peek the hidden card
+                when the first card has a value of 10 or greater,
+                returning True if the second card adds up to blackjack
+                (this does not reveal the card).
+                Otherwise, returns True if the potential for blackjack
+                exists.
+
+        """
+        value1 = max(hand[0].value)
+        if value1 >= 10:
+            return True if not hidden else value1 + max(hand[1].value) == 21
+        return False
 
     def embed_update(self, user=None, done=False) -> discord.Embed:
         """Return the embed for the current game.
@@ -256,13 +288,16 @@ class BotBlackjackGame:
                 win = True
                 embed.description += 'Dealer Bust'
             elif player.maximum == 21:
+                if self.REVEAL_ON_BLACKJACK and self.check_dealer_blackjack(
+                        dealer, hidden=False):
+                    dealer.reveal()
                 if dealer.maximum == 21:
-                    embed.description += 'Tie'
+                    embed.description += 'Push'
                 else:
                     win = True
-                    embed.description += 'Blackjack'
+                    embed.description += 'Win'
             elif player.maximum == dealer.maximum:
-                embed.description += 'Tie'
+                embed.description += 'Push'
             else:
                 win = player.maximum > dealer.maximum
                 if win:
@@ -375,6 +410,10 @@ class BotBlackjackGame:
         for e in emojis:
             await message.add_reaction(e)
         await asyncio.sleep(1)
+
+        # Peek the second card to check for blackjack
+        if self.REVEAL_DEALER_BLACKJACK and self.check_dealer_blackjack(dealer):
+            dealer.reveal()
 
         while max(player.maximum, dealer.maximum) < 21:
             await message.edit(content='', embed=self.embed_update(user=last_player))

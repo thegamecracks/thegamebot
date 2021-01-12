@@ -61,16 +61,14 @@ class Games(commands.Cog):
                 )
             return None if lower == 'me' else True
         else:
-            raise ValueError(
-                'Unknown input for "players" argument'
-            )
+            raise ValueError(f'Unknown input for "players": {players!r}')
 
 
 
 
 
     @commands.command(name='blackjack', aliases=('bj',))
-    @commands.cooldown(2, 10, commands.BucketType.user)
+    @commands.cooldown(4, 20, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_blackjack(
             self, ctx,
