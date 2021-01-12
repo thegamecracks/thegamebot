@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -73,6 +74,7 @@ class Games(commands.Cog):
     @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_blackjack(
             self, ctx,
+            decks: Optional[int] = 2,
             players='me',
             members: commands.Greedy[discord.User] = None):
         """Answer simple multiple-choice math expressions.
@@ -85,13 +87,17 @@ Otherwise, only you can play:
 > blackjack"""
         if ctx.guild is None and not self.bot.intents.members:
             return await ctx.send('Unfortunately games will not work in DMs at this time.')
+        elif decks < 1:
+            return await ctx.send('The deck size must be at least one.')
+        elif decks > 10:
+            return await ctx.send('The deck size can only be ten at most.')
 
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
             return await ctx.send(e)
 
-        game = blackjack.BotBlackjackGame(ctx)
+        game = blackjack.BotBlackjackGame(ctx, decks=decks)
 
         await game.run(users=users)
 

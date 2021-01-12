@@ -211,13 +211,13 @@ class BotBlackjackGame:
 
     TIMEOUT = 30
 
-    def __init__(self, ctx):
+    def __init__(self, ctx, *, decks: int):
         self._ctx: commands.Context = ctx
         self._client: discord.Client = ctx.bot
         self.color = int(settings.get_setting('bot_color'), 16)
         self.emojis = self.chunk_emojis()
 
-        deck = list(CARDS)
+        deck = [c for _ in range(decks) for c in CARDS]
         random.shuffle(deck)
 
         self.player = Hand([deck.pop(), deck.pop()])
@@ -274,6 +274,8 @@ class BotBlackjackGame:
                 embed.color = 0x77B255
             elif win is False:
                 embed.color = 0xDD2E44
+        else:
+            embed.set_footer(text=f'Remaining cards: {len(self.deck)}')
 
         embed.add_field(
             name='You',
@@ -368,7 +370,7 @@ class BotBlackjackGame:
         # Send initial message
         message: discord.Message = await channel.send('Loading...')
         last_player = self._ctx.author
-        actions = []
+        moves = []
 
         for e in emojis:
             await message.add_reaction(e)
@@ -388,11 +390,11 @@ class BotBlackjackGame:
             else:
                 if reaction.emoji == emojis[0]:
                     # Hit
-                    actions.append('hit')
+                    moves.append('hit')
                     player.append(deck.pop())
                 elif reaction.emoji == emojis[1]:
                     # Stand
-                    actions.append('stand')
+                    moves.append('stand')
                     dealer.reveal()
                     while dealer.maximum < 17:
                         dealer.append(deck.pop())
@@ -402,8 +404,8 @@ class BotBlackjackGame:
             first_turn = False
 
         embed = self.embed_update(done=True)
-        if actions:
-            embed.description += f"\nActions: {', '.join(actions)}"
+        if moves:
+            embed.description += f"\nMoves: {', '.join(moves)}"
         else:
-            embed.description += '\nActions: None'
+            embed.description += '\nMoves: None'
         await message.edit(content='', embed=embed)
