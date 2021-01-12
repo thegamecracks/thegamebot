@@ -28,9 +28,10 @@ CLIENT_EIGHTBALL = (
     'Very doubtful.'
 )
 CLIENT_PICK_DIALOGUE = (
-    '{mention} I choose {choice}.',
-    '{mention} I pick {choice}.',
-    '{mention} I select {choice}.',
+    'I choose {choice}.',
+    'I pick {choice}.',
+    'I select {choice}.',
+    'My choice is {choice}.'
 )
 
 
@@ -83,7 +84,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         if not skip_delay:
             await ctx.trigger_typing()
             await asyncio.sleep(1.5)
-        await ctx.send(result)
+        await ctx.send(result, reference=ctx.message)
 
 
 
@@ -150,7 +151,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         if not skip_delay:
             await ctx.trigger_typing()
             await asyncio.sleep(1.5)
-        await ctx.send(result)
+        await ctx.send(result, reference=ctx.message)
 
 
 
@@ -164,8 +165,7 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         """Answers a yes or no question."""
         await ctx.trigger_typing()
         await asyncio.sleep(random.randint(1, 5))
-        await ctx.send(
-            f'{ctx.author.mention} {random.choice(CLIENT_EIGHTBALL)}')
+        await ctx.send(random.choice(CLIENT_EIGHTBALL), reference=ctx.message)
 
 
 
@@ -180,14 +180,11 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
 Ayana command used as reference."""
         choices = list(choices)
         choices += [choice1, choice2]
+        selected = random.choice(CLIENT_PICK_DIALOGUE).format(
+            choice=random.choice(choices))
         await ctx.trigger_typing()
         await asyncio.sleep(1)
-        await ctx.send(
-            random.choice(CLIENT_PICK_DIALOGUE).format(
-                choice=random.choice(choices),
-                mention=ctx.author.mention
-            )
-        )
+        await ctx.send(selected, reference=ctx.message)
 
 
 

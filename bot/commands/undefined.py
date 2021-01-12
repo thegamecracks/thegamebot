@@ -111,6 +111,29 @@ def phasmophobia_match_ghost_evidence(evidences):
     return possible_ghosts
 
 
+# upsidedown text command
+# sources: https://www.upsidedowntext.com/unicode
+#          https://text-symbols.com/upside-down/
+UPSIDEDOWN_MAPPING = {
+    'a': 'ɐ', 'b': 'q', 'c': 'c', 'd': 'p', 'e': 'ǝ',
+    'f': 'ɟ', 'g': 'ƃ', 'h': 'ɥ', 'i': 'ᴉ', 'j': 'ɾ',
+    'k': 'ʞ', 'l': 'l', 'm': 'ɯ', 'n': 'u', 'o': 'o',
+    'p': 'd', 'q': 'b', 'r': 'ɹ', 's': 's', 't': 'ʇ',
+    'u': 'n', 'v': 'ʌ', 'w': 'ʍ', 'x': 'x', 'y': 'ʎ',
+    'z': 'z', 'A': '∀', 'B': 'ꓭ', 'C': 'Ɔ', 'D': 'ᗡ',
+    'E': 'Ǝ', 'F': 'Ⅎ', 'G': 'פ', 'H': 'H', 'I': 'I',
+    'J': 'ᒋ', 'K': 'ꓘ', 'L': '⅂', 'M': 'W', 'N': 'N',
+    'O': 'O', 'P': 'Ԁ', 'Q': 'Ꝺ', 'R': 'ꓤ', 'S': 'S',
+    'T': 'ꓕ', 'U': '∩', 'V': 'Ʌ', 'W': 'M', 'X': 'X',
+    'Y': '⅄', 'Z': 'Z', '0': '0', '1': '⇂', '2': '↊',
+    '3': 'Ɛ', '4': 'ߤ', '5': 'ϛ', '6': '9', '7': '𝘓',
+    '8': '9', '9': '6', '"': ',,', "'": ',', '`': ',',
+    '(': ')', ')': '(', '[': ']', ']': '[', '{': '}',
+    '}': '{', '<': '>', '>': '<', '&': '⅋', '_': '‾',
+    ',': '`', '.': '˙', '!': '¡', '?': '¿'
+}
+
+
 # unturned commands
 class UnturnedItem:
     __slots__ = ('id', 'name', 'rarity', 'url', 'dimensions', 'recipe_data')
@@ -482,6 +505,22 @@ Spirit Box"""
     @commands.cooldown(2, 30, commands.BucketType.user)
     async def client_test(self, ctx):
         await ctx.send(generate_test_message())
+
+
+
+
+
+    @commands.command(name='rotate', aliases=('flip', 'upsidedown'))
+    @commands.cooldown(4, 10, commands.BucketType.user)
+    async def client_upsidedowntext(self, ctx, *, message):
+        """Rotate your text 180 degrees using unicode letters.
+Supports a-z 0-9 ,.!?"'` ()[]{}<> and &_.
+Any other characters will be passed through."""
+        s = []
+        for c in reversed(message):
+            s.append(UPSIDEDOWN_MAPPING.get(c, c))
+        s = ''.join(s)
+        await ctx.send(s)
 
 
 

@@ -3,6 +3,7 @@ import asyncio
 import discord
 from discord.ext import commands
 
+from bot.classes.games import blackjack
 from bot.classes.games import multimath
 from bot.classes import paginator
 
@@ -39,39 +40,87 @@ class Games(commands.Cog):
 
 
 
+    def get_members(self, ctx, players: str, members: list):
+        """Take a players and greedy members argument and parse it
+        for the users argument in games."""
+        lower = players.lower()
+        if lower == 'allow':
+            if members:
+                # Player whitelist
+                members.append(ctx.author)
+                return members
+            # All players
+            return True
+        elif lower in ('me', 'all'):
+            if members:
+                # Argument error
+                raise ValueError(
+                    'You cannot specify which members can play if you do '
+                    'not allow others. See the help message for more info.'
+                )
+            return None if lower == 'me' else True
+        else:
+            raise ValueError(
+                'Unknown input for "players" argument'
+            )
+
+
+
+
+
+    @commands.command(name='blackjack', aliases=('bj',))
+    @commands.cooldown(2, 10, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.channel)
+    async def client_blackjack(
+            self, ctx,
+            players='me',
+            members: commands.Greedy[discord.User] = None):
+        """Answer simple multiple-choice math expressions.
+
+If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
+> blackjack allow Alice#1234 Bob
+If no members are specified after "allow" or you type "all", anyone can play:
+> blackjack allow
+Otherwise, only you can play:
+> blackjack"""
+        if ctx.guild is None and not self.bot.intents.members:
+            return await ctx.send('Unfortunately games will not work in DMs at this time.')
+
+        try:
+            users = self.get_members(ctx, players, members)
+        except ValueError as e:
+            return await ctx.send(e)
+
+        game = blackjack.BotBlackjackGame(ctx)
+
+        await game.run(users=users)
+
+
+
+
+
     @commands.command(name='multimath')
+    @commands.cooldown(1, 10, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_multimath(
             self, ctx,
-            players='only me',
+            players='me',
             members: commands.Greedy[discord.User] = None):
         """Answer simple multiple-choice math expressions.
 
 If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
 > multimath allow Alice#1234 Bob
-If no members are specified after "allow", anyone can play:
+If no members are specified after "allow" or you type "all", anyone can play:
 > multimath allow
 Otherwise, only you can play:
 > multimath"""
-        if 'allow' in players.lower():
-            if members:
-                # Player whitelist
-                users = members
-                users.append(ctx.author)
-            else:
-                # All players
-                users = True
-        else:
-            if members:
-                # Argument error
-                ctx.command.reset_cooldown(ctx)
-                return await ctx.send(
-                    'You cannot specify which members can play if you do '
-                    'not allow others. See the help message for more info.'
-                )
-            else:
-                # Solo
-                users = None
+        if ctx.guild is None and not self.bot.intents.members:
+            return await ctx.send('Unfortunately games will not work in DMs at this time.')
+
+        try:
+            users = self.get_members(ctx, players, members)
+        except ValueError as e:
+            return await ctx.send(e)
 
         game = multimath.BotMultimathGame(ctx)
 

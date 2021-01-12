@@ -15,8 +15,6 @@ async def get_reaction(client, message, reactions=None,
         reactions (Optional[List[Union[Emoji, PartialEmoji, str]]]):
             Returns only reaction changes within this list.
             If None, returns any reaction change.
-        timeout (Optional[float]): The timeout period.
-            Raises TimeoutError.
         users (Optional[List[discord.User]]): A list of users
             that are allowed to react to the message.
             If None, returns any user's reaction change.
@@ -40,6 +38,7 @@ async def get_reaction(client, message, reactions=None,
 
         return result
 
+    completed_tasks = ()
     pending_tasks = [
         client.wait_for('reaction_add', check=check),
         client.wait_for('reaction_remove', check=check),

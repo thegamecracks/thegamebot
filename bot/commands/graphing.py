@@ -108,9 +108,9 @@ class Graphing(commands.Cog):
             # Raises: discord.HTTPException, discord.Forbidden,
             # discord.NotFound, UnicodeError
 
-        if message is not None and not using_ctx_message and not text:
-            # Check the message content and otherwise if that is empty,
-            # keep it at one level of recursion
+        if not text and not using_ctx_message:
+            # message argument was passed; check the message content
+            # and if that is empty, keep it at one level of recursion
             text = message.content
             if not text:
                 return False, 'There is no text to analyse.'
@@ -121,19 +121,14 @@ class Graphing(commands.Cog):
         if not text and ref is not None:
             # Try recursing into the message the user replied to.
             # First check the cache, then fetch the message
-            message = None
-            if ref.cached_message is not None:
-                message = ref.cached_message
-            elif perms.read_message_history:
-                channel = self.bot.get_channel(ref.channel_id)
-                if channel is not None:
-                    message = await channel.fetch_message(ref.message_id)
+            message = ref.resolved
 
-            if message is not None:
-                ref_text = await self.get_text(ctx, text, message=message)
-
-                if ref_text[0] is True:
-                    return ref_text
+            if isinstance(message, discord.DeletedReferencedMessage):
+                return False, 'The given message was deleted.'
+            elif message is None:
+                return False, 'Could not resolve your replied message.'
+            else:
+                return await self.get_text(ctx, text, message=message)
 
         if not text and perms.read_message_history:
             # Try recursing into the last message sent
@@ -366,7 +361,7 @@ To see the different methods you can use to provide text, check the help message
         # Add labels
         if len(words) <= len(top_words):
             ax.set_title(
-                f'Top Words ({total_words:,} total)\n'
+                f'Word Count ({total_words:,} total)\n'
                 f'for {ctx.author.display_name}\n'
             )
         else:

@@ -1,6 +1,5 @@
 import asyncio
 import collections
-import math
 import operator
 import random
 
