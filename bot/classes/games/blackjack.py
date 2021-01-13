@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 import functools
 import itertools
 import random
-from typing import FrozenSet, List, Tuple, Union, Dict
+from typing import FrozenSet, List, Optional, Tuple, Union, Dict
 
 import discord
 from discord.ext import commands
@@ -203,6 +203,13 @@ class Hand:
 CARDS = tuple(Card(r, s) for r in RANKS for s in SUITS)
 
 
+@dataclass(frozen=True)
+class BotBlackjackGameResults:
+    done: bool
+    winner: Optional[bool] = None
+    moves: List[str] = field(default_factory=list)
+
+
 class BotBlackjackGame:
     """A one-use blackjack game."""
 
@@ -376,7 +383,7 @@ class BotBlackjackGame:
         """Return a string with a list of card emojis for a given hand."""
         return ' '.join([str(self.emoji(c)) for c in hand])
 
-    async def run(self, *, channel=None, users=None):
+    async def run(self, *, channel=None, users=None) -> BotBlackjackGameResults:
         """
         Args:
             channel (Optional[discord.TextChannel]):
@@ -427,8 +434,8 @@ class BotBlackjackGame:
                     timeout=self.TIMEOUT
                 )
             except asyncio.TimeoutError:
-                return await message.edit(
-                    content='Ended game due to inactivity.')
+                await message.edit(content='Ended game due to inactivity.')
+                return BotBlackjackGameResults(done=False, moves=moves)
             else:
                 if reaction.emoji == emojis[0]:
                     # Hit
@@ -452,4 +459,5 @@ class BotBlackjackGame:
             embed.description += '\nMoves: None'
         await message.edit(content='', embed=embed)
 
-        return self.win
+        return BotBlackjackGameResults(
+            done=True, winner=self.win, moves=moves)

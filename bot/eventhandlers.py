@@ -368,7 +368,7 @@ async def on_command_error(ctx, error):
         ).set_footer(
             text=inflector.inflect(
                 'You can retry in {0} plural("second", {0}).'.format(
-                    float(f'{error.retry_after:.2g}')
+                    round(error.retry_after * 10) / 10
                 )
             ),
             icon_url=str(ctx.author.avatar_url)
@@ -439,8 +439,8 @@ async def on_command_error(ctx, error):
         ).set_footer(
             text=inflector.inflect(
                 'You are using commands too frequently. '
-                'You can retry in {0:.2g} plural("second", {0}).'.format(
-                    error.retry_after)
+                'You can retry in {0} plural("second", {0}).'.format(
+                    round(error.retry_after * 10) / 10)
             ),
             icon_url=str(ctx.author.avatar_url)
         )

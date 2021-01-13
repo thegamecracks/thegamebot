@@ -120,12 +120,13 @@ Otherwise, only you can play:
 
         game = blackjack.BotBlackjackGame(ctx, decks=decks)
 
-        win = await game.run(users=users)
+        results = await game.run(users=users)
 
-        await self.gamedb.blackjack.change('played', ctx.author.id, 1)
-        if win:
+        if results.done:
+            await self.gamedb.blackjack.change('played', ctx.author.id, 1)
+        if results.winner:
             await self.gamedb.blackjack.change('wins', ctx.author.id, 1)
-        elif win is False:
+        elif results.winner is False:
             await self.gamedb.blackjack.change('losses', ctx.author.id, 1)
 
 
@@ -141,12 +142,17 @@ Otherwise, only you can play:
         losses = row['losses']
         played = row['played']
         wins = row['wins']
+        ties = played - wins - losses
 
         description = (
             f'Games played: {played:,}\n'
             f'Wins: {wins:,}\n'
-            f'Losses: {losses:,}'
+            f'Losses: {losses:,}\n'
         )
+        if ties:
+            description += f'Ties: {ties:,}\n'
+        if played:
+            description += f'Win rate: {wins / played:.0%}\n'
 
         embed = discord.Embed(
             color=utils.get_user_color(ctx.author),
