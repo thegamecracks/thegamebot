@@ -107,7 +107,7 @@ class Games(commands.Cog):
 If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
 > blackjack allow Alice#1234 Bob
 If no members are specified after "allow" or you type "all", anyone can play:
-> blackjack allow
+> blackjack all
 Otherwise, only you can play:
 > blackjack"""
         if ctx.guild is None and not self.bot.intents.members:
@@ -246,7 +246,7 @@ Otherwise, only you can play:
 If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
 > multimath allow Alice#1234 Bob
 If no members are specified after "allow" or you type "all", anyone can play:
-> multimath allow
+> multimath all
 Otherwise, only you can play:
 > multimath"""
         if ctx.guild is None and not self.bot.intents.members:

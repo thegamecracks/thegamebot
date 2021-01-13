@@ -459,7 +459,7 @@ class BotBlackjackGame:
                 else:
                     raise ValueError(f'Unknown reaction {reaction!r}')
 
-        embed = self.embed_update(done=True)
+        embed = self.embed_update(user=last_player, done=True)
         if moves:
             embed.description += f"\nMoves: {', '.join(moves)}"
         else:
