@@ -124,6 +124,8 @@ Otherwise, only you can play:
 
         if results.done:
             await self.gamedb.blackjack.change('played', ctx.author.id, 1)
+        if results.player.maximum == 21:
+            await self.gamedb.blackjack.change('blackjacks', ctx.author.id, 1)
         if results.winner:
             await self.gamedb.blackjack.change('wins', ctx.author.id, 1)
         elif results.winner is False:
@@ -139,6 +141,7 @@ Otherwise, only you can play:
         """View your blackjack stats."""
         db = self.gamedb.blackjack
         row = await db.get_blackjack_row(ctx.author.id)
+        blackjacks = row['blackjacks']
         losses = row['losses']
         played = row['played']
         wins = row['wins']
@@ -151,6 +154,8 @@ Otherwise, only you can play:
         ]
         if ties:
             description.append(f'Ties: {ties:,}')
+        if blackjacks:
+            description.append(f'Blackjacks: {blackjacks:,}')
         if played:
             rate = f'Win rate: {wins / played:.0%}'
             description.append(rate)
