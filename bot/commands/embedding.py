@@ -42,10 +42,10 @@ class Embedding(commands.Cog):
             *parameters):
         """Create an embed.
 Example:
-    embed 0xDDA212 "description with \\"quotes\\"" --title "Title"
-If you want to stop links from being embedded in your message,
+> embed 0xDDA212 "description with \\\\"quotes\\\\"" --title "Title"
+If you want to stop links from being embedded in your command,
 you can use code block tags like so:
-    embed FFCC22 description `​`​` --title Title `​`​`
+> embed FFCC22 description \`\`​\` --title Title \`\`\`
 
 -T  --title        "<text>"
 -TU --titleurl     <url>
@@ -146,7 +146,13 @@ These are the limits set by Discord:
             embed_dict['fields'] = list(fields.values())
         embed = discord.Embed.from_dict(embed_dict)
         embed.timestamp = datetime.datetime.now().astimezone()
-        await ctx.send(embed=embed)
+        try:
+            await ctx.send(embed=embed)
+        except discord.HTTPException as e:
+            await ctx.send(
+                f'There was an error with your embed parameters: {e.text}',
+                delete_after=10
+            )
 
 
 
@@ -171,7 +177,9 @@ These commands only work in servers."""
 You will be DM'd for your parameters."""
         async def cancel_message(message):
             await message.edit(
-                content=f'~~{message.content}~~ Canceled hyperlink.')
+                content=f'~~{message.content}~~ Canceled hyperlink.',
+                delete_after=10
+            )
 
         def check(message):
             "Wait for a message in the author's DMs."
@@ -232,7 +240,9 @@ Make sure there's a space before and after the hyperlink.
 You will be DM'd for your parameters."""
         async def cancel_message(message):
             await message.edit(
-                content=f'~~{message.content}~~ Canceled hyperlink.')
+                content=f'~~{message.content}~~ Canceled hyperlink.',
+                delete_after=10
+            )
 
         def check(message):
             "Wait for a message in the author's DMs."

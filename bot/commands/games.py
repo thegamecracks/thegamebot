@@ -148,20 +148,20 @@ Otherwise, only you can play:
         ties = played - wins - losses
 
         description = [
-            f'Games played: {played:,}',
-            f'Wins: {wins:,}',
-            f'Losses: {losses:,}'
+            f'Games played: **{played:,}**',
+            f'Wins: **{wins:,}**',
+            f'Losses: **{losses:,}**'
         ]
         if ties:
-            description.append(f'Ties: {ties:,}')
+            description.append(f'Ties: **{ties:,}**')
         if blackjacks:
-            description.append(f'Blackjacks: {blackjacks:,}')
+            description.append(f'Blackjacks: **{blackjacks:,}**')
         if played:
-            rate = f'Win rate: {wins / played:.0%}'
+            rate = f'Win rate: **{wins / played:.0%}**'
             description.append(rate)
             if ties:
                 description.append(
-                    f'Win rate (no pushes): {wins / (played - ties):.0%}')
+                    f'Win rate (no pushes): **{wins / (played - ties):.0%}**')
 
         description = '\n'.join(description)
         embed = discord.Embed(
