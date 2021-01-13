@@ -96,7 +96,7 @@ class Games(commands.Cog):
 
     @commands.group(name='blackjack', aliases=('bj',), invoke_without_command=True)
     @commands.cooldown(1, 20, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel)
+    @commands.max_concurrency(3, commands.BucketType.channel)
     async def client_blackjack(
             self, ctx,
             decks: Optional[int] = 2,
@@ -235,8 +235,8 @@ Otherwise, only you can play:
 
 
     @commands.command(name='multimath')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel)
+    @commands.cooldown(1, 20, commands.BucketType.user)
+    @commands.max_concurrency(3, commands.BucketType.channel)
     async def client_multimath(
             self, ctx,
             players='me',
