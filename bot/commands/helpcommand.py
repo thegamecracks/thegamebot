@@ -103,7 +103,9 @@ class HelpCommand(commands.HelpCommand):
                 # haven't recently received one
                 if not message_length_cooldown.update_rate_limit(ctx.message):
                     await destination.send(
-                        'Help message is a bit long; sent it to you in DMs.')
+                        'Help message is a bit long; sent it to you in DMs.',
+                        delete_after=8
+                    )
         else:
             await destination.send(content, embed=embed, *args, **kwargs)
 
@@ -271,7 +273,7 @@ class HelpCommand(commands.HelpCommand):
                 cog = self.context.bot.get_cog(string)
             except (IndexError, ValueError):
                 # Not a page number request
-                await self.send(error)
+                await self.send(error, delete_after=6)
                 return
 
         if cog is None:
@@ -280,7 +282,7 @@ class HelpCommand(commands.HelpCommand):
                 embed = await self.create_help_category_page(page_num=page_num)
             except ValueError as e:
                 # Invalid page number
-                await destination.send(str(e))
+                await destination.send(str(e), delete_after=6)
             else:
                 await self.send(embed=embed)
         else:
@@ -289,7 +291,7 @@ class HelpCommand(commands.HelpCommand):
                 embed = await self.create_help_cog_page(cog, page_num=page_num)
             except ValueError as e:
                 # Invalid page number
-                await destination.send(str(e))
+                await destination.send(str(e), delete_after=6)
             else:
                 await self.send(embed=embed)
 
