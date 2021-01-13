@@ -593,9 +593,11 @@ To see the different methods you can use to provide text, check the help message
         loop = asyncio.get_running_loop()
 
         if duration < 1:
-            return await ctx.send('Duration must be at least 1 second.')
+            return await ctx.send(
+                'Duration must be at least 1 second.', delete_after=6)
         if frames < 1:
-            return await ctx.send('There must be at least 1 frame.')
+            return await ctx.send(
+                'There must be at least 1 frame.', delete_after=6)
 
         func = functools.partial(
             self.test_bar_graphs_3d_gif,
@@ -613,7 +615,9 @@ To see the different methods you can use to provide text, check the help message
         filesize = Path(fp).stat().st_size
         if filesize > filesize_limit:
             return await ctx.send(
-                'Unfortunately the file is too large to upload.')
+                'Unfortunately the file is too large to upload.',
+                delete_after=10
+            )
 
         with open(fp, 'rb') as f:
             await ctx.send(file=discord.File(f, '3D Graph Animation Test.gif'))

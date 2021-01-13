@@ -79,7 +79,9 @@ You can have a maximum of 20 notes."""
             )
         else:
             await ctx.send(
-                'Sorry, but you have reached your maximum limit of 20 notes.')
+                'Sorry, but you have reached your maximum limit of 20 notes.',
+                delete_after=6
+            )
 
 
 
@@ -97,12 +99,13 @@ To remove several notes, use the removenotes command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You already don't have any notes.")
+            return await ctx.send("You already don't have any notes.",
+                                  delete_after=6)
 
         try:
             note = note_list[index - 1]
         except IndexError:
-            await ctx.send('That note index does not exist.')
+            await ctx.send('That note index does not exist.', delete_after=6)
         else:
             await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Note successfully deleted!')
@@ -123,7 +126,8 @@ To remove only one note, use the removenote command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You already don't have any notes.")
+            return await ctx.send("You already don't have any notes.",
+                                  delete_after=6)
 
         if indices.lower() == 'all':
             for note in note_list:
@@ -134,10 +138,13 @@ To remove only one note, use the removenote command."""
             start, end = [int(n) for n in indices.split('-')]
             start -= 1
             if start < 0:
-                return await ctx.send('Start must be 1 or greater.')
+                return await ctx.send('Start must be 1 or greater.',
+                                      delete_after=6)
             elif end > len(note_list):
                 return await ctx.send(
-                    f'End must only go up to {len(note_list)}.')
+                    f'End must only go up to {len(note_list)}.',
+                    delete_after=6
+                )
 
             for i in range(start, end):
                 note = note_list[i]
@@ -157,15 +164,15 @@ To remove only one note, use the removenote command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You don't have any notes.")
+            return await ctx.send("You don't have any notes.", delete_after=6)
 
         if index < 1:
-            return await ctx.send('Index must be 1 or greater.')
+            return await ctx.send('Index must be 1 or greater.', delete_after=6)
 
         try:
             note = note_list[index - 1]
         except IndexError:
-            await ctx.send('That note index does not exist.')
+            await ctx.send('That note index does not exist.', delete_after=6)
         else:
             await ctx.send(embed=discord.Embed(
                 title=f'Note #{index:,}',
@@ -189,7 +196,7 @@ To remove only one note, use the removenote command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You don't have any notes.")
+            return await ctx.send("You don't have any notes.", delete_after=6)
 
         # Create fields for each note, limiting them to 140 characters/5 lines
         fields = [

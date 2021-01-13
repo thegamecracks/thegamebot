@@ -57,7 +57,8 @@ class IrishSquad(commands.Cog):
                     invoke_without_command=True)
     async def client_charges(self, ctx):
         """Commands for tracking the amount of charges in the squad."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
 
 
     @client_charges.command(name='add')
@@ -65,7 +66,8 @@ class IrishSquad(commands.Cog):
     async def client_addcharges(self, ctx, *, amount: int):
         """Add to the number of charges you have."""
         if amount < 1:
-            return await ctx.send('You must add at least one charge.')
+            return await ctx.send('You must add at least one charge.',
+                                  delete_after=6)
 
         await ctx.channel.trigger_typing()
 
@@ -90,7 +92,8 @@ class IrishSquad(commands.Cog):
     async def client_removecharges(self, ctx, amount: int):
         """Subtract from the number of charges you have."""
         if amount < 1:
-            return await ctx.send('You must remove at least one charge.')
+            return await ctx.send('You must remove at least one charge.',
+                                  delete_after=6)
 
         await ctx.channel.trigger_typing()
 

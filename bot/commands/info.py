@@ -265,7 +265,8 @@ Optional settings:
         try:
             command = await CommandConverter().convert(ctx, command)
         except commands.BadArgument:
-            return await ctx.send("That command doesn't exist.")
+            return await ctx.send("That command doesn't exist.",
+                                  delete_after=6)
 
         # Create a response
         embed = discord.Embed(
@@ -490,7 +491,7 @@ This command uses the IANA timezone database."""
         try:
             tz = pytz.timezone(timezone)
         except pytz.UnknownTimeZoneError:
-            return await ctx.send('Unknown timezone.')
+            return await ctx.send('Unknown timezone.', delete_after=6)
 
         UTC = pytz.utc
         utcnow = UTC.localize(datetime.datetime.utcnow())
@@ -551,7 +552,8 @@ Format referenced from the Ayana bot."""
             except commands.MemberNotFound as e:
                 if (not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS
                         and ctx.guild is None):
-                    return await ctx.send('Cannot search for members in DMs.')
+                    return await ctx.send(
+                        'Cannot search for members in DMs.', delete_after=8)
                 # Else allow error handler to deal with it
                 raise e
             else:
@@ -567,7 +569,9 @@ Format referenced from the Ayana bot."""
                         elif not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS:
                             # Disallowed showing guild members in DMs
                             return await ctx.send(
-                                'Cannot search for members in DMs.')
+                                'Cannot search for members in DMs.',
+                                delete_after=8
+                            )
 
         # Extract attributes based on whether its a Member or User
         if isinstance(user, discord.Member):

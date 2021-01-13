@@ -165,7 +165,8 @@ These are the limits set by Discord:
         """Commands for using the Embed's hyperlink feature.
 
 These commands only work in servers."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
         ctx.command.reset_cooldown(ctx)
 
 

@@ -117,7 +117,8 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
                 amount, sides = int(dice), 6
         except ValueError:
             # excepts "2d6d6" (dice.split) and failed integer conversions
-            return await ctx.send('Failed to parse parameter "dice".')
+            return await ctx.send('Failed to parse parameter "dice".',
+                                  delete_after=6)
 
         skip_delay = False
 

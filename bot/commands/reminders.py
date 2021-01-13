@@ -130,16 +130,19 @@ You can have a maximum of 5 reminders."""
                 return await self.send_with_disclaimer(
                     ctx,
                     'Could not understand your reminder request. Check this '
-                    "command's help page for allowed syntax."
+                    "command's help page for allowed syntax.",
+                    delete_after=6
                 )
 
             if td.total_seconds() < 30:
                 return await self.send_with_disclaimer(
                     ctx, 'You must set a reminder lasting for at '
-                    'least 30 seconds!')
+                    'least 30 seconds.', delete_after=6)
             elif not content:
                 return await self.send_with_disclaimer(
-                    ctx, 'You must have a message with your reminder!')
+                    ctx, 'You must have a message with your reminder.',
+                    delete_after=6
+                )
 
             # Round seconds down if td does not specify seconds
             if td.seconds % 60 == 0:
@@ -163,7 +166,7 @@ You can have a maximum of 5 reminders."""
         else:
             await self.send_with_disclaimer(
                 ctx, 'Sorry, but you have reached your maximum limit '
-                'of 5 reminders.'
+                'of 5 reminders.', delete_after=6
             )
 
 
@@ -182,13 +185,13 @@ To remove several reminders, use the removereminders command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You already don't have any reminders.")
+                ctx, "You already don't have any reminders.", delete_after=6)
 
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
             await self.send_with_disclaimer(
-                ctx, 'That reminder index does not exist.')
+                ctx, 'That reminder index does not exist.', delete_after=6)
         else:
             await self.delete_reminder_by_id(reminder['reminder_id'])
             await self.send_with_disclaimer(
@@ -211,23 +214,24 @@ To remove only one reminder, use the removereminder command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You already don't have any reminders.")
+                ctx, "You already don't have any reminders.", delete_after=6)
 
         if indices.lower() == 'all':
             for reminder in reminder_list:
                 await self.delete_reminder_by_id(reminder['reminder_id'])
             await self.send_with_disclaimer(
-                ctx, 'Reminders successfully deleted!')
+                ctx, 'Reminders successfully deleted!', delete_after=6)
 
         else:
             start, end = [int(n) for n in indices.split('-')]
             start -= 1
             if start < 0:
                 return await self.send_with_disclaimer(
-                    ctx, 'Start must be 1 or greater.')
+                    ctx, 'Start must be 1 or greater.', delete_after=6)
             elif end > len(reminder_list):
                 return await self.send_with_disclaimer(
-                    ctx, f'End must only go up to {len(reminder_list)}.')
+                    ctx, f'End must only go up to {len(reminder_list)}.',
+                    delete_after=6)
 
             for i in range(start, end):
                 reminder = reminder_list[i]
@@ -249,17 +253,17 @@ To remove only one reminder, use the removereminder command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You don't have any reminders.")
+                ctx, "You don't have any reminders.", delete_after=6)
 
         if index < 1:
             return await self.send_with_disclaimer(
-                ctx, 'Index must be 1 or greater.')
+                ctx, 'Index must be 1 or greater.', delete_after=6)
 
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
             await self.send_with_disclaimer(
-                ctx, 'That index does not exist.')
+                ctx, 'That index does not exist.', delete_after=6)
         else:
             utcdue = datetime.datetime.fromisoformat(reminder['due'])
             embed = discord.Embed(
@@ -293,7 +297,7 @@ To remove only one reminder, use the removereminder command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You don't have any reminders.")
+                ctx, "You don't have any reminders.", delete_after=6)
 
         # Create fields for each reminder, limiting them
         # to 140 characters/5 lines

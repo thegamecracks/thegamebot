@@ -163,10 +163,11 @@ class Tasks(commands.Cog):
     @checks.is_bot_admin()
     async def random_presence_toggle(self, ctx, toggle: bool):
         if toggle:
-            try:
+            if not self.random_precense.is_running():
                 self.random_presence.start()
-            except RuntimeError:
-                return await ctx.send('The task is already running.')
+            else:
+                return await ctx.send(
+                    'The task is already running.', delete_after=6)
 
             min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
             max_delay = settings.get_setting('bgtask_RandomPresenceMaxDelay')
@@ -178,10 +179,12 @@ class Tasks(commands.Cog):
                     max_delay
                 )
             )
-        else:
+        elif self.random_precense.is_running():
             self.random_presence.cancel()
             print('Disabled random presence')
             await ctx.send('Turned off random presence changes.')
+        else:
+            await ctx.send('The task is not running.', delete_after=6)
 
 
 

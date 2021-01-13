@@ -49,7 +49,7 @@ class Administrative(commands.Cog):
     async def client_block_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message())
+            await ctx.send(get_denied_message(), delete_after=6)
 
 
 
@@ -64,11 +64,11 @@ Will reset cooldowns for all subcommands in a group."""
         com = self.bot.get_command(command)
 
         if com is None:
-            await ctx.send('Unknown command.')
+            await ctx.send('Unknown command.', delete_after=6)
 
         com.reset_cooldown(ctx)
 
-        await ctx.send('Cooldown reset.')
+        await ctx.send('Cooldown reset.', delete_after=6)
 
 
 
@@ -173,7 +173,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     async def client_clearsettingscache(self, ctx):
         """Clear the settings cache."""
         settings.clear_cache()
-        await ctx.send('Cleared cache.')
+        await ctx.send('Cleared cache.', delete_after=10)
 
 
 
@@ -184,7 +184,8 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
 
 
     @client_presence.command(name='competing')
@@ -208,7 +209,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -232,7 +233,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -260,7 +261,7 @@ https://www.twitch.tv/thegamecracks ."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(name='listening')
@@ -284,7 +285,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -309,7 +310,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -332,7 +333,7 @@ This removes any activity the bot currently has."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
 
@@ -472,9 +473,9 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         error = getattr(error, 'original', error)
         if isinstance(error, AttributeError):
             if "'NoneType' object has no attribute" in str(error):
-                await ctx.send('I cannot find the given channel.')
+                await ctx.send('I cannot find the given channel.', delete_after=8)
         elif isinstance(error, discord.Forbidden):
-            await ctx.send('I cannot access this given channel.')
+            await ctx.send('I cannot access this given channel.', delete_after=8)
 
 
 
