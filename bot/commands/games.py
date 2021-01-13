@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional
+from typing import Optional, List
 
 import discord
 from discord.ext import commands
@@ -7,6 +7,7 @@ from discord.ext import commands
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot.classes.games import blackjack
 from bot.classes.games import multimath
+from bot.classes.get_reaction import get_reaction
 from bot.classes import paginator
 from bot.database import GameDatabase
 from bot import utils
@@ -15,6 +16,8 @@ from bot import utils
 class Games(commands.Cog):
     qualified_name = 'Games'
     description = 'Commands with interactive games.'
+
+    BLACKJACK_SESSION_LENGTH = 30
 
     def __init__(self, bot):
         self.bot = bot
@@ -64,7 +67,8 @@ class Games(commands.Cog):
 
 
 
-    def get_members(self, ctx, players: str, members: list):
+    def get_members(self, ctx, players: str, members: list) \
+            -> Optional[List[discord.User]]:
         """Take a players and greedy members argument and parse it
         for the users argument in games."""
         lower = players.lower()
@@ -74,7 +78,7 @@ class Games(commands.Cog):
                 members.append(ctx.author)
                 return members
             # All players
-            return True
+            return None
         elif lower in ('me', 'all'):
             if members:
                 # Argument error
@@ -82,7 +86,7 @@ class Games(commands.Cog):
                     'You cannot specify which members can play if you do '
                     'not allow others. See the help message for more info.'
                 )
-            return None if lower == 'me' else True
+            return [ctx.author] if lower == 'me' else None
         else:
             raise ValueError(f'Unknown input for "players": {players!r}')
 
@@ -91,14 +95,14 @@ class Games(commands.Cog):
 
 
     @commands.group(name='blackjack', aliases=('bj',), invoke_without_command=True)
-    @commands.cooldown(4, 20, commands.BucketType.user)
+    @commands.cooldown(1, 20, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_blackjack(
             self, ctx,
             decks: Optional[int] = 2,
             players='me',
             members: commands.Greedy[discord.User] = None):
-        """Answer simple multiple-choice math expressions.
+        """Start a session of blackjack.
 
 If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
 > blackjack allow Alice#1234 Bob
@@ -116,20 +120,48 @@ Otherwise, only you can play:
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
-            return await ctx.send(e)
+            return await ctx.send(e, delete_after=8)
 
-        game = blackjack.BotBlackjackGame(ctx, decks=decks)
+        message = None
+        i = 0
+        while not self.bot.is_closed():
+            game = blackjack.BotBlackjackGame(ctx, decks=decks, message=message)
 
-        results = await game.run(users=users)
+            i += 1
+            outro = 'React to the play emoji to continue.'
+            if i >= self.BLACKJACK_SESSION_LENGTH:
+                outro = ('Reached maximum session length of '
+                         f'{self.BLACKJACK_SESSION_LENGTH} games.')
 
-        if results.done:
-            await self.gamedb.blackjack.change('played', ctx.author.id, 1)
-        if results.player.maximum == 21:
-            await self.gamedb.blackjack.change('blackjacks', ctx.author.id, 1)
-        if results.winner:
-            await self.gamedb.blackjack.change('wins', ctx.author.id, 1)
-        elif results.winner is False:
-            await self.gamedb.blackjack.change('losses', ctx.author.id, 1)
+            results = await game.run(
+                users=users, outro_content=outro)
+
+            if results.done:
+                await self.gamedb.blackjack.change('played', ctx.author.id, 1)
+            if results.player.maximum == 21:
+                await self.gamedb.blackjack.change('blackjacks', ctx.author.id, 1)
+            if results.winner:
+                await self.gamedb.blackjack.change('wins', ctx.author.id, 1)
+            elif results.winner is False:
+                await self.gamedb.blackjack.change('losses', ctx.author.id, 1)
+
+            if not results.done:
+                # Game timed out
+                break
+            elif i >= self.BLACKJACK_SESSION_LENGTH:
+                break
+
+            message = game.message
+
+            # Loop the game if the player(s) react with this emoji
+            emojis = ['\N{BLACK RIGHT-POINTING TRIANGLE}']
+            for e in emojis:
+                await message.add_reaction(e)
+
+            try:
+                await get_reaction(self.bot, message, emojis, users, timeout=10)
+            except asyncio.TimeoutError:
+                return await message.edit(content='Finished session.')
 
 
 
@@ -219,7 +251,7 @@ Otherwise, only you can play:
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
-            return await ctx.send(e)
+            return await ctx.send(e, delete_after=8)
 
         game = multimath.BotMultimathGame(ctx)
 

@@ -193,10 +193,9 @@ class BotMultimathGame:
             channel (Optional[discord.TextChannel]):
                 The channel to send the message to.
                 If None, uses `self._ctx.channel`.
-            users (Optional[Union[True, List[discord.User]]]):
+            users (Optional[List[discord.User]]):
                 A list of users that can participate in the game.
-                If None, the author of self._ctx will be the only participant.
-                If True, anyone can participate.
+                If None, anyone can participate.
         """
         async def finish_and_show_score(header, last_answerer=None):
             "Display the final score and who got it wrong >:("
@@ -207,12 +206,6 @@ class BotMultimathGame:
                 [header, embed_finish.description])
             await message.edit(embed=embed_finish)
 
-        if users is None:
-            # Allow only caller
-            users = [self._ctx.author]
-        elif users is True:
-            # Allow all participants
-            users = None
         if channel is None:
             # Assumes game to be started in the caller's channel
             channel = self._ctx.channel

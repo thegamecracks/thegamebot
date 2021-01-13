@@ -235,11 +235,12 @@ class BotBlackjackGame:
     EMOJI_STAND = 798381243770470420
     EMOJI_DEFAULT = '\N{NO ENTRY}'
 
-    def __init__(self, ctx, *, decks: int):
+    def __init__(self, ctx, *, decks: int, message=None):
         self._ctx: commands.Context = ctx
         self._client: discord.Client = ctx.bot
         self.color = int(settings.get_setting('bot_color'), 16)
         self.emojis = self.chunk_emojis()
+        self.message: Optional[discord.Message] = message
 
         deck = [c for _ in range(decks) for c in CARDS]
         random.shuffle(deck)
@@ -385,23 +386,17 @@ class BotBlackjackGame:
         """Return a string with a list of card emojis for a given hand."""
         return ' '.join([str(self.emoji(c)) for c in hand])
 
-    async def run(self, *, channel=None, users=None) -> BotBlackjackGameResults:
+    async def run(self, *, channel=None, users=None,
+                  outro_content='') -> BotBlackjackGameResults:
         """
         Args:
             channel (Optional[discord.TextChannel]):
                 The channel to send the message to.
                 If None, uses `self._ctx.channel`.
-            users (Optional[Union[True, List[discord.User]]]):
+            users (Optional[List[discord.User]]):
                 A list of users that can participate in the game.
-                If None, the author of self._ctx will be the only participant.
-                If True, anyone can participate.
+                If None, anyone can participate.
         """
-        if users is None:
-            # Allow only caller
-            users = [self._ctx.author]
-        elif users is True:
-            # Allow all participants
-            users = None
         if channel is None:
             channel = self._ctx.channel
 
@@ -415,7 +410,13 @@ class BotBlackjackGame:
         ]
 
         # Send initial message
-        message: discord.Message = await channel.send('Loading...')
+        message = self.message
+        if message is None:
+            message = await channel.send('Loading...')
+            self.message = message
+        else:
+            await message.edit(content='Loading...')
+
         last_player = self._ctx.author
         moves = []
 
@@ -460,7 +461,7 @@ class BotBlackjackGame:
             embed.description += f"\nMoves: {', '.join(moves)}"
         else:
             embed.description += '\nMoves: None'
-        await message.edit(content='', embed=embed)
+        await message.edit(content=outro_content, embed=embed)
 
         return BotBlackjackGameResults(
             done=True, player=player, dealer=dealer, winner=self.win,
