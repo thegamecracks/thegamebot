@@ -18,10 +18,10 @@ CREATE TABLE IF NOT EXISTS Reminders (
 
 
 class ReminderDatabase(user_db.UserDatabase):
-    "Provide an interface to a UserDatabase with a Reminders table."
+    """Provide an interface to a UserDatabase with a Reminders table."""
 
     async def add_reminder(self, user_id: int, due,
-            content: str, *, add_user=False):
+                           content: str, *, add_user=True):
         """Add a reminder to the Reminders table.
 
         Args:
@@ -33,6 +33,8 @@ class ReminderDatabase(user_db.UserDatabase):
                 Otherwise, the user_id foreign key can be violated.
 
         """
+        user_id = int(user_id)
+
         if add_user:
             await self.add_user(user_id)
 
@@ -57,6 +59,8 @@ class ReminderDatabase(user_db.UserDatabase):
             List[aiosqlite.Row]: A list of deleted entries if pop is True.
 
         """
+        reminder_id = int(reminder_id)
+
         return await self.delete_rows(
             'Reminders', where=f'reminder_id={reminder_id}', pop=pop)
 
@@ -67,25 +71,30 @@ class ReminderDatabase(user_db.UserDatabase):
         user_id is not escaped.
 
         """
-        reminders = self.get_reminders(user_id)
+        user_id = int(user_id)
+
+        reminders = await self.get_reminders(user_id)
         reminder_id = reminders[entry_num]['reminder_id']
         await self.delete_rows(
             'Reminders', where=f'reminder_id={reminder_id}')
 
-    async def get_reminders(self, user_id: int, *, as_Row=True):
+    async def get_reminders(self, user_id: int, *, as_row=True):
         """Get one or more reminders for a user.
 
         user_id is not escaped.
 
         Args:
             user_id (int): The id of the user to get reminders from.
+            as_row (bool)
 
         """
+        user_id = int(user_id)
+
         return await self.get_rows(
-            'Reminders', where=f'user_id={user_id}', as_Row=as_Row)
+            'Reminders', where=f'user_id={user_id}', as_row=as_row)
 
 
 def setup(connection):
-    "Set up the Reminders table for a sqlite3 connection."
+    """Set up the Reminders table with a sqlite3 connection."""
     with connection as conn:
         conn.execute(TABLE_REMINDERS)

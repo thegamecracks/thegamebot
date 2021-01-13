@@ -2,7 +2,6 @@
 
 This stores its own users.
 """
-from . import database as db
 from . import userdatabase as user_db
 
 TABLE_USERS = """
@@ -24,7 +23,7 @@ CREATE TABLE IF NOT EXISTS Charges (
 class ChargeDatabase(user_db.UserDatabase):
     """Provide an interface to the Charges table."""
 
-    async def add_charges(self, user_id: int, amount: int, *, add_user=False):
+    async def add_charges(self, user_id: int, amount: int, *, add_user=True):
         """Add charges for a user.
 
         Args:
@@ -35,10 +34,9 @@ class ChargeDatabase(user_db.UserDatabase):
                 Otherwise, the user_id foreign key can be violated.
 
         """
-        if add_user:
-            await self.add_user(user_id)
+        user_id = int(user_id)
 
-        charges = await self.get_charges(user_id)
+        charges = await self.get_charges(user_id, add_user=add_user)
 
         return await self.update_rows(
             'Charges',
@@ -48,7 +46,9 @@ class ChargeDatabase(user_db.UserDatabase):
 
     async def delete_charges(self, user_id: int):
         """Delete a user's charges entry."""
-        await self.delete_rows('Charges', where=f'note_id={note_id}')
+        user_id = int(user_id)
+
+        await self.delete_rows('Charges', where=f'user_id={user_id}')
 
     async def subtract_charges(self, user_id: int, amount: int,
                                *, add_user=False):
@@ -64,10 +64,9 @@ class ChargeDatabase(user_db.UserDatabase):
                 Otherwise, the user_id foreign key can be violated.
 
         """
-        if add_user:
-            await self.add_user(user_id)
+        user_id = int(user_id)
 
-        charges = await self.get_charges(user_id)
+        charges = await self.get_charges(user_id, add_user=add_user)
 
         return await self.update_rows(
             'Charges',
@@ -79,12 +78,14 @@ class ChargeDatabase(user_db.UserDatabase):
         """Get the number of charges a user has.
 
         Args:
-            user_id (int): The id of the user to get notes from.
+            user_id (int): The id of the user to get their number of charges.
             add_user (bool):
                 If True, automatically adds the user_id to the Users table.
                 Otherwise, the user_id foreign key can be violated.
 
         """
+        user_id = int(user_id)
+
         if add_user:
             await self.add_user(user_id)
 
@@ -104,7 +105,7 @@ class IrishDatabase(ChargeDatabase):
 
 
 def setup(connection):
-    "Set up the Users table for a sqlite3 connection."
+    """Set up the Irish Squad tables with a sqlite3 connection."""
     with connection as conn:
         conn.execute(TABLE_USERS)
         conn.execute(TABLE_CHARGES)

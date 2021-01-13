@@ -1,9 +1,10 @@
 from .database import Database
 from .dbsetup import (
     DATABASE_IRISH, DATABASE_USERS,
-    IrishDatabase, NoteDatabase, PrefixDatabase, ReminderDatabase,
-    UserDatabase, get_prefix, setup
+    GameDatabase, IrishDatabase, NoteDatabase, PrefixDatabase,
+    ReminderDatabase, UserDatabase, get_prefix, setup
 )
+from . import gamedatabase
 from . import irishdatabase
 from . import notedatabase
 from . import prefixdatabase

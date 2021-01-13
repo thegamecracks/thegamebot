@@ -15,10 +15,12 @@ CREATE TABLE IF NOT EXISTS Guilds (
 
 
 class GuildDatabase(db.Database):
-    "Provide an interface to a database with a guilds table."
+    """Provide an interface to a database with a guilds table."""
 
     async def has_guild(self, guild_id: int):
-        "Test if a guild_id exists in the database."
+        """Test if a guild_id exists in the database."""
+        guild_id = int(guild_id)
+
         return await self.get_guild(guild_id) is not None
 
     async def add_guild(self, guild_id: int):
@@ -27,10 +29,12 @@ class GuildDatabase(db.Database):
         guild_id is not escaped.
 
         """
+        guild_id = int(guild_id)
+
         if not await self.has_guild(guild_id):
             return await self.add_row('Guilds', {'id': guild_id})
 
-    async def get_guild(self, guild_id: int, *, as_Row=True):
+    async def get_guild(self, guild_id: int, *, as_row=True):
         """Get a guild record from the database.
 
         If the guild is not found, returns None.
@@ -38,8 +42,10 @@ class GuildDatabase(db.Database):
         guild_id is not escaped.
 
         """
+        guild_id = int(guild_id)
+
         return await self.get_one(
-            'Guilds', where=f'id={guild_id}', as_Row=as_Row)
+            'Guilds', where=f'id={guild_id}', as_row=as_row)
 
     async def remove_guild(self, guild_id: int):
         """Remove a guild from the database.
@@ -47,10 +53,12 @@ class GuildDatabase(db.Database):
         guild_id is not escaped.
 
         """
+        guild_id = int(guild_id)
+
         await self.delete_rows('Guilds', where=f'id={guild_id}')
 
 
 def setup(connection):
-    "Set up the guilds table for a sqlite3 connection."
+    """Set up the guilds table with a sqlite3 connection."""
     with connection as conn:
         conn.execute(TABLE_GUILDS)

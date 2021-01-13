@@ -45,8 +45,8 @@ class Reminders(commands.Cog):
 
 
 
-    async def add_reminder(self, user_id, utcdue, content, add_user=False):
-        "Adds a reminder and invalidates the user's cache."
+    async def add_reminder(self, user_id, utcdue, content, add_user=True):
+        """Adds a reminder and invalidates the user's cache."""
         reminder_id = await self.reminderdb.add_reminder(
             user_id, utcdue, content, add_user=add_user)
         self.cache.pop(user_id, None)
@@ -148,8 +148,7 @@ You can have a maximum of 5 reminders."""
             utcdue = utcnow + td
 
             await self.add_reminder(
-                ctx.author.id, utcdue, content,
-                add_user=True
+                ctx.author.id, utcdue, content
             )
 
             await self.send_with_disclaimer(

@@ -5,6 +5,7 @@ import sqlite3
 from discord.ext import commands
 
 from . import database
+from . import gamedatabase
 from . import guilddatabase
 from . import irishdatabase
 from . import notedatabase
@@ -17,6 +18,7 @@ from bot import utils
 DATABASE_USERS = './data/userdb.db'
 DATABASE_IRISH = './data/irishdb.db'
 
+GameDatabase = gamedatabase.GameDatabase(DATABASE_USERS)
 GuildDatabase = guilddatabase.GuildDatabase(DATABASE_USERS)
 IrishDatabase = irishdatabase.IrishDatabase(DATABASE_IRISH)
 NoteDatabase = notedatabase.NoteDatabase(DATABASE_USERS)
@@ -63,18 +65,19 @@ def setup_database_users(connection):
         userdatabase.setup(connection)
         notedatabase.setup(connection)
         reminderdatabase.setup(connection)
+        gamedatabase.setup(connection)
     with utils.update_text('Verifying guild database',
                            'Verified guild database'):
         guilddatabase.setup(connection)
         prefixdatabase.setup(connection)
 
 
-def setup_database_guild_specific():
+def setup_database_guild_specific(connection):
     with utils.update_text('Verifying guild-specific databases',
                            'Verified guild-specific databases'):
-        irishdatabase.setup(sqlite3.connect(DATABASE_IRISH))
+        irishdatabase.setup(connection)
 
 
 def setup():
     setup_database_users(sqlite3.connect(DATABASE_USERS))
-    setup_database_guild_specific()
+    setup_database_guild_specific(sqlite3.connect(DATABASE_IRISH))

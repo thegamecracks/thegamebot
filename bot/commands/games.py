@@ -4,9 +4,12 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
+from bot.classes.confirmation import AdaptiveConfirmation
 from bot.classes.games import blackjack
 from bot.classes.games import multimath
 from bot.classes import paginator
+from bot.database import GameDatabase
+from bot import utils
 
 
 class Games(commands.Cog):
@@ -15,15 +18,17 @@ class Games(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.gamedb = GameDatabase
 
 
 
 
 
     @commands.command(name='testpages')
+    @commands.is_owner()
     @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_testpages(self, ctx):
-        "Create a simple paginator."
+        """Create a simple paginator."""
         embeds = [
             discord.Embed(title="test page 1",
                 description="This is just some test content!", color=0x115599),
@@ -36,6 +41,24 @@ class Games(commands.Cog):
         pages = paginator.RemovableReactBotEmbedPaginator(
             ctx, embeds)
         await pages.run()
+
+
+
+
+
+    @commands.command(name='testconfirmation')
+    @commands.is_owner()
+    @commands.max_concurrency(1, commands.BucketType.channel)
+    async def client_testconfirmation(self, ctx):
+        """Create a test confirmation prompt."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm('Confirmation')
+
+        if confirmed:
+            await prompt.update('Confirmed', prompt.emoji_yes.color)
+        else:
+            await prompt.update('Cancelled', prompt.emoji_no.color)
 
 
 
@@ -67,7 +90,7 @@ class Games(commands.Cog):
 
 
 
-    @commands.command(name='blackjack', aliases=('bj',))
+    @commands.group(name='blackjack', aliases=('bj',), invoke_without_command=True)
     @commands.cooldown(4, 20, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_blackjack(
@@ -97,7 +120,63 @@ Otherwise, only you can play:
 
         game = blackjack.BotBlackjackGame(ctx, decks=decks)
 
-        await game.run(users=users)
+        win = await game.run(users=users)
+
+        await self.gamedb.blackjack.change('played', ctx.author.id, 1)
+        if win:
+            await self.gamedb.blackjack.change('wins', ctx.author.id, 1)
+        elif win is False:
+            await self.gamedb.blackjack.change('losses', ctx.author.id, 1)
+
+
+
+
+
+    @client_blackjack.group(name='stats', invoke_without_command=True)
+    @commands.cooldown(2, 15, commands.BucketType.user)
+    async def client_blackjack_stats(self, ctx):
+        """View your blackjack stats."""
+        db = self.gamedb.blackjack
+        row = await db.get_blackjack_row(ctx.author.id)
+        losses = row['losses']
+        played = row['played']
+        wins = row['wins']
+
+        description = (
+            f'Games played: {played:,}\n'
+            f'Wins: {wins:,}\n'
+            f'Losses: {losses:,}'
+        )
+
+        embed = discord.Embed(
+            color=utils.get_user_color(ctx.author),
+            description=description
+        ).set_author(
+            name=ctx.author.display_name,
+            icon_url=ctx.author.avatar_url
+        )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
+    @client_blackjack.group(name='reset', invoke_without_command=True)
+    @commands.cooldown(1, 60, commands.BucketType.user)
+    async def client_blackjack_stats_reset(self, ctx):
+        """Reset your blackjack stats."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm(
+            'Are you sure you want to reset your blackjack stats?')
+
+        if confirmed:
+            await self.gamedb.delete_data(ctx.author.id)
+            await prompt.update('Successfully wiped your stats!',
+                                prompt.emoji_yes.color)
+        else:
+            await prompt.update('Cancelled reset.', prompt.emoji_no.color)
 
 
 

@@ -235,10 +235,11 @@ class BotBlackjackGame:
         deck = [c for _ in range(decks) for c in CARDS]
         random.shuffle(deck)
 
+        self.deck = deck
         self.player = Hand([deck.pop(), deck.pop()])
         self.dealer = Hand([deck.pop(), deck.pop().replace(facedown=True)])
 
-        self.deck = deck
+        self.win = None
 
     def check_dealer_blackjack(self, hand: Hand, hidden=True) -> bool:
         """Check if a dealer's hand is, or could be a blackjack.
@@ -280,8 +281,8 @@ class BotBlackjackGame:
         player = self.player
         dealer = self.dealer
 
+        win = None
         if done:
-            win = None
             if player.maximum > 21:
                 win = False
                 embed.description += 'Bust'
@@ -310,6 +311,7 @@ class BotBlackjackGame:
                 embed.color = 0x77B255
             elif win is False:
                 embed.color = 0xDD2E44
+            self.win = win
         else:
             embed.set_footer(text=f'Remaining cards: {len(self.deck)}')
 
@@ -442,7 +444,6 @@ class BotBlackjackGame:
                     break
                 else:
                     raise ValueError(f'Unknown reaction {reaction!r}')
-            first_turn = False
 
         embed = self.embed_update(done=True)
         if moves:
@@ -450,3 +451,5 @@ class BotBlackjackGame:
         else:
             embed.description += '\nMoves: None'
         await message.edit(content='', embed=embed)
+
+        return self.win

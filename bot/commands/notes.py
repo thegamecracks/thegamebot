@@ -69,8 +69,7 @@ You can have a maximum of 20 notes."""
 
         if total_notes < 20:
             await self.add_note(
-                ctx.author.id, datetime.datetime.now().astimezone(), note,
-                add_user=True
+                ctx.author.id, datetime.datetime.now().astimezone(), note
             )
 
             await ctx.send(
