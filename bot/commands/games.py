@@ -144,16 +144,21 @@ Otherwise, only you can play:
         wins = row['wins']
         ties = played - wins - losses
 
-        description = (
-            f'Games played: {played:,}\n'
-            f'Wins: {wins:,}\n'
-            f'Losses: {losses:,}\n'
-        )
+        description = [
+            f'Games played: {played:,}',
+            f'Wins: {wins:,}',
+            f'Losses: {losses:,}'
+        ]
         if ties:
-            description += f'Ties: {ties:,}\n'
+            description.append(f'Ties: {ties:,}')
         if played:
-            description += f'Win rate: {wins / played:.0%}\n'
+            rate = f'Win rate: {wins / played:.0%}'
+            description.append(rate)
+            if ties:
+                description.append(
+                    f'Win rate (no pushes): {wins / (played - ties):.0%}')
 
+        description = '\n'.join(description)
         embed = discord.Embed(
             color=utils.get_user_color(ctx.author),
             description=description

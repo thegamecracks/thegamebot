@@ -193,9 +193,9 @@ Optional settings:
 
         await ctx.trigger_typing()
 
-        field_statistics = (
-            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}\n"
-        )
+        field_statistics = [
+            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}"
+        ]
 
         if self.bot.intents.members:
             member_count = sum(not u.bot for u in self.bot.users)
@@ -205,14 +205,14 @@ Optional settings:
         commands_processed = sum(
             self.bot.info_processed_commands.values()) + 1
 
-        field_statistics += (
-            f'# Members: {member_count:,}\n'
-            f'# Servers: {len(self.bot.guilds):,}\n'
-            f'# Commands: {len(self.bot.commands):,}\n'
-            f'# Commands processed: {commands_processed:,}\n'
-            f'Python version: {version_python}\n'
-            f'D.py version: {discord.__version__}\n'
-        )
+        field_statistics.extend((
+            f'# Members: {member_count:,}',
+            f'# Servers: {len(self.bot.guilds):,}',
+            f'# Commands: {len(self.bot.commands):,}',
+            f'# Commands processed: {commands_processed:,}',
+            f'Python version: {version_python}',
+            f'D.py version: {discord.__version__}'
+        ))
 
         if iterable_has(args, '-S', '--system'):
             # Add system information
@@ -229,17 +229,17 @@ Optional settings:
                         max(1, cpu / 2) * random.uniform(5, 30)
                     )
 
-            field_statistics += (
-                f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds\n'
-                f'> CPU usage: {cpu:.3g}%\n'
-                f'> Memory usage: {humanize.naturalsize(mem_usage)}\n'
-                f'> Threads: {num_threads}\n'
-                f'> Handles: {num_handles}\n'
-            )
+            field_statistics.extend((
+                f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds',
+                f'> CPU usage: {cpu:.3g}%',
+                f'> Memory usage: {humanize.naturalsize(mem_usage)}',
+                f'> Threads: {num_threads}',
+                f'> Handles: {num_handles}'
+            ))
 
         embed.add_field(
             name='Statistics',
-            value=field_statistics
+            value='\n'.join(field_statistics)
         )
 
         await ctx.send(embed=embed)
@@ -248,7 +248,7 @@ Optional settings:
 
 
 
-    @commands.command(name='commandinfo')
+    @commands.command(name='commandinfo', aliases=('cinfo',))
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_commandinfo(self, ctx, *, command):
         """Get statistics about a command."""
@@ -283,41 +283,41 @@ Optional settings:
                    else '\N{NO ENTRY}')
 
         # Write description
-        description = ''
+        description = []
 
         # Insert cog
         if command.cog is not None:
-            description += (
-                f'Categorized under: __{command.cog.qualified_name}__\n')
+            description.append(
+                f'Categorized under: __{command.cog.qualified_name}__')
 
         # Insert aliases
         if len(command.aliases) == 1:
-            description += f"Alias: {command.aliases[0]}\n"
+            description.append(f"Alias: {command.aliases[0]}")
         elif len(command.aliases) > 1:
-            description += f"Aliases: {', '.join(command.aliases)}\n"
+            description.append(f"Aliases: {', '.join(command.aliases)}")
 
         # Insert parent
         if command.parent is not None:
-            description += f'Parent command: {command.parent.name}\n'
+            description.append(f'Parent command: {command.parent.name}')
 
         # Insert enabled status
-        description += f"Is enabled: {enabled}\n"
+        description.append(f"Is enabled: {enabled}")
 
         # Insert hidden status
         if command.hidden:
-            description += 'Is hidden: \N{WHITE HEAVY CHECK MARK}\n'
+            description.append('Is hidden: \N{WHITE HEAVY CHECK MARK}')
 
         # Insert cooldown
         cooldown = command._buckets._cooldown
         if cooldown is not None:
             cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
                 cooldown.type, '')
-            description += (
+            description.append(
                 'Cooldown settings: '
-                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}\n'
+                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}'
             )
         else:
-            description += 'Cooldown settings: unlimited\n'
+            description.append('Cooldown settings: unlimited')
 
         # Insert uses
         uses = stats[command.qualified_name]
@@ -330,15 +330,15 @@ Optional settings:
             uses += 1
 
         if is_group:
-            description += (
-                f'# subcommands: {len(command.commands):,}\n'
-                f'# uses (including subcommands): {uses:,}\n'
-            )
+            description.extend((
+                f'# subcommands: {len(command.commands):,}',
+                f'# uses (including subcommands): {uses:,}'
+            ))
         else:
-            description += f'# uses: {uses:,}\n'
+            description.append(f'# uses: {uses:,}')
 
         # Finalize embed
-        embed.description = description
+        embed.description = '\n'.join(description)
 
         await ctx.send(embed=embed)
 

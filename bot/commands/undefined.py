@@ -578,9 +578,10 @@ Any other characters will be passed through."""
         amount = len(results)
         results = results[:threshold]
 
-        description = '\n'.join([entry.name for entry in results])
+        description = [entry.name for entry in results]
         if amount > threshold:
-            description += '\n...'
+            description.append('...')
+        description = '\n'.join(description)
 
         embed = discord.Embed(
             color=utils.get_bot_color(),
@@ -631,23 +632,23 @@ Up to date as of 3.20.15.0."""
                         else:
                             items_consumed.append((item, quantity))
 
-                    rec_str = ''
+                    rec_str = []
                     first = True
                     # List consumed items
                     for item in items_consumed:
-                        rec_str += '> '
+                        rec_str.append('> ')
                         if not first:
-                            rec_str += '+ '
-                        rec_str += f'{item[1]} x {item[0].name}\n'
+                            rec_str.append('+ ')
+                        rec_str.append(f'{item[1]} x {item[0].name}\n')
                         first = False
 
                     # Show product
-                    rec_str += f'> = {amount} x {name}\n'
+                    rec_str.append(f'> = {amount} x {name}\n')
 
                     if items_required:
-                        rec_str += '> (Uses {})\n'.format(
+                        rec_str.append('> (Uses {})\n'.format(
                             inflector.join(items_required)
-                        )
+                        ))
 
                     requires = skills.copy()
 
@@ -656,9 +657,9 @@ Up to date as of 3.20.15.0."""
                         requires.append('Heat')
 
                     if requires:
-                        rec_str += f'> (Requires {inflector.join(requires)})\n'
+                        rec_str.append(f'> (Requires {inflector.join(requires)})')
 
-                    recipes_str.append(rec_str)
+                    recipes_str.append(''.join(rec_str))
 
                 recipes_str = '> OR:\n'.join(recipes_str)
 
@@ -968,15 +969,16 @@ Note: There are only a few items with recipe data since I have to manually enter
         if is_name_capitalized:
             plural_name = plural_name[0].upper() + plural_name[1:]
 
-        description = (
-            f'{amount} {plural_name}\n'
-            f'ID: {result.id}\n'
-        )
+        description = [
+            f'{amount} {plural_name}',
+            f'ID: {result.id}'
+        ]
 
         if tree:
-            description += "Recipe tree:\n{}\n".format(
+            description.extend((
+                'Recipe tree:',
                 '\n'.join(tree_str(tree))
-            )
+            ))
         # Else item is primitive/has no recipes
 
         items_consumed, items_required = [], []
@@ -986,19 +988,19 @@ Note: There are only a few items with recipe data since I have to manually enter
             else:
                 items_consumed.append((item, quantity))
 
-        description += 'Total raw:\n'
+        description.append('Total raw:')
 
         # List consumed and required items
         for item, amount in items_consumed:
-            description += f'> {amount} x {item.name}\n'
+            description.append(f'> {amount} x {item.name}')
         for item in items_required:
-            description += f'> {item}\n'
+            description.append(f'> {item}')
 
         # List excess material
         if remainders:
-            description += 'Remainders:\n'
-            for item, amount in remainders:
-                description += f'> {amount} x {item.name}\n'
+            description.append('Remainders:')
+            description.extend(f'> {amount} x {item.name}'
+                               for item, amount in remainders)
 
         # Parse skill dict back into list of strings
         # and add other conditions here
@@ -1006,11 +1008,11 @@ Note: There are only a few items with recipe data since I have to manually enter
         requires.extend(humanize_other(requirements['other']))
 
         if requires:
-            description += f'Requires {inflector.join(requires)}\n'
+            description.append(f'Requires {inflector.join(requires)}')
 
         embed = discord.Embed(
             color=self.unturned_get_rarity_color(result.rarity),
-            description=description
+            description='\n'.join(description)
         ).set_thumbnail(
             url=f'https://unturneditems.com/media/{result.id}.png'
         )

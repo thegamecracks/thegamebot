@@ -314,7 +314,7 @@ class HelpCommand(commands.HelpCommand):
         embed = discord.Embed(
             title=self.get_command_signature(group),
             color=utils.get_bot_color(),
-            description=group.description
+            description=group.help or group.short_doc
         )
 
         # Add fields
@@ -328,19 +328,19 @@ class HelpCommand(commands.HelpCommand):
 
     async def send_command_help(self, command):
         "Sends help for an individual command."
-        description = f'`{self.get_command_signature(command)}`\n'
+        description = [f'`{self.get_command_signature(command)}`\n']
 
         if command.help:
-            description += f'```{command.help}```'
+            description.append(command.help)
         elif command.short_doc:
-            description += f'```{command.short_doc}```'
+            description.append(command.short_doc)
         else:
-            description += 'There is no description for this command.'
+            description.append('There is no description for this command.')
 
         embed = discord.Embed(
             title=command.qualified_name,
             color=utils.get_bot_color(),
-            description=description
+            description=''.join(description)
         )
         if command.cog is not None:
             embed.set_author(name=f'In {command.cog.qualified_name} category')

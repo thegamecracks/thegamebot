@@ -164,22 +164,23 @@ class IrishSquad(commands.Cog):
         rows = sorted((r for r in rows if r['amount'] != 0),
                       key=lambda r: r['amount'], reverse=True)
 
-        embed = discord.Embed(
-            color=utils.get_bot_color(),
-            description=''
-        )
+        description = []
         for i, r in enumerate(rows, start=1):
             if i > self.CHARGE_LEADERBOARD_MAX:
-                embed.description += '...'
+                description.append('...')
                 break
 
             user = self.bot.get_user(r['user_id'])
             mention = user.mention if user is not None else None
 
-            embed.description += f"{mention}: {r['amount']:,}\n"
+            description.append(f"{mention}: {r['amount']:,}")
 
-        if len(embed) == 0:
-            embed = None
+        embed = None
+        if description:
+            embed = discord.Embed(
+                color=utils.get_bot_color(),
+                description='\n'.join(description)
+            )
 
         await ctx.send(
             inflector.inflect(
