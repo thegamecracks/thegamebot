@@ -137,18 +137,22 @@ Otherwise, only you can play:
                 users=users, outro_content=outro)
 
             if results.done:
-                await self.gamedb.blackjack.change('played', ctx.author.id, 1)
-            if results.player.maximum == 21:
-                await self.gamedb.blackjack.change('blackjacks', ctx.author.id, 1)
-            if results.winner:
-                await self.gamedb.blackjack.change('wins', ctx.author.id, 1)
-            elif results.winner is False:
-                await self.gamedb.blackjack.change('losses', ctx.author.id, 1)
-
-            if not results.done:
+                await self.gamedb.blackjack.change(
+                    'played', results.last_player.id, 1)
+                if results.player.maximum == 21:
+                    await self.gamedb.blackjack.change(
+                        'blackjacks', results.last_player.id, 1)
+                if results.winner:
+                    await self.gamedb.blackjack.change(
+                        'wins', results.last_player.id, 1)
+                elif results.winner is False:
+                    await self.gamedb.blackjack.change(
+                        'losses', results.last_player.id, 1)
+            else:
                 # Game timed out
                 break
-            elif i >= self.BLACKJACK_SESSION_LENGTH:
+
+            if i >= self.BLACKJACK_SESSION_LENGTH:
                 break
 
             message = game.message

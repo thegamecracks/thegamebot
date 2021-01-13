@@ -206,6 +206,7 @@ CARDS = tuple(Card(r, s) for r in RANKS for s in SUITS)
 @dataclass(frozen=True)
 class BotBlackjackGameResults:
     done: bool
+    last_player: discord.User
     player: Hand
     dealer: Hand
     winner: Optional[bool] = None
@@ -439,7 +440,9 @@ class BotBlackjackGame:
             except asyncio.TimeoutError:
                 await message.edit(content='Ended game due to inactivity.')
                 return BotBlackjackGameResults(
-                    done=False, player=player, dealer=dealer, moves=moves)
+                    done=False, last_player=last_player,
+                    player=player, dealer=dealer, moves=moves
+                )
             else:
                 if reaction.emoji == emojis[0]:
                     # Hit
@@ -464,6 +467,6 @@ class BotBlackjackGame:
         await message.edit(content=outro_content, embed=embed)
 
         return BotBlackjackGameResults(
-            done=True, player=player, dealer=dealer, winner=self.win,
-            moves=moves
+            done=True, last_player=last_player, player=player,
+            dealer=dealer, winner=self.win, moves=moves
         )
