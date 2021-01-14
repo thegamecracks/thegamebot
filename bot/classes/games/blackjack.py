@@ -410,20 +410,17 @@ class BotBlackjackGame:
             self.emojis['stand']
         ]
 
+        last_player = self._ctx.author
+        moves = []
+
         # Send initial message
         message = self.message
         if message is None:
             message = await channel.send('Loading...')
             self.message = message
-        else:
-            await message.edit(content='Loading...')
-
-        last_player = self._ctx.author
-        moves = []
-
-        for e in emojis:
-            await message.add_reaction(e)
-        await asyncio.sleep(1)
+            for e in emojis:
+                await message.add_reaction(e)
+            await asyncio.sleep(1)
 
         # Peek the second card to check for blackjack
         if self.REVEAL_DEALER_BLACKJACK and self.check_dealer_blackjack(dealer):
