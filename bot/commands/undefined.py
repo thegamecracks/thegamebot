@@ -115,7 +115,7 @@ def phasmophobia_match_ghost_evidence(evidences):
 # sources: https://www.upsidedowntext.com/unicode
 #          https://text-symbols.com/upside-down/
 UPSIDEDOWN_MAPPING = {
-    'a': 'ɐ', 'b': 'q', 'c': 'c', 'd': 'p', 'e': 'ǝ',
+    'a': 'ɐ', 'b': 'q', 'c': 'ɔ', 'd': 'p', 'e': 'ǝ',
     'f': 'ɟ', 'g': 'ƃ', 'h': 'ɥ', 'i': 'ᴉ', 'j': 'ɾ',
     'k': 'ʞ', 'l': 'l', 'm': 'ɯ', 'n': 'u', 'o': 'o',
     'p': 'd', 'q': 'b', 'r': 'ɹ', 's': 's', 't': 'ʇ',

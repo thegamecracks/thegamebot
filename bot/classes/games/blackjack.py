@@ -236,15 +236,18 @@ class BotBlackjackGame:
     EMOJI_STAND = 798381243770470420
     EMOJI_DEFAULT = '\N{NO ENTRY}'
 
-    def __init__(self, ctx, *, decks: int, message=None):
+    def __init__(
+            self, ctx, *, color = 0xE6D94D, deck: Union[int, List[Card]],
+            message=None):
         self._ctx: commands.Context = ctx
         self._client: discord.Client = ctx.bot
-        self.color = int(settings.get_setting('bot_color'), 16)
+        self.color = color
         self.emojis = self.chunk_emojis()
         self.message: Optional[discord.Message] = message
 
-        deck = [c for _ in range(decks) for c in CARDS]
-        random.shuffle(deck)
+        if isinstance(deck, int):
+            deck = [c for _ in range(decks) for c in CARDS]
+            random.shuffle(deck)
 
         self.deck = deck
         self.player = Hand([deck.pop(), deck.pop()])

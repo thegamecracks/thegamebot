@@ -1,4 +1,5 @@
 import asyncio
+import random
 from typing import Optional, List
 
 import discord
@@ -18,6 +19,10 @@ class Games(commands.Cog):
     description = 'Commands with interactive games.'
 
     BLACKJACK_SESSION_LENGTH = 30
+    # The number of rounds that can be played in a single session.
+    BLACKJACK_SHUFFLE_SIZE = 0.5
+    # The percentage at which the deck size is too small
+    # and should be shuffled. The lower, the less frequent the shuffling.
 
     def __init__(self, bot):
         self.bot = bot
@@ -99,23 +104,40 @@ class Games(commands.Cog):
     @commands.max_concurrency(3, commands.BucketType.channel)
     async def client_blackjack(
             self, ctx,
-            decks: Optional[int] = 2,
+            size: Optional[int] = 2,
             players='me',
             members: commands.Greedy[discord.User] = None):
         """Start a session of blackjack.
 
+This game allows multiple people to participate with the same hand.
 If the first parameter says "allow", you can then specify which other members are allowed to play, by mention or name:
 > blackjack allow Alice#1234 Bob
 If no members are specified after "allow" or you type "all", anyone can play:
 > blackjack all
 Otherwise, only you can play:
-> blackjack"""
+> blackjack
+
+size: (optional) The size of the deck to use in the session.
+    Only double-decks will count towards your stats."""
+        def create_deck(size):
+            deck = [c for _ in range(size) for c in blackjack.CARDS]
+            random.shuffle(deck)
+            return deck
+
+        def time_to_shuffle(deck, size):
+            return len(deck) / (52 * size) < self.BLACKJACK_SHUFFLE_SIZE
+
         if ctx.guild is None and not self.bot.intents.members:
-            return await ctx.send('Unfortunately games will not work in DMs at this time.')
-        elif decks < 1:
-            return await ctx.send('The deck size must be at least one.')
-        elif decks > 10:
-            return await ctx.send('The deck size can only be ten at most.')
+            return await ctx.send(
+                'Unfortunately games will not work in DMs at this time.',
+                delete_after=10
+            )
+        elif size < 1:
+            return await ctx.send('The deck size must be at least one.',
+                                  delete_after=6)
+        elif size > 10:
+            return await ctx.send('The deck size can only be ten at most.',
+                                  delete_after=6)
 
         try:
             users = self.get_members(ctx, players, members)
@@ -123,9 +145,15 @@ Otherwise, only you can play:
             return await ctx.send(e, delete_after=8)
 
         message = None
+        d = create_deck(size)
         i = 0
         while not self.bot.is_closed():
-            game = blackjack.BotBlackjackGame(ctx, decks=decks, message=message)
+            if time_to_shuffle(d, size):
+                await message.edit(content='Shuffling deck...')
+                d = create_deck(size)
+                await asyncio.sleep(2)
+
+            game = blackjack.BotBlackjackGame(ctx, deck=d, message=message)
 
             i += 1
             outro = 'React to the play emoji to continue.'
@@ -137,17 +165,18 @@ Otherwise, only you can play:
                 users=users, outro_content=outro)
 
             if results.done:
-                await self.gamedb.blackjack.change(
-                    'played', results.last_player.id, 1)
-                if results.player.maximum == 21:
+                if size == 2:
                     await self.gamedb.blackjack.change(
-                        'blackjacks', results.last_player.id, 1)
-                if results.winner:
-                    await self.gamedb.blackjack.change(
-                        'wins', results.last_player.id, 1)
-                elif results.winner is False:
-                    await self.gamedb.blackjack.change(
-                        'losses', results.last_player.id, 1)
+                        'played', results.last_player.id, 1)
+                    if results.player.maximum == 21:
+                        await self.gamedb.blackjack.change(
+                            'blackjacks', results.last_player.id, 1)
+                    if results.winner:
+                        await self.gamedb.blackjack.change(
+                            'wins', results.last_player.id, 1)
+                    elif results.winner is False:
+                        await self.gamedb.blackjack.change(
+                            'losses', results.last_player.id, 1)
             else:
                 # Game timed out
                 break
@@ -163,7 +192,7 @@ Otherwise, only you can play:
                 await message.add_reaction(e)
 
             try:
-                await get_reaction(self.bot, message, emojis, users, timeout=10)
+                await get_reaction(self.bot, message, emojis, users, timeout=15)
             except asyncio.TimeoutError:
                 return await message.edit(content='Finished session.')
 
@@ -250,7 +279,10 @@ If no members are specified after "allow" or you type "all", anyone can play:
 Otherwise, only you can play:
 > multimath"""
         if ctx.guild is None and not self.bot.intents.members:
-            return await ctx.send('Unfortunately games will not work in DMs at this time.')
+            return await ctx.send(
+                'Unfortunately games will not work in DMs at this time.',
+                delete_after=10
+            )
 
         try:
             users = self.get_members(ctx, players, members)
