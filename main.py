@@ -32,6 +32,7 @@ cogs = [
     'bot.commands.randomization',
     'bot.commands.reminders',
     'bot.commands.undefined',
+    'jishaku',
 ]
 
 disabled_intents = [

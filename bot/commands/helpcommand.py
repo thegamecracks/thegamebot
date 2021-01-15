@@ -12,6 +12,7 @@ from bot import utils
 message_length_cooldown = commands.CooldownMapping.from_cooldown(
     1, 30, commands.BucketType.user)
 
+
 class HelpCommand(commands.HelpCommand):
 
     help_categories_per_page = 9  # Max of 25 fields
@@ -73,7 +74,7 @@ class HelpCommand(commands.HelpCommand):
                 the input that caused it,
                 and the command that doesn't have the requested subcommand.
         """
-        if isinstance(command, Group) and len(command.all_commands) > 0:
+        if isinstance(command, commands.Group) and len(command.all_commands) > 0:
             message = 'Command "{}" has no subcommand named {}'.format(
                 command.qualified_name, string)
         else:
@@ -230,8 +231,8 @@ class HelpCommand(commands.HelpCommand):
         """
         categories = collections.defaultdict(list)
 
-        for command in await self.filter_commands(self.context.bot.commands):
-            categories[type(command.cog)].append(command)
+        for cmd in await self.filter_commands(self.context.bot.commands):
+            categories[cmd.cog].append(cmd)
 
         # Create a paired list of of the dictionary
         categories_list = sorted(
@@ -240,8 +241,8 @@ class HelpCommand(commands.HelpCommand):
         )
 
         # Sort each command by name
-        for _, commands in categories_list:
-            commands.sort(key=lambda x: x.qualified_name)
+        for _, cmds in categories_list:
+            cmds.sort(key=lambda x: x.qualified_name)
 
         return categories_list
 

@@ -6,6 +6,7 @@ import math
 import pathlib    # exception_message()
 import sys        # exception_message()
 import traceback  # exception_message()
+from typing import List, Iterable, Union, Optional
 
 from dateutil.relativedelta import relativedelta
 import discord
@@ -86,7 +87,8 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def fuzzy_match_word(s, choices, return_possible=False):
+def fuzzy_match_word(s, choices: Iterable[str], return_possible=False) \
+        -> Optional[Union[str, List[str]]]:
     """Matches a string to given choices by token (case-insensitive).
 
     Choices can be matched even if the given string has tokens out of order:
