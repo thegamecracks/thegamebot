@@ -150,6 +150,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
             image = io.BytesIO()
             result.savefig(
                 image, format='png', bbox_inches='tight', pad_inches=0)
+            plt.close(result)
             image.seek(0)
             image = discord.File(image, 'Graph.png')
             result = None

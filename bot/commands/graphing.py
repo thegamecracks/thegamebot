@@ -316,6 +316,7 @@ class Graphing(commands.Cog):
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
         return f, message
 
 
@@ -437,6 +438,7 @@ periods: The number of compounding periods in each term."""
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
 ##        conn.send(f)
         return f
 
@@ -599,6 +601,7 @@ To see the different methods you can use to provide text, check the help message
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
         return f
 
 
@@ -702,6 +705,7 @@ To see the different methods you can use to provide text, check the help message
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
         return f
 
 
@@ -779,6 +783,7 @@ To see the different methods you can use to provide text, check the help message
 
         anim.save(fp, writer='pillow', fps=frames / duration)
 
+        plt.close(fig)
         return fp
 
 
