@@ -41,6 +41,16 @@ disabled_intents = [
 ]
 
 
+
+class Bot(commands.Bot):
+    """A custom version of Bot that allows case-insensitive references
+    to cogs. See "?tag case insensitive cogs" on the discord.py server.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._BotBase__cogs = commands.core._CaseInsensitiveDict()
+
+
 async def main():
     start_time = time.perf_counter()
 
@@ -66,7 +76,7 @@ async def main():
     for attr in disabled_intents:
         setattr(intents, attr, False)
 
-    bot = commands.Bot(
+    bot = Bot(
         command_prefix=database.get_prefix(),
         help_command=helpcommand.HelpCommand(),
         intents=intents

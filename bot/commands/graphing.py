@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import contextlib
+import decimal
 import functools
 import io
 ##import multiprocessing
@@ -33,6 +34,46 @@ from bot import utils
 ##        conn.send(output)
 ##        return output
 ##    return wrapper
+
+
+def format_dollars(dollars: decimal.Decimal):
+    dollars = round_dollars(dollars)
+    sign = '-' if dollars < 0 else ''
+    dollar_part = abs(int(dollars))
+    cent_part = abs(int(dollars % 1 * 100))
+    return '{}${}.{:02d}'.format(sign, dollar_part, cent_part)
+
+
+class DollarConverter(commands.Converter):
+    """A decimal.Decimal converter that strips leading dollar signs
+    and can round to the nearest cent."""
+
+    def __init__(self, *, nearest_cent=True):
+        super().__init__()
+        self.nearest_cent = nearest_cent
+
+    async def convert(self, ctx, arg):
+        arg = arg.lstrip('$')
+        try:
+            d = decimal.Decimal(arg)
+        except decimal.InvalidOperation as e:
+            raise ValueError(f'Syntax error in dollar input: {arg!r}') from e
+        return round_dollars(d) if self.nearest_cent else d
+
+
+class PercentConverter(commands.Converter):
+    """A decimal.Decimal converter that supports specifying percentages."""
+    async def convert(self, ctx, arg):
+        if arg.endswith('%'):
+            arg = arg.rstrip('%')
+            return decimal.Decimal(arg) / 100
+        return decimal.Decimal(arg)
+
+
+def round_dollars(d) -> decimal.Decimal:
+    """Round a number-like object to the nearest cent."""
+    cent = decimal.Decimal('0.01')
+    return decimal.Decimal(d).quantize(cent, rounding=decimal.ROUND_HALF_UP)
 
 
 class Graphing(commands.Cog):
@@ -167,6 +208,153 @@ class Graphing(commands.Cog):
 
 
 
+    def interest_simple_compound(self, p, r, t, n):
+        """Return a list of terms and a dictionary mapping the principal
+        and interest over those terms."""
+        terms = np.linspace(0, t, t * n, dtype=int)
+        principal = np.full(terms.shape, p, dtype=decimal.Decimal)
+        simple_interest = p * r * terms
+        compound_amount = p * (1 + r/n) ** (n * terms)
+        compound_interest = compound_amount - principal - simple_interest
+
+        return terms, {
+            'Principal': principal,
+            'Simple': simple_interest,
+            'Compound': compound_interest
+        }
+
+
+    def interest_stackplot(self, ctx, p, r, t, n):
+        """Graph the interest of an investment over a given term.
+
+        Args:
+            ctx (discord.ext.commands.Context)
+            p (decimal.Decimal): The principal.
+            r (decimal.Decimal): The interest rate.
+            t (int): The investment term.
+            n (int): The number of compounding periods per term.
+
+        Returns:
+            Tuple[BytesIO, str]: The image and a message paired
+                along with it.
+
+        """
+        bot_color = '#' + hex(utils.get_bot_color())[2:]
+
+        terms, data = self.interest_simple_compound(p, r, t, n)
+
+        fig, ax = plt.subplots()
+
+        # Graph stackplot
+        ax.stackplot(terms, data.values(), labels=data.keys())
+        ax.legend(loc='upper left')
+
+        # Move ylim so principal won't take up the majority of the plot
+        simple_interest = data['Simple'][-1]
+        compound_interest = data['Compound'][-1]
+        maximum = p + simple_interest + compound_interest
+        minimum = p - p * decimal.Decimal('0.05')
+        ax.set_ylim([minimum, maximum])
+
+        # Add labels
+        ax.set_title('Simple and Compound Interest')
+        ax.set_xlabel('Term')
+        ax.set_ylabel('Amount')
+
+        # Set fonts
+        labels = (
+            [ax.title, ax.xaxis.label, ax.yaxis.label]
+            + ax.get_legend().get_texts() + ax.get_xticklabels()
+            + ax.get_yticklabels()
+        )
+        for item in labels:
+            item.set_family('calibri')
+            item.set_color(bot_color)
+            item.set_fontsize(16)
+        ax.title.set_fontsize(18)
+        for item in labels:
+            # Add shadow
+            item.set_path_effects([
+                path_effects.withSimplePatchShadow(
+                    offset=(1, -1),
+                    alpha=self.TEXT_SHADOW_ALPHA
+                )
+            ])
+
+        # Hide the right and top spines
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        # Color the spines and ticks
+        for spine in ax.spines.values():
+            spine.set_color(bot_color)
+        ax.tick_params(colors=bot_color)
+
+        # Remove the x-axis margins
+        ax.margins(x=0)
+
+        # Create transparent background
+        ax.set_facecolor('#00000000')
+        fig.patch.set_facecolor('#36393F4D')
+
+        # Create message
+        simple_amount = p + simple_interest
+        message = 'Future Values: {} simple; {} compound'.format(
+            format_dollars(simple_amount), format_dollars(maximum))
+
+        f = io.BytesIO()
+        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
+        # bbox_inches, pad_inches: removes padding around the graph
+
+        return f, message
+
+
+    @commands.command(name='interest')
+    @commands.cooldown(3, 60, commands.BucketType.channel)
+    @commands.max_concurrency(3, wait=True)
+    async def client_interest(
+            self, ctx, principal: DollarConverter, rate: PercentConverter,
+            term: int, periods: int = 1):
+        """Calculate simple and compound interest.
+
+principal: The initial investment.
+rate: The interest rate. Can be specified as a percentage.
+term: The number of terms.
+periods: The number of compounding periods in each term."""
+        if not 0 < rate <= 1:
+            return await ctx.send(
+                'The interest rate must be greater than 0% and under 100%.',
+                delete_after=6
+            )
+        elif not 0 < term <= 100:
+            return await ctx.send(
+                'The term must be between 1 and 100.',
+                delete_after=6
+            )
+        elif not 0 < periods <= 52:
+            return await ctx.send(
+                'The number of periods must be between 1 and 52.',
+                delete_after=6
+            )
+
+        await ctx.trigger_typing()
+
+        loop = asyncio.get_running_loop()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            f, content = await loop.run_in_executor(
+                None, self.interest_stackplot, ctx,
+                principal, rate, term, periods
+            )
+        f.seek(0)
+
+        await ctx.send(
+            content, file=discord.File(f, 'Word Count Pie Chart.png'))
+
+
+
+
+
 ##    def frequency_analysis(self, conn, ctx, text):
     def frequency_analysis(self, ctx, text):
         """Create a frequency analysis graph of a given text.
@@ -222,10 +410,6 @@ class Graphing(commands.Cog):
                 )
             ])
 
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
-
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -233,6 +417,10 @@ class Graphing(commands.Cog):
         for spine in ax.spines.values():
             spine.set_color(bot_color)
         ax.tick_params(colors=bot_color)
+
+        # Create transparent background
+        ax.set_facecolor('#00000000')
+        fig.patch.set_facecolor('#36393F4D')
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
