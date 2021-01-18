@@ -41,7 +41,7 @@ def format_dollars(dollars: decimal.Decimal):
     sign = '-' if dollars < 0 else ''
     dollar_part = abs(int(dollars))
     cent_part = abs(int(dollars % 1 * 100))
-    return '{}${}.{:02d}'.format(sign, dollar_part, cent_part)
+    return '{}${:,}.{:02d}'.format(sign, dollar_part, cent_part)
 
 
 class DollarConverter(commands.Converter):
@@ -53,21 +53,26 @@ class DollarConverter(commands.Converter):
         self.nearest_cent = nearest_cent
 
     async def convert(self, ctx, arg):
-        arg = arg.lstrip('$')
+        arg = arg.lower()
+        thousands = 1000 if arg.endswith('k') else 1
+        arg = arg.replace(',', '').lstrip('$').rstrip('k')
         try:
-            d = decimal.Decimal(arg)
-        except decimal.InvalidOperation as e:
-            raise ValueError(f'Syntax error in dollar input: {arg!r}') from e
+            d = decimal.Decimal(arg) * thousands
+        except decimal.InvalidOperation:
+            raise commands.BadArgument(f'Dollar syntax error: {arg!r}')
         return round_dollars(d) if self.nearest_cent else d
 
 
 class PercentConverter(commands.Converter):
     """A decimal.Decimal converter that supports specifying percentages."""
     async def convert(self, ctx, arg):
-        if arg.endswith('%'):
-            arg = arg.rstrip('%')
-            return decimal.Decimal(arg) / 100
-        return decimal.Decimal(arg)
+        try:
+            if arg.endswith('%'):
+                arg = arg.rstrip('%')
+                return decimal.Decimal(arg) / 100
+            return decimal.Decimal(arg)
+        except decimal.InvalidOperation:
+            raise commands.BadArgument(f'Decimal syntax error: {arg!r}')
 
 
 def round_dollars(d) -> decimal.Decimal:
@@ -261,6 +266,9 @@ class Graphing(commands.Cog):
         ax.set_xlabel('Term')
         ax.set_ylabel('Amount')
 
+        # Force integer ticks
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
         # Set fonts
         labels = (
             [ax.title, ax.xaxis.label, ax.yaxis.label]
@@ -298,8 +306,11 @@ class Graphing(commands.Cog):
 
         # Create message
         simple_amount = p + simple_interest
-        message = 'Future Values: {} simple; {} compound'.format(
-            format_dollars(simple_amount), format_dollars(maximum))
+        message = (
+            'Present Value: {}\n'
+            'Future Values: {} simple; {} compound'
+        ).format(format_dollars(p), format_dollars(simple_amount),
+                 format_dollars(maximum))
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
