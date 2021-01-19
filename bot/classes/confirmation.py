@@ -17,7 +17,13 @@ class ConfirmationEmoji:
 
 
 class EmbedConfirmation(abc.ABC):
-    """The base class for embed confirmations."""
+    """The base class for embed confirmations.
+
+    Args:
+        ctx (discord.ext.commands.Context)
+        color (int): The color of the embed.
+
+    """
     def __init__(self, ctx, color=0):
         self.ctx = ctx
         self.color = color
@@ -114,16 +120,27 @@ class ReactionConfirmation(EmbedConfirmation):
 
 
 class TextConfirmation(EmbedConfirmation):
-    """An embed confirmation that takes its input using messages."""
-    def __init__(self, ctx, color=0):
+    """An embed confirmation that takes its input using messages.
+
+    Args:
+        yes (Union[str, Iterable[str]])
+        no (Union[str, Iterable[str]])
+
+    """
+    def __init__(self, ctx, color=0, yes=('yes', 'y'), no=('no', 'n')):
         super().__init__(ctx, color)
 
-        self.yes = ('yes', 'y')
-        self.no = ('no', 'n')
+        self.yes = (yes,) if isinstance(yes, str) else yes
+        self.no = (no,) if isinstance(no, str) else no
 
     def _create_embed(self, title: str) -> discord.Embed:
         embed = EmbedConfirmation._create_embed(self, title)
-        self.embed.set_footer(text='Respond by typing *yes* or *no*')
+        self.embed.set_footer(
+            text='Respond by typing *{yes}* or *{no}*'.format(
+                yes='/'.join([str(s) for s in self.yes]),
+                no='/'.join([str(s) for s in self.no])
+            )
+        )
         return embed
 
     async def _prompt(self, title: str) -> discord.Message:
@@ -149,7 +166,7 @@ class TextConfirmation(EmbedConfirmation):
 
 class AdaptiveConfirmation(ReactionConfirmation, TextConfirmation):
     """An embed confirmation that uses reactions if possible,
-    otherwise asks via text. Implements the EmbedConfirmation interface."""
+    otherwise asks via text."""
     def __init__(self, ctx, color=0):
         super().__init__(ctx, color)
 
