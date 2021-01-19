@@ -7,6 +7,9 @@ import os
 
 import discord
 from discord.ext import commands
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.style as mplstyle
 
 from bot import checks
 from bot import database
@@ -64,6 +67,10 @@ async def main():
 
     # Set up databases
     database.setup()
+
+    # Use a non-GUI based backend for matplotlib
+    matplotlib.use('Agg')
+    mplstyle.use('fast')
 
     # Set up client
     TOKEN = os.getenv('PyDiscordBotToken')
