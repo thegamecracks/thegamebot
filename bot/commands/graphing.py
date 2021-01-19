@@ -85,7 +85,7 @@ class Graphing(commands.Cog):
     qualified_name = 'Graphing'
     description = (
         'Commands for graphing things.\n'
-        'Most of the text-related commands can support obtaining text by: '
+        'Most of the text-related commands can support obtaining text using: '
         'the "text" parameter; file attachment; replying to a message; '
         'or the last message that was sent.'
     )
@@ -266,22 +266,20 @@ class Graphing(commands.Cog):
         ax.set_xlabel('Term')
         ax.set_ylabel('Amount')
 
+        # Remove the x-axis margins
+        ax.margins(x=0)
+
         # Force integer ticks
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-        # Set fonts
+        # Set colors and add shadow to labels
         labels = (
             [ax.title, ax.xaxis.label, ax.yaxis.label]
             + ax.get_legend().get_texts() + ax.get_xticklabels()
             + ax.get_yticklabels()
         )
         for item in labels:
-            item.set_family('calibri')
             item.set_color(bot_color)
-            item.set_fontsize(16)
-        ax.title.set_fontsize(18)
-        for item in labels:
-            # Add shadow
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
                     offset=(1, -1),
@@ -289,20 +287,10 @@ class Graphing(commands.Cog):
                 )
             ])
 
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
         # Color the spines and ticks
         for spine in ax.spines.values():
             spine.set_color(bot_color)
         ax.tick_params(colors=bot_color)
-
-        # Remove the x-axis margins
-        ax.margins(x=0)
-
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
 
         # Create message
         simple_amount = p + simple_interest
@@ -408,13 +396,10 @@ periods: The number of compounding periods in each term."""
         # Force integer ticks
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
-        # Set fonts
+        # Set colors and add shadow to labels
         for item in ([ax.title, ax.xaxis.label, ax.yaxis.label]
                      + ax.get_xticklabels() + ax.get_yticklabels()):
-            item.set_family('calibri')
-            item.set_fontsize(18)
             item.set_color(bot_color)
-            # Add shadow
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
                     offset=(1, -1),
@@ -422,17 +407,10 @@ periods: The number of compounding periods in each term."""
                 )
             ])
 
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
         # Color the spines and ticks
         for spine in ax.spines.values():
             spine.set_color(bot_color)
         ax.tick_params(colors=bot_color)
-
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
@@ -574,12 +552,10 @@ To see the different methods you can use to provide text, check the help message
             )
         # NOTE: newline is appended at the end just to pad it from the labels
 
-        # Set fonts
+        # Set font styles
         all_text = texts + autotexts
         for item in ([ax.title] + all_text):
-            item.set_family('calibri')
             item.set_color(bot_color)
-        ax.title.set_fontsize(18)
         for item in all_text:
             # Add shadow
             item.set_path_effects([
@@ -592,10 +568,6 @@ To see the different methods you can use to provide text, check the help message
             item.set_fontsize(16)
         for item in autotexts:
             item.set_fontsize(12)
-
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
@@ -667,11 +639,10 @@ To see the different methods you can use to provide text, check the help message
         # we have data for.
         ax.set_yticks(yticks)
 
-        # Set fonts
+        # Set colors
         for item in ([ax.xaxis.label, ax.yaxis.label, ax.zaxis.label]
                      + ax.get_xticklabels() + ax.get_yticklabels()
                      + ax.get_zticklabels()):
-            item.set_family('calibri')
             item.set_color(bot_color)
 
         # Set spine and pane colors
@@ -681,10 +652,6 @@ To see the different methods you can use to provide text, check the help message
 
         # Set tick colors
         ax.tick_params(colors=bot_color)
-
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
 
         return fig, ax
 

@@ -70,7 +70,7 @@ async def main():
 
     # Use a non-GUI based backend for matplotlib
     matplotlib.use('Agg')
-    mplstyle.use('fast')
+    mplstyle.use(['data/discord.mplstyle', 'fast'])
 
     # Set up client
     TOKEN = os.getenv('PyDiscordBotToken')
