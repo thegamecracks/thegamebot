@@ -202,7 +202,7 @@ class IrishSquad(commands.Cog):
         has_guild_permissions_dm_safe(manage_guild=True),
         checks.is_bot_owner()
     )
-    @commands.cooldown(1, 60, commands.BucketType.guild)
+    @commands.cooldown(1, 60)
     async def client_charges_reset(self, ctx):
         """Reset the number of charges everyone has.
 This requires a confirmation."""
@@ -226,7 +226,7 @@ This requires a confirmation."""
 
     @client_charges.command(name='vacuum', aliases=('cleanup',))
     @checks.is_bot_owner()
-    @commands.cooldown(1, 60, commands.BucketType.default)
+    @commands.cooldown(1, 60)
     async def client_irish_vacuum(self, ctx):
         """Clean up the database."""
         if not self.bot.intents.members:

@@ -245,7 +245,6 @@ class Games(commands.Cog):
 
     @commands.command(name='testpages')
     @commands.is_owner()
-    @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_testpages(self, ctx):
         """Create a simple paginator."""
         embeds = [
@@ -267,7 +266,6 @@ class Games(commands.Cog):
 
     @commands.command(name='testconfirmation')
     @commands.is_owner()
-    @commands.max_concurrency(1, commands.BucketType.channel)
     async def client_testconfirmation(self, ctx):
         """Create a test confirmation prompt."""
         prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())

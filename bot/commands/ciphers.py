@@ -209,6 +209,7 @@ class Ciphers(commands.Cog):
     @commands.cooldown(2, 5, commands.BucketType.member)
     async def client_ciphercaesar(self, ctx, shift: int, *, string: str):
         """Takes an amount of letters to shift and a string.
+
 shift: An integer amount of letters to shift. Can be a negative integer.
 string: A string to cipher."""
         await ctx.send(self.ciphercaesar(shift, string))
@@ -239,10 +240,12 @@ string: A string to cipher."""
         name='reversecipher',
         brief='The Reverse Cipher.',
         aliases=('reverse',))
-    async def client_cipherreverse(self, ctx, *, string: str):
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    async def client_cipherreverse(self, ctx, *, message: str):
         """Takes a string and reverses it.
-string: A string to cipher."""
-        result = string[::-1]
+
+message: A message to cipher."""
+        result = message[::-1]
 
         await ctx.send(result)
 
@@ -283,6 +286,7 @@ for x in range(key):
     @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_ciphercolumnar(self, ctx, key: int, *, string: str):
         """See http://inventwithpython.com/cracking/chapter7.html
+
 key: The integer key to use in the cipher.
  Must be between 2 and half the message size.
 string: A string to cipher.
@@ -352,6 +356,7 @@ This will be the ciphertext."""
                                text: str, key: str):
         """Cipher/decipher alphanumeric text (excluding spaces) \
 using the one-time pad cipher.
+
 mode: Indicate whether to cipher or decipher the text
  ("encode"/"en", "decode"/"de").
 text: The text to cipher/decipher.
@@ -477,9 +482,6 @@ key: The one time key to use."""
             self, ctx, mode: commands.clean_content,
             spacing: commands.clean_content, *, string: str):
         """Translates text to morse code and back.
-mode: Either "encode"/"en" or "decode"/"de". Selects between encoding and decoding.
-spacing: Either "space"/"spaces" or "bar"/"bars". Selects between using " "/" / " and "|"/"||" to show letter and word gaps.
-string: The text or morse code to encrypt/decrypt.
 Allowed characters:
     abcdefghijklmnopqrstuvwxyz 0123456789,;.:?!()+-/=@&_'"
 Prosigns that are encoded and decoded cleanly:
@@ -496,7 +498,11 @@ Prosigns that are decoded differently:
     <BT>  New paragraph           -> =
     <KN>  Invite specific station -> (
     <SN>  Understood (alternate form <VE> can be used, but decodes to <SN>)
-Other characters will be passed through."""
+Other characters will be passed through.
+
+mode: Either "encode"/"en" or "decode"/"de". Selects between encoding and decoding.
+spacing: Either "space"/"spaces" or "bar"/"bars". Selects between using " "/" / " and "|"/"||" to show letter and word gaps.
+string: The text or morse code to encrypt/decrypt."""
         mode = mode.casefold()
         spacing = spacing.casefold()
 
@@ -572,9 +578,10 @@ Other characters will be passed through."""
         name='vigenerecipher',
         brief='The Vigenere Cipher.')
     @commands.cooldown(1, 3, commands.BucketType.member)
-    async def client_vigenerecipher(self, ctx,
-        mode: commands.clean_content, key: str, *, text: str):
+    async def client_vigenerecipher(
+            self, ctx, mode: commands.clean_content, key: str, *, text: str):
         """Encrypt.
+
 mode: Either "encrypt"/"en" or "decrypt"/"de". Selects between encrypting and decrypting.
 key: The key to use.
 text: The text to encrypt/decrypt."""

@@ -6,7 +6,7 @@ import contextlib
 import io
 import textwrap
 import time
-import typing
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -17,11 +17,18 @@ import numpy as np
 from bot import checks
 from bot import settings
 from bot import utils
+from bot.classes.confirmation import AdaptiveConfirmation
 from bot.other import discordlogger
 
 
 def get_user_for_log(ctx):
     return f'{ctx.author} ({ctx.author.id})'
+
+
+def send_restart_signal():
+    """Create a file named RESTART that the batch file running the script
+    loop should detect and recognize to rerun the bot again."""
+    open('RESTART', 'w').close()
 
 
 class Administrative(commands.Cog):
@@ -45,11 +52,6 @@ class Administrative(commands.Cog):
         await ctx.send('Finished blocking.')
 
 
-    @client_block.error
-    async def client_block_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message(), delete_after=6)
 
 
 
@@ -90,7 +92,7 @@ Will reset cooldowns for all subcommands in a group."""
     @commands.command(name='execute')
     @checks.is_bot_owner()
     async def client_execute(
-            self, ctx, sendIOtoDM: typing.Optional[bool] = False, *, x: str):
+            self, ctx, sendIOtoDM: Optional[bool] = False, *, x: str):
         """Run python code in an async condition.
 Graphs can be generated if a Figure is returned.
 
@@ -482,16 +484,42 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
 
 
+    @commands.command(name='restart')
+    @checks.is_bot_owner()
+    async def client_restart(self, ctx):
+        """Restarts the bot."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm(
+            'Are you sure you want to RESTART the bot?')
+
+        if confirmed:
+            await prompt.update('Restarting.', prompt.emoji_yes.color)
+            send_restart_signal()
+            await self.bot.logout()
+        else:
+            await prompt.update('Cancelled restart.', prompt.emoji_no.color)
+
+
+
+
+
     @commands.command(
         name='shutdown',
-        brief='Shutdown the bot.',
         aliases=('close', 'exit', 'quit', 'stop'))
     @checks.is_bot_owner()
     async def client_shutdown(self, ctx):
-        """Shuts down the bot."""
-        print('Shutting down')
-        await ctx.send('Shutting down.')
-        await self.bot.logout()
+        """Shutdown the bot."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm(
+            'Are you sure you want to SHUTDOWN the bot?')
+
+        if confirmed:
+            await prompt.update('Shutting down.', prompt.emoji_yes.color)
+            await self.bot.logout()
+        else:
+            await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
 
 
 
