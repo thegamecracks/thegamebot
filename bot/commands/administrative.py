@@ -14,11 +14,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from bot import checks
-from bot import settings
-from bot import utils
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot.other import discordlogger
+from bot import checks, converters, settings, utils
 
 
 def get_user_for_log(ctx):
@@ -29,6 +27,19 @@ def send_restart_signal():
     """Create a file named RESTART that the batch file running the script
     loop should detect and recognize to rerun the bot again."""
     open('RESTART', 'w').close()
+
+
+class BucketTypeConverter(commands.Converter):
+    async def convert(self, ctx, argument):
+        try:
+            # Convert by number
+            return commands.BucketType(argument)
+        except ValueError:
+            try:
+                # Convert by enum name
+                return getattr(commands.BucketType, argument)
+            except AttributeError:
+                raise commands.BadArgument(f'{argument!r} is not a valid BucketType')
 
 
 class Administrative(commands.Cog):
@@ -55,22 +66,163 @@ class Administrative(commands.Cog):
 
 
 
-
-
-    @commands.command(name='cooldown')
+    @commands.group(name='cooldown', invoke_without_command=True)
     @checks.is_bot_admin()
-    async def client_cooldown(self, ctx, *, command):
-        """Reset your cooldown for a command.
+    async def client_cooldown(self, ctx):
+        """Modify a command's cooldown."""
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
 
-Will reset cooldowns for all subcommands in a group."""
-        com = self.bot.get_command(command)
 
-        if com is None:
-            await ctx.send('Unknown command.', delete_after=6)
+    @client_cooldown.command(name='update')
+    async def client_cooldown_update(
+            self, ctx,
+            command: converters.CommandConverter,
+            rate: Optional[int] = None,
+            per: Optional[float] = None,
+            type: BucketTypeConverter = None):
+        """Update a command's cooldown."""
+        type: commands.BucketType
+        command: commands.Command
 
-        com.reset_cooldown(ctx)
+        # Fill missing arguments
+        old_cool: commands.CooldownMapping = command._buckets
+        if old_cool.valid:
+            rate = old_cool._cooldown.rate if rate is None else rate
+            per = old_cool._cooldown.per if per is None else per
+            type = old_cool._cooldown.type if type is None else type
 
-        await ctx.send('Cooldown reset.', delete_after=6)
+        # Default arguments
+        if type is None:
+            type = commands.BucketType.default
+
+        # Check arguments
+        if rate is None:
+            return await ctx.send(
+                'There is no cooldown; `rate` must be specified.',
+                delete_after=10
+            )
+        elif rate < 1:
+            return await ctx.send('`rate` cannot be below 1.', delete_after=10)
+        elif per is None:
+            return await ctx.send(
+                'There is no cooldown; `per` must be specified.',
+                delete_after=10
+            )
+        elif per < 0:
+            return await ctx.send('`per` cannot be negative.', delete_after=10)
+
+        buckets = commands.CooldownMapping(commands.Cooldown(rate, per, type))
+        command._buckets = buckets
+
+        await ctx.send(f'Updated cooldown for {command.name}.')
+
+
+    @client_cooldown.command(name='reset')
+    async def client_cooldown_reset(self, ctx,
+                                    everyone: Optional[bool] = False,
+                                    *, command: converters.CommandConverter):
+        """Reset a command's cooldown.
+
+everyone: If true, this will reset everyone's cooldown. Otherwise it only
+resets your cooldown.
+command: The name of the command to reset."""
+        command: commands.Command
+
+        if not command._buckets.valid:
+            return await ctx.send('This command does not have a cooldown.',
+                                  delete_after=10)
+
+        if everyone:
+            buckets = command._buckets
+            buckets._cache.clear()
+        else:
+            command.reset_cooldown(ctx)
+
+        await ctx.send(f'Resetted cooldown for {command.name}.')
+
+
+    @client_cooldown.command(name='remove')
+    async def client_cooldown_remove(
+            self, ctx, *, command: converters.CommandConverter):
+        """Remove a command's cooldown."""
+        command: commands.Command
+
+        if not command._buckets.valid:
+            return await ctx.send('This command does not have a cooldown.',
+                                  delete_after=10)
+
+        buckets = commands.CooldownMapping(None)
+        command._buckets = buckets
+
+        await ctx.send(f'Removed cooldown for {command.name}.')
+
+
+
+
+
+    @commands.group(name='concurrency', invoke_without_command=True)
+    @checks.is_bot_admin()
+    async def client_concurrency(self, ctx):
+        """Modify a command's max concurrency."""
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
+
+
+    @client_concurrency.command(name='update')
+    async def client_concurrency_update(
+            self, ctx,
+            command: converters.CommandConverter,
+            number: Optional[int] = None,
+            per: Optional[BucketTypeConverter] = None,
+            wait: bool = None):
+        """Update a command's concurrency limit."""
+        command: commands.Command
+
+        # Fill missing arguments
+        old_con: commands.MaxConcurrency = command._max_concurrency
+        if old_con is not None:
+            number = old_con.number if number is None else number
+            per = old_con.per if per is None else number
+            wait = old_con.wait if wait is None else wait
+
+        # Default arguments
+        if per is None:
+            per = commands.BucketType.default
+        if wait is None:
+            wait = False
+
+        # Check arguments
+        if number is None:
+            return await ctx.send(
+                'There is no concurrency limit; `number` must be specified.',
+                delete_after=10
+            )
+        elif number < 1:
+            return await ctx.send('`number` cannot be below 1.', delete_after=10)
+
+        con = commands.MaxConcurrency(number, per=per, wait=wait)
+        command._max_concurrency = con
+        # NOTE: no need to worry about race conditions since MaxConcurrency.release()
+        # excepts KeyError if the bucket does not exist
+
+        await ctx.send(f'Updated concurrency limits for {command.name}.')
+
+
+    @client_concurrency.command(name='remove')
+    async def client_concurrency_remove(self, ctx, *,
+                                        command: converters.CommandConverter):
+        """Remove a command's max concurrency limit."""
+        command: commands.Command
+
+        if command._max_concurrency is None:
+            return await ctx.send(
+                'This command does not have a max concurrency limit.',
+                delete_after=10
+            )
+
+        command._max_concurrency = None
+        await ctx.send(f'Removed concurrency limits for {command.name}.')
 
 
 

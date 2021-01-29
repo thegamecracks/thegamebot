@@ -4,7 +4,7 @@ from discord.ext import commands
 
 from bot import settings
 
-COMMAND_COOLDOWN_SETTINGS = (15, 42, commands.BucketType.user)
+COMMAND_COOLDOWN_SETTINGS = (20, 60, commands.BucketType.user)
 
 global_checks_wrapped = [
     'command_cooldown',

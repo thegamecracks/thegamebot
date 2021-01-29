@@ -503,3 +503,8 @@ def update_text(before, after):
         yield print(before, end='\r', flush=True)
     finally:
         print(after)
+
+
+def iterable_has(iterable, *args):
+    "Used for parsing *args in commands."
+    return any(s in iterable for s in args)
