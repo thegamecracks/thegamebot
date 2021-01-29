@@ -38,7 +38,9 @@ SAFE_EVAL_WHITELIST = frozenset(
 
 
 def convert_base(base_in: int, base_out: int, n,
-        mapping='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
+                 mapping=('0123456789'
+                          'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                          'abcdefghijklmnopqrstuvwxyz-_')):
     """Converts a number to another base.
     Accepted bases are 2, 36, and all in-between.
     Base 36 uses 0-9 and a-z (case-insensitive).
@@ -56,15 +58,13 @@ def convert_base(base_in: int, base_out: int, n,
     elif min(base_in, base_out) < 2:
         raise ValueError('Given base is less than 2.')
 
-    if base_out == 10 and base_in <= 36 \
-           and mapping == '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-        # int() already represents in base 10, use that for optimization
-        # unless base_in is larger than int()'s maximum base allowed
-        # or the mapping is different that what int() uses
-        # ("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    mapping_normal = mapping.startswith('0123456789ABCDEFGHJIKLMNOPQRSTUVWXYZ')
+
+    if base_out == 10 and base_in <= 36 and mapping_normal:
+        # use int() for optimization
         return int(n, base_in)
 
-    if base_in <= 36 and mapping:
+    if base_in <= 36 and mapping_normal:
         n_int = int(n, base_in)
     else:
         n_int = 0

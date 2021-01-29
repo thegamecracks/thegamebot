@@ -215,11 +215,32 @@ class Graphing(commands.Cog):
 
     def interest_simple_compound(self, p, r, t, n):
         """Return a list of terms and a dictionary mapping the principal
-        and interest over those terms."""
-        terms = np.linspace(0, t, t * n, dtype=int)
+        and interest over those terms.
+
+        Args:
+            p (decimal.Decimal): The principal.
+            r (decimal.Decimal): The interest rate.
+            t (int): The investment term.
+            n (int): The number of compounding periods per term.
+
+        """
+        samples = t*n + 1
+
+        terms = np.linspace(0, t, samples)
+
+        # decimal.Decimal() arrays can't be created with linspace()
+        # (see numpy #8909), so this linear space has to be done manually.
+        payments = np.ndarray((samples,), dtype=decimal.Decimal)
+        start = decimal.Decimal()
+        step = decimal.Decimal(t) / (t * n)
+        for i in range(samples):
+            payments[i] = start
+            start += step
+
         principal = np.full(terms.shape, p, dtype=decimal.Decimal)
-        simple_interest = p * r * terms
-        compound_amount = p * (1 + r/n) ** (n * terms)
+
+        simple_interest = p * r * payments
+        compound_amount = p * (1 + r/n) ** (n * payments)
         compound_interest = compound_amount - principal - simple_interest
 
         return terms, {
@@ -320,20 +341,16 @@ principal: The initial investment.
 rate: The interest rate. Can be specified as a percentage.
 term: The number of terms.
 periods: The number of compounding periods in each term."""
-        if not 0 < rate <= 1:
+        if not 0 < rate <= 100:
             return await ctx.send(
-                'The interest rate must be greater than 0% and under 100%.',
-                delete_after=6
+                'The interest rate must be between 0% and 100,000%.',
+                delete_after=10
             )
-        elif not 0 < term <= 100:
+        elif term * periods > min(36500, 36500000 / principal):
+            # This tries keeping the numbers within a reasonable amount
             return await ctx.send(
-                'The term must be between 1 and 100.',
-                delete_after=6
-            )
-        elif not 0 < periods <= 52:
-            return await ctx.send(
-                'The number of periods must be between 1 and 52.',
-                delete_after=6
+                'The principal/term/periods are too large to calculate.',
+                delete_after=10
             )
 
         await ctx.trigger_typing()
@@ -350,6 +367,17 @@ periods: The number of compounding periods in each term."""
 
         await ctx.send(
             content, file=discord.File(f, 'Word Count Pie Chart.png'))
+
+
+    @client_interest.error
+    async def client_interest_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+
+        if isinstance(error, decimal.InvalidOperation):
+            return await ctx.send(
+                'The calculations were too large to handle.',
+                delete_after=10
+            )
 
 
 

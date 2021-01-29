@@ -156,17 +156,17 @@ class Mathematics(commands.Cog):
     async def client_evaluate(self, ctx, *, expr: str):
         """Evaluates a simple mathematical expression.
 Syntax:
-    **: Exponentation
-    //: Floor division
-     %: Modulus
-     ~: Bitwise NOT
-     |: Bitwise OR
-     &: Bitwise AND
-     ^: Bitwise XOR
-    <<: Left Shift
-    >>: Right Shift
-
-Example expression: (1+3) ** -2 - 7 // 9e2
+```yaml
+**: Exponentation
+//: Floor division
+ %: Modulus
+ ~: Bitwise NOT
+ |: Bitwise OR
+ &: Bitwise AND
+ ^: Bitwise XOR
+<<: Left Shift
+>>: Right Shift
+``` Example expression: `(1+3) ** -2 - 7 // 9e2`
 
 To reveal the evaluation of your expression, add --debug to your expression."""
         debugging = '--debug' in expr

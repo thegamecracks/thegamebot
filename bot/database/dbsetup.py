@@ -40,7 +40,7 @@ def get_prefix():
     async def inner(bot, message):
         guild = message.guild
 
-        # If in DMs, get default prefix or use prefix-less invokation
+        # If in DMs, get default prefix
         if guild is None:
             return commands.when_mentioned_or(
                 settings.get_setting('default_prefix')
