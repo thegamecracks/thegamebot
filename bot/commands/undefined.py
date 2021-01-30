@@ -6,6 +6,10 @@ import time
 import discord
 from discord.ext import commands
 
+from bot.classes.confirmation import AdaptiveConfirmation
+from bot.database import GuildDatabase
+from bot import utils
+
 WORDLIST_PATH = 'data/wordlist.txt'
 
 # goodday command
@@ -96,6 +100,7 @@ class Undefined(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.guilddb = GuildDatabase
 
 
 
@@ -203,6 +208,32 @@ https://stackoverflow.com/q/64080277/"""
             await ctx.send(CLIENT_GOODDAY_VARS['afternoonmessage'])
         elif hour <= CLIENT_GOODDAY_VARS['evening']:
             await ctx.send(CLIENT_GOODDAY_VARS['eveningmessage'])
+
+
+
+
+
+    @commands.command(name='leave')
+    @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
+    @commands.cooldown(2, 60, commands.BucketType.guild)
+    async def client_leave(self, ctx):
+        """Ask the bot to leave.
+
+This will remove data about your server but not any associated user
+information such as notes or game scores."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm('Are you sure you want me to leave?')
+
+        if confirmed:
+            await prompt.update('Goodbye world!', prompt.emoji_no.color)
+            await ctx.guild.leave()
+            # TODO: remove user information after some time
+            await self.guilddb.remove_guild(ctx.guild.id)
+        else:
+            await prompt.update('Thanks for keeping me along!',
+                                prompt.emoji_yes.color)
 
 
 
