@@ -10,8 +10,8 @@ from bot import utils
 
 
 class Embedding(commands.Cog):
+    """Commands for creating embeds."""
     qualified_name = 'Embedding'
-    description = 'Commands for creating embeds.'
 
     embed_specs = {
         'title':    ('--title', '-T'),

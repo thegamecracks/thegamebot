@@ -82,13 +82,11 @@ def round_dollars(d) -> decimal.Decimal:
 
 
 class Graphing(commands.Cog):
+    """Commands for graphing things.
+Most of the text-related commands can support obtaining text using:
+the "text" parameter; file attachment; replying to a message;
+or the last message that was sent."""
     qualified_name = 'Graphing'
-    description = (
-        'Commands for graphing things.\n'
-        'Most of the text-related commands can support obtaining text using: '
-        'the "text" parameter; file attachment; replying to a message; '
-        'or the last message that was sent.'
-    )
 
     TEXT_ANALYSIS_FILESIZE_LIMIT = 300_000
     # Maximum file size allowed for client_frequencyanalysis in number of bytes

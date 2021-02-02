@@ -13,8 +13,8 @@ from bot import utils
 # Since the settings file is used as an argument to decorators which are
 # evaluated at runtime, the file must be set up
 class Tasks(commands.Cog):
+    """Commands for controlling background tasks."""
     qualified_name = 'Tasks'
-    description = 'Commands for controlling background tasks.'
 
     def __init__(self, bot):
         self.bot = bot

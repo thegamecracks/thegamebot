@@ -20,8 +20,8 @@ def has_guild_permissions_dm_safe(*args, **kwargs):
 
 
 class IrishSquad(commands.Cog):
+    """Commands for Irish Squad."""
     qualified_name = 'Irish Squad'
-    description = 'Commands for Irish Squad.'
 
     GUILD_ID = 153553830670368769
 

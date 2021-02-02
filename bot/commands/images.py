@@ -39,8 +39,8 @@ def embed_thatapiguy(ctx, response: dict):
 
 
 class Images(commands.Cog):
+    """Commands for getting images."""
     qualified_name = 'Images'
-    description = 'Commands for getting images.'
 
     def __init__(self, bot):
         self.bot = bot

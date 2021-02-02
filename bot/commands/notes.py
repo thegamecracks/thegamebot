@@ -12,8 +12,8 @@ inflector = inflect.engine()
 
 
 class Notes(commands.Cog):
+    """Commands for saving notes."""
     qualified_name = 'Notes'
-    description = 'Commands for saving notes.'
 
     def __init__(self, bot):
         self.bot = bot

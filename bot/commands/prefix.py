@@ -19,8 +19,8 @@ def bot_owner_or_has_guild_permissions(**perms):
 
 
 class Prefix(commands.Cog):
+    """Commands for changing the bot's prefix."""
     qualified_name = 'Prefix'
-    description = "Commands for changing the bot's prefix."
 
     def __init__(self, bot):
         self.bot = bot

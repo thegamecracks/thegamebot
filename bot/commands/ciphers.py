@@ -163,8 +163,8 @@ MORSECODE_PROSIGNS_ENCODE_ONLY = {
 
 
 class Ciphers(commands.Cog):
+    """Commands for encoding/decoding text."""
     qualified_name = 'Ciphers'
-    description = 'Commands for encoding/decoding text.'
 
     def __init__(self, bot):
         self.bot = bot

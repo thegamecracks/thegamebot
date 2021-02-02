@@ -19,7 +19,7 @@ handlers = [
 ]
 
 COMMAND_ERROR_IGNORE_EXCEPTIONS = (
-    commands.CommandNotFound, commands.CheckFailure)
+    commands.CommandNotFound,)
 # Prevents errors from being processed in this set of exceptions
 COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
@@ -217,9 +217,7 @@ async def on_command_error(ctx, error):
     elif ctx.command.callback.__name__ in COMMAND_ERROR_CALLBACK_BLACKLIST:
         # command is to be ignored
         return
-    elif (isinstance(error, ERRORS_TO_LIMIT)
-          or hasattr(error, 'original')
-          and isinstance(error.original, ERRORS_TO_LIMIT)):
+    elif isinstance(getattr(error, 'original', error), ERRORS_TO_LIMIT):
         error_unpacked = getattr(error, 'original', error)
         if command_error_limiter.check_user(ctx, error_unpacked):
             # user is rate limited on receiving a particular error

@@ -21,8 +21,8 @@ dec_or_hex = Union[decimal.Decimal, to_hex]
 
 
 class Mathematics(commands.Cog):
+    """Commands for mathematical operations."""
     qualified_name = 'Mathematics'
-    description = 'Commands for mathematical operations.'
 
     def __init__(self, bot):
         self.bot = bot

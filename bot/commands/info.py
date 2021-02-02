@@ -14,8 +14,8 @@ from bot import converters, settings, utils
 
 
 class Informative(commands.Cog):
+    """Informative commands."""
     qualified_name = 'Informative'
-    description = 'Informative commands.'
 
     ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS = False
     # If True, members of any guild the bot is in can be looked up in DMs.
@@ -150,14 +150,16 @@ Optional settings:
 
         if self.bot.intents.members:
             member_count = sum(not u.bot for u in self.bot.users)
+            s_member_count = f'{member_count:,}'
         else:
-            member_count = 'Unavailable'
+            member_count = sum(g.member_count for g in self.bot.guilds)
+            s_member_count = f'~{member_count:,}'
 
         commands_processed = sum(
             self.bot.info_processed_commands.values()) + 1
 
         field_statistics.extend((
-            f'# Members: {member_count:,}',
+            f'# Members: {s_member_count}',
             f'# Servers: {len(self.bot.guilds):,}',
             f'# Commands: {len(self.bot.commands):,}',
             f'# Commands processed: {commands_processed:,}',

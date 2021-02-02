@@ -36,8 +36,8 @@ CLIENT_PICK_DIALOGUE = (
 
 
 class Randomization(commands.Cog):
+    """Commands with randomized interactions."""
     qualified_name = 'Randomization'
-    description = 'Commands with randomized interactions.'
 
     def __init__(self, bot):
         self.bot = bot

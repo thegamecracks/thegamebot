@@ -95,8 +95,8 @@ def generate_test_message():
 
 
 class Undefined(commands.Cog):
+    """Uncategorized commands."""
     qualified_name = 'Undefined'
-    description = 'Uncategorized commands.'
 
     def __init__(self, bot):
         self.bot = bot

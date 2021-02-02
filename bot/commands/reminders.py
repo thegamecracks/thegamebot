@@ -17,8 +17,8 @@ inflector = inflect.engine()
 
 
 class Reminders(commands.Cog):
+    """Commands for setting up reminders."""
     qualified_name = 'Reminders'
-    description = 'Commands for setting up reminders.'
 
     send_reminders_near_due = datetime.timedelta(minutes=11)
     # NOTE: should be just a bit longer than task loop

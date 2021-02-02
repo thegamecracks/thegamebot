@@ -225,8 +225,8 @@ class UnturnedDatabase:
 
 
 class Games(commands.Cog):
+    """Commands with interactive games and related to other games."""
     qualified_name = 'Games'
-    description = 'Commands with interactive games and related to other games.'
 
     BLACKJACK_SESSION_LENGTH = 30
     # The number of rounds that can be played in a single session.

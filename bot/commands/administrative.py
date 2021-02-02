@@ -43,8 +43,8 @@ class BucketTypeConverter(commands.Converter):
 
 
 class Administrative(commands.Cog):
+    """Administrative commands available for owners/admins."""
     qualified_name = 'Administrative'
-    description = 'Administrative commands available for owners/admins.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -523,6 +523,9 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 return 'This extension failed to be reloaded.'
 
         if extension == 'all':
+            logger.info('Attempting to reload all extensions '
+                        f'by {get_user_for_log(ctx)}')
+            await ctx.trigger_typing()
             # NOTE: must cast dict into list as extensions is mutated
             # during reloading
             for ext in list(self.bot.extensions):
@@ -536,6 +539,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
         else:
             logger.info(f'Attempting to reload {extension} extension '
                         f'by {get_user_for_log(ctx)}')
+            await ctx.trigger_typing()
             result = reload(extension)
             if result is not None:
                 await ctx.send(result)
@@ -648,6 +652,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         if confirmed:
             await prompt.update('Restarting.', prompt.emoji_yes.color)
             send_restart_signal()
+            print(f'Initiating restart by {get_user_for_log(ctx)}')
             await self.bot.logout()
         else:
             await prompt.update('Cancelled restart.', prompt.emoji_no.color)
@@ -669,6 +674,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
         if confirmed:
             await prompt.update('Shutting down.', prompt.emoji_yes.color)
+            print(f'Initiating shutdown by {get_user_for_log(ctx)}')
             await self.bot.logout()
         else:
             await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
