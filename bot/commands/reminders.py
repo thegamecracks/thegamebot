@@ -302,7 +302,7 @@ To remove only one reminder, use the removereminder command."""
         # Create fields for each reminder, limiting them
         # to 140 characters/5 lines
         fields = [
-            utils.truncate_message(reminder['content'], 140, size_lines=5)
+            utils.truncate_message(reminder['content'], 140, max_lines=5)
             for reminder in reminder_list
         ]
         color = utils.get_user_color(ctx.author)

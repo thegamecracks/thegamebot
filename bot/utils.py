@@ -404,103 +404,134 @@ Uses SAFE_EVAL_WHITELIST as the filter."""
 
 
 def truncate_message(
-        message, size=2000, size_lines=None, placeholder='[...]'):
+        message: str, max_size: int = 2000, max_lines: Optional[int] = None,
+        placeholder: str = '[...]') -> str:
     """Truncate a message to a given amount of characters or lines.
 
     This should be used when whitespace needs to be retained as
     `textwrap.shorten` will collapse whitespace.
 
-    Message is stripped of whitespace initially, then strips any
-    trailing whitespace once it determines where to cut the message.
+    Message is stripped of whitespace initially, then after cutting the
+    message to just under max_size, trailing whitespace is stripped.
+
+    The placeholder will be prefixed with a newline if the trailing whitespace
+    that was stripped includes a newline, or if excess lines were removed.
+    Otherwise it will prefix with a space.
+
+    The placeholder will not be prefixed if it would exceed the max_size.
+        >>> truncate_message('Hello world!', 11, placeholder='[...]')
+        'Hello [...]'
+        >>> truncate_message('Hello world!', 10, placeholder='[...]')
+        'Hello[...]'
+
+    If the message is completely wiped and the placeholder exceeds max_size,
+    an empty string is returned.
+        >>> truncate_message('Hello world!', 5, placeholder='[...]')
+        '[...]'
+        >>> truncate_message('Hello world!', 4, placeholder='[...]')
+        ''
 
     Args:
         message (str): The message to truncate.
-        size (int): The max length the message can be.
-        size_lines (Optional[int]): The max number of lines
+        max_size (int): The max length the message can be.
+        max_lines (Optional[int]): The max number of lines
             the message can have.
-        
+        placeholder (str): The placeholder to append if the message
+            gets truncated.
 
     Returns:
         str
 
     """
-    # NOTE: with the new checks at the start, this code might need
-    # a refactoring to improve readability and optimize it
+    def get_trailing_whitespace(s):
+        stripped = s.rstrip()
+        whitespace = s[len(stripped):]
+        return stripped, whitespace
+
+    # Check arguments
+    if max_size < 0:
+        raise ValueError(f'Max size cannot be negative ({max_size!r})')
+    elif max_size == 0:
+        return ''
+    if max_lines is not None:
+        if max_lines < 0:
+            raise ValueError(f'Max lines cannot be negative ({max_lines!r})')
+        elif max_lines == 0:
+            return ''
+
     message = message.strip()
 
     # Check if the message needs to be truncated
-    if len(message) <= size and size_lines is None:
+    under_size = len(message) <= max_size
+    if under_size and max_lines is None:
         return message
     lines = message.split('\n')
-    if size_lines is not None and len(lines) <= size_lines:
-        return message
+    excess_lines = max_lines - len(lines) if max_lines is not None else 0
+    if max_lines is not None:
+        if under_size and excess_lines <= 0:
+            return message
+        else:
+            # Remove excess lines
+            for _ in range(excess_lines):
+                lines.pop()
 
     in_code_block = 0
-    placeholder_length = len(placeholder)
-    chars = 0
+    placeholder_len = len(placeholder)
+    length = 0
+    placeholder_prefix = '\n' if excess_lines > 0 else ' '
+    # Find the line that exceeds max_size
     for line_i, line in enumerate(lines):
-        if size_lines is not None and line_i == size_lines:
-            # Reached maximum lines
-            break
-
         in_code_block = (in_code_block + line.count('```')) % 2
 
-        new_chars = chars + len(line)
+        new_length = length + len(line)
         # Adjust size to compensate for newlines, length of placeholder,
         # and completing the code block if needed
-        adjusted_size = (size - line_i - placeholder_length
-                         - in_code_block * 3)
+        max_size_adjusted = (max_size - line_i - placeholder_len
+                             - in_code_block * 3)
 
-        if new_chars > adjusted_size:
-            # This line exceeds max size; truncate it by word
-            words = line.split(' ')
-            last_word = len(words) - 1  # for compensating space split
-            line_chars = chars
+        if new_length > max_size_adjusted:
+            # This line exceeds max_size_adjusted
+            placeholder_prefix = ' ' if line else '\n'
+            if line:
+                # Find the word that exceeds the length
+                words = line.split(' ')
+                words_len = len(words)
+                length_sub = length
+                wi = 0
+                if words_len > 1:
+                    for wi, w in enumerate(words):
+                        # NOTE: This for-loop should always break
+                        length_sub += len(w)
 
-            for word_i, word in enumerate(words):
-                new_line_chars = line_chars + len(word)
+                        if length_sub > max_size_adjusted:
+                            # This word exceeds the max size; truncate to here
+                            break
 
-                if new_line_chars > adjusted_size:
-                    # This word exceeds the max size; truncate to here
-                    break
+                        if wi != words_len:
+                            length_sub += 1  # Add 1 for space
 
-                if word_i != last_word:
-                    new_line_chars += 1
-
-                line_chars = new_line_chars
-            else:
-                raise ValueError(f'line {line_i:,} exceeded max size but '
-                                 'failed to determine where to '
-                                 'truncate the line')
-
-            # Create truncated line and join it with the other lines
-            line = ' '.join(words[:word_i])
-            new = '\n'.join(lines[:line_i] + [line])
-
-            # Strip trailing whitespace
-            new_striped = new.rstrip()
-
-            # If a newline got removed and size_lines is not maxed out,
-            # use a newline as the placeholder prefix
-            sep = ' '
-            if size_lines is not None and line_i + 1 != size_lines:
-                whitespace = new[len(new_striped):]
-                if '\n' in whitespace:
-                    sep = '\n'
-
-            return (f'{new_striped}{sep}{placeholder}'
-                    f"{'```' * in_code_block}")
+                # Replace with truncated line
+                line = ' '.join(words[:wi])
+                lines[line_i] = line
+            break
         else:
-            chars = new_chars
-    else:
-        # Message did not exceed max size or lines; no truncation
-        return message
-    # Message exceeded max lines but not max size; truncate to line
-    return (
-        '\n'.join(lines[:line_i])
-        + f' {placeholder}'
-        + '```' * in_code_block
-    )
+            length = new_length
+
+    # Join lines together
+    final = '\n'.join(lines[:line_i + 1])
+
+    # Strip trailing whitespace
+    final, whitespace = get_trailing_whitespace(final)
+    final_len = len(final) + placeholder_len + in_code_block * 3
+    if '\n' in whitespace:
+        placeholder_prefix = '\n'
+    if not final or final_len + len(placeholder_prefix) > max_size:
+        placeholder_prefix = ''
+        if final_len > max_size:
+            return ''
+
+    return (f'{final}{placeholder_prefix}{placeholder}'
+            f"{'```' * in_code_block}")
 
 
 # Decorators

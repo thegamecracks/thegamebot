@@ -200,7 +200,7 @@ To remove only one note, use the removenote command."""
 
         # Create fields for each note, limiting them to 140 characters/5 lines
         fields = [
-            utils.truncate_message(note['content'], 140, size_lines=5)
+            utils.truncate_message(note['content'], 140, max_lines=5)
             for note in note_list
         ]
         color = utils.get_user_color(ctx.author)
