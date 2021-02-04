@@ -223,10 +223,10 @@ class HelpCommand(commands.HelpCommand):
         return embed
 
     async def get_commands(self):
-        """Return all sorted commands the bot has categorized by sorted cogs.
+        """Return all sorted commands the bot has, categorized by sorted cogs.
 
         Returns:
-            List[commands.Cog, List[commands.Command]]
+            List[Optional[commands.Cog], List[commands.Command]]
 
         """
         categories = collections.defaultdict(list)

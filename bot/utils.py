@@ -410,14 +410,33 @@ def truncate_message(
     This should be used when whitespace needs to be retained as
     `textwrap.shorten` will collapse whitespace.
 
-    Message is stripped of whitespace.
+    Message is stripped of whitespace initially, then strips any
+    trailing whitespace once it determines where to cut the message.
+
+    Args:
+        message (str): The message to truncate.
+        size (int): The max length the message can be.
+        size_lines (Optional[int]): The max number of lines
+            the message can have.
+        
+
+    Returns:
+        str
 
     """
+    # NOTE: with the new checks at the start, this code might need
+    # a refactoring to improve readability and optimize it
     message = message.strip()
 
-    in_code_block = 0
-
+    # Check if the message needs to be truncated
+    if len(message) <= size and size_lines is None:
+        return message
     lines = message.split('\n')
+    if size_lines is not None and len(lines) <= size_lines:
+        return message
+
+    in_code_block = 0
+    placeholder_length = len(placeholder)
     chars = 0
     for line_i, line in enumerate(lines):
         if size_lines is not None and line_i == size_lines:
@@ -427,7 +446,12 @@ def truncate_message(
         in_code_block = (in_code_block + line.count('```')) % 2
 
         new_chars = chars + len(line)
-        if new_chars > size:
+        # Adjust size to compensate for newlines, length of placeholder,
+        # and completing the code block if needed
+        adjusted_size = (size - line_i - placeholder_length
+                         - in_code_block * 3)
+
+        if new_chars > adjusted_size:
             # This line exceeds max size; truncate it by word
             words = line.split(' ')
             last_word = len(words) - 1  # for compensating space split
@@ -436,9 +460,7 @@ def truncate_message(
             for word_i, word in enumerate(words):
                 new_line_chars = line_chars + len(word)
 
-                if new_line_chars > (
-                        size - len(placeholder)
-                        - in_code_block * 3):
+                if new_line_chars > adjusted_size:
                     # This word exceeds the max size; truncate to here
                     break
 
@@ -447,21 +469,27 @@ def truncate_message(
 
                 line_chars = new_line_chars
             else:
-                raise RuntimeError(f'line {line_i:,} exceeded max size but '
-                                   'failed to determine where to '
-                                   'truncate the line')
+                raise ValueError(f'line {line_i:,} exceeded max size but '
+                                 'failed to determine where to '
+                                 'truncate the line')
 
-            if word_i == 0:
-                # Line becomes empty; go back to last line
-                # and add placeholder
-                break
-            else:
-                # Truncate line and return new message
-                line = ' '.join(words[:word_i] + [placeholder])
-                return (
-                    '\n'.join(lines[:line_i] + [line])
-                    + '```' * in_code_block
-                )
+            # Create truncated line and join it with the other lines
+            line = ' '.join(words[:word_i])
+            new = '\n'.join(lines[:line_i] + [line])
+
+            # Strip trailing whitespace
+            new_striped = new.rstrip()
+
+            # If a newline got removed and size_lines is not maxed out,
+            # use a newline as the placeholder prefix
+            sep = ' '
+            if size_lines is not None and line_i + 1 != size_lines:
+                whitespace = new[len(new_striped):]
+                if '\n' in whitespace:
+                    sep = '\n'
+
+            return (f'{message_striped}{sep}{placeholder}'
+                    f"{'```' * in_code_block}")
         else:
             chars = new_chars
     else:

@@ -295,6 +295,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
             with contextlib.redirect_stdout(f):
                 result = await environment['func']()
         except Exception:
+            # TODO: paginate error message
             error_message = utils.exception_message()
             return await ctx.send(f'```py\n{error_message}```')
 
