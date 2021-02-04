@@ -466,7 +466,7 @@ def truncate_message(
     if under_size and max_lines is None:
         return message
     lines = message.split('\n')
-    excess_lines = max_lines - len(lines) if max_lines is not None else 0
+    excess_lines = len(lines) - max_lines if max_lines is not None else 0
     if max_lines is not None:
         if under_size and excess_lines <= 0:
             return message
