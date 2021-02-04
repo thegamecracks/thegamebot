@@ -488,7 +488,7 @@ def truncate_message(
                 if '\n' in whitespace:
                     sep = '\n'
 
-            return (f'{message_striped}{sep}{placeholder}'
+            return (f'{new_striped}{sep}{placeholder}'
                     f"{'```' * in_code_block}")
         else:
             chars = new_chars
