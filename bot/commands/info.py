@@ -328,6 +328,9 @@ Optional settings:
 
         link = discord.utils.oauth_url(self.bot.user.id, perms)
 
+        # Add slash command scope
+        link = link.replace('scope=bot', 'scope=bot%20applications.commands')
+
         embed = discord.Embed(
             color=utils.get_bot_color(),
             description=f'[OAuth2 Invite Link]({link})'

@@ -7,6 +7,7 @@ import os
 
 import discord
 from discord.ext import commands
+import discord_slash as dslash
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
@@ -107,10 +108,12 @@ async def main():
         bot.uptime_total_downtime = datetime.timedelta()
         bot.uptime_is_online = False
 
-    # Create task to calculate bootup time
-    async def bootup_time(bot, start_time):
-        await bot.wait_until_ready()
-        bot.info_bootup_time = time.perf_counter() - start_time
+    # Setup slash command system
+    with utils.update_text('Adding slash command extension',
+                           'Added slash command extension'):
+        bot.slash = dslash.SlashCommand(
+            bot, auto_register=True, override_type=True
+        )
 
     # Load extensions
     for i, name in enumerate(cogs, start=1):
@@ -120,6 +123,11 @@ async def main():
 
     # Clean up
     del parser, args, attr, i, name
+
+    async def bootup_time(bot, start_time):
+        """Calculate the bootup time of the bot."""
+        await bot.wait_until_ready()
+        bot.info_bootup_time = time.perf_counter() - start_time
 
     # Create tasks
     loop = asyncio.get_running_loop()

@@ -182,7 +182,8 @@ def setup():
         'message_size': 2000,
         'message_limit': 1,
         'owner_ids': [153551102443257856, ],
-        'print_error_mode': 'raise'  # raise, print, None
+        'print_error_mode': 'raise',  # raise, print, None
+        'slash_guild_ids': []
     }
 
     def generate_settings(filename):

@@ -193,7 +193,7 @@ class Hand:
     @property
     def val(self) -> str:
         value = self.maximum
-        if value == 21:
+        if value == 21 and len(self) == 2:
             return 'blackjack'
         elif self.soft:
             return f'soft {value}'
@@ -237,7 +237,7 @@ class BotBlackjackGame:
     EMOJI_DEFAULT = '\N{NO ENTRY}'
 
     def __init__(
-            self, ctx, *, color = 0xE6D94D, deck: Union[int, List[Card]],
+            self, ctx, *, color=0xE6D94D, deck: Union[int, List[Card]],
             message=None):
         self._ctx: commands.Context = ctx
         self._client: discord.Client = ctx.bot
@@ -246,7 +246,7 @@ class BotBlackjackGame:
         self.message: Optional[discord.Message] = message
 
         if isinstance(deck, int):
-            deck = [c for _ in range(decks) for c in CARDS]
+            deck = [c for _ in range(deck) for c in CARDS]
             random.shuffle(deck)
 
         self.deck = deck
@@ -390,8 +390,10 @@ class BotBlackjackGame:
         """Return a string with a list of card emojis for a given hand."""
         return ' '.join([str(self.emoji(c)) for c in hand])
 
-    async def run(self, *, channel=None, users=None,
-                  outro_content='') -> BotBlackjackGameResults:
+    async def run(self, *,
+                  channel: Optional[discord.TextChannel] = None,
+                  users: Optional[List[discord.User]] = None,
+                  outro_content: str = '') -> BotBlackjackGameResults:
         """
         Args:
             channel (Optional[discord.TextChannel]):
@@ -400,6 +402,8 @@ class BotBlackjackGame:
             users (Optional[List[discord.User]]):
                 A list of users that can participate in the game.
                 If None, anyone can participate.
+            outro_content (str): The message's content shown
+                at the end of the game.
         """
         if channel is None:
             channel = self._ctx.channel

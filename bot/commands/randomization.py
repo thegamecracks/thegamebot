@@ -2,6 +2,12 @@ import asyncio
 import random
 
 from discord.ext import commands
+from discord_slash.utils import manage_commands
+from discord_slash import cog_ext as dslash_cog
+from discord_slash import SlashContext
+import discord_slash as dslash
+
+from bot import settings
 
 CLIENT_EIGHTBALL = (
     'It is certain.',
@@ -41,6 +47,11 @@ class Randomization(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.bot.slash.get_cog_commands(self)
+
+
+    def cog_unload(self):
+        self.bot.slash.remove_cog_commands(self)
 
 
 
@@ -167,6 +178,24 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         await ctx.trigger_typing()
         await asyncio.sleep(random.randint(1, 5))
         await ctx.send(random.choice(CLIENT_EIGHTBALL), reference=ctx.message)
+
+
+
+
+
+    @dslash_cog.cog_slash(
+        name='8ball',
+        description="Shake an eight-ball for a question.",
+        options=[manage_commands.create_option(
+            name='question',
+            description='The question to ask. Can be left empty.',
+            option_type=3,
+            required=False
+        )],
+        guild_ids=settings.get_setting('slash_guild_ids')
+    )
+    async def client_slash_eightball(self, ctx: SlashContext, question=''):
+        await ctx.send(content=random.choice(CLIENT_EIGHTBALL))
 
 
 

@@ -5,7 +5,12 @@ import functools
 
 import discord
 from discord.ext import commands
+from discord_slash.utils import manage_commands
+from discord_slash import cog_ext as dslash_cog
+from discord_slash import SlashContext
+import discord_slash as dslash
 
+from bot import settings
 from bot import utils
 
 
@@ -26,6 +31,11 @@ class Embedding(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.bot.slash.get_cog_commands(self)
+
+
+    def cog_unload(self):
+        self.bot.slash.remove_cog_commands(self)
 
 
 
@@ -183,7 +193,6 @@ You will be DM'd for your parameters."""
             )
 
         def check(message):
-            "Wait for a message in the author's DMs."
             return message.channel == ctx.author.dm_channel
 
         link_request = await ctx.author.send(
@@ -246,7 +255,6 @@ You will be DM'd for your parameters."""
             )
 
         def check(message):
-            "Wait for a message in the author's DMs."
             return message.channel == ctx.author.dm_channel
 
         message_request = await ctx.author.send(
@@ -272,6 +280,31 @@ You will be DM'd for your parameters."""
         )
 
         await ctx.send(embed=embed)
+
+
+
+
+
+    @dslash_cog.cog_slash(
+        name='hyperlink',
+        description="Send a message with the ability to replace links with custom text.",
+        options=[manage_commands.create_option(
+            name='message',
+            description="The message to format. Example: text [display text](https://mylink.com/) text",
+            option_type=3,
+            required=True
+        )],
+        guild_ids=settings.get_setting('slash_guild_ids')
+    )
+    async def client_slash_hyperlink(self, ctx: SlashContext, message):
+        if not all(s in message for s in ('(', ')[', ']')):
+            return await ctx.send(
+                content='Your message should use a custom text hyperlink at least once.\n'
+                        'See the example in the message option.',
+                complete_hidden=True
+            )
+        content = f"**Hyperlink message by {ctx.author.mention}**\n{message}"
+        await ctx.send(3, content, allowed_mentions=discord.AllowedMentions.none())
 
 
 
