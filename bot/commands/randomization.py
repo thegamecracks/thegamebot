@@ -49,7 +49,6 @@ class Randomization(commands.Cog):
         self.bot = bot
         self.bot.slash.get_cog_commands(self)
 
-
     def cog_unload(self):
         self.bot.slash.remove_cog_commands(self)
 
