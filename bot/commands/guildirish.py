@@ -1,3 +1,5 @@
+from typing import Optional
+
 import discord
 from discord.ext import commands
 import inflect
@@ -36,17 +38,21 @@ class IrishSquad(commands.Cog):
                                  'available in DMs at this time.')
 
 
+    @property
+    def guild(self) -> Optional[discord.Guild]:
+        return self.bot.get_guild(self.GUILD_ID)
+
+
     def cog_check(self, ctx):
         if isinstance(ctx.author, discord.Member):
             return ctx.author.guild.id == self.GUILD_ID
 
         # In DMs; check if user is part of the guild
-        guild = ctx.bot.get_guild(self.GUILD_ID)
+        # NOTE: this requires members intent
+        guild = self.guild
         if guild is None:
             # RIP
             return False
-
-        # NOTE: this requires members intent in DMs
         return guild.get_member(ctx.author.id) is not None
 
 
@@ -123,31 +129,28 @@ class IrishSquad(commands.Cog):
 
     @client_charges.command(name='number', aliases=('amount',))
     @commands.cooldown(3, 10, commands.BucketType.user)
-    async def client_charges_number(self, ctx, *, user=None):
+    async def client_charges_number(self, ctx, *, user: discord.User = None):
         """Show the number of charges you or someone else has."""
         await ctx.channel.trigger_typing()
 
-        try:
-            user_obj = await commands.UserConverter().convert(ctx, user)
-        except (TypeError, commands.UserNotFound):
-            # TypeError raised when user is None
-            user_obj = ctx.author
+        if user is None:
+            user = ctx.author
 
         try:
-            charges = await self.db.get_charges(user_obj.id, add_user=False)
+            charges = await self.db.get_charges(user.id, add_user=False)
         except ValueError as e:
             # Prevents non-members of the guild from being added
             # to the database
             raise commands.UserNotFound(user) from e
 
-        if user_obj == ctx.author:
+        if user == ctx.author:
             await ctx.send(inflector.inflect(
                 "You have {0:,} plural('charge', {0}).".format(charges)
             ))
         else:
             await ctx.send(inflector.inflect(
                 "{0} has {1:,} plural('charge', {1}).".format(
-                    user_obj.display_name, charges)
+                    user.display_name, charges)
             ))
 
 
@@ -239,7 +242,7 @@ This requires a confirmation."""
             "Are you sure you want to vacuum the database?")
 
         if confirmed:
-            guild = self.bot.get_guild(self.GUILD_ID)
+            guild = self.guild
 
             # Remove all IDs from the Users table if they are
             # not in the guild
