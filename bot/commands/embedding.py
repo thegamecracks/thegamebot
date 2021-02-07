@@ -10,7 +10,6 @@ from discord_slash import cog_ext as dslash_cog
 from discord_slash import SlashContext
 import discord_slash as dslash
 
-from bot import settings
 from bot import utils
 
 
@@ -292,8 +291,7 @@ You will be DM'd for your parameters."""
             description="The message to format. Example: text [display text](https://mylink.com/) text",
             option_type=3,
             required=True
-        )],
-        guild_ids=settings.get_setting('slash_guild_ids')
+        )]
     )
     async def client_slash_hyperlink(self, ctx: SlashContext, message):
         if not all(s in message for s in ('(', ')[', ']')):

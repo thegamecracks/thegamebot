@@ -58,9 +58,9 @@ class Administrative(commands.Cog):
     @checks.is_bot_owner()
     async def client_block(self, ctx, x: int = 20):
         """Block the operation of the bot."""
-        await ctx.send(f'Blocking for {x} seconds.')
+        message = await ctx.send(f'Blocking for {x} seconds.')
         time.sleep(x)
-        await ctx.send('Finished blocking.')
+        await message.edit(content='Finished blocking.')
 
 
 

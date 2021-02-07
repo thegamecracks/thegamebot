@@ -10,6 +10,7 @@ from typing import List, Iterable, Union, Optional
 
 from dateutil.relativedelta import relativedelta
 import discord
+from discord.ext.commands.view import StringView
 import inflect
 import prettify_exceptions
 
@@ -140,6 +141,28 @@ def fuzzy_match_word(s, choices: Iterable[str], return_possible=False) \
         possible_lower = [s.lower() for s in possible]
 
     return possible if return_possible and possible else None
+
+
+def parse_var_positional(s):
+    """Parse a string in the same way as done in a command *args.
+
+    Returns:
+        List[str]
+
+    Raises:
+        discord.ext.commands.ExpectedClosingQuoteError
+        discord.ext.commands.InvalidEndOfQuotedStringError
+        discord.ext.commands.UnexpectedQuoteError
+
+    """
+    view = StringView(s)
+    words = []
+    while not view.eof:
+        view.skip_ws()
+        w = view.get_quoted_word()
+        if w != ' ':
+            words.append(w)
+    return words
 
 
 def timedelta_string(
@@ -301,13 +324,13 @@ def gcd(a, b='high'):
 
 
 def get_bot_color():
-    "Return the bot's color from settings."
+    """Return the bot's color from settings."""
     return int(settings.get_setting('bot_color'), 16)
 
 
 def get_user_color(
         user, default_color=None):
-    "Return a user's role color if they are in a guild, else default_color."
+    """Return a user's role color if they are in a guild, else default_color."""
     return (
         user.color if isinstance(user, discord.Member)
         else default_color if default_color is not None
@@ -565,5 +588,5 @@ def update_text(before, after):
 
 
 def iterable_has(iterable, *args):
-    "Used for parsing *args in commands."
+    """Used for parsing *args in commands."""
     return any(s in iterable for s in args)

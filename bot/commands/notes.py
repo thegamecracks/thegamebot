@@ -11,7 +11,7 @@ import inflect
 
 
 from bot.database import NoteDatabase
-from bot import settings, utils
+from bot import utils
 
 inflector = inflect.engine()
 
@@ -104,8 +104,7 @@ class Notes(commands.Cog):
             description='The content of your note.',
             option_type=3,
             required=True
-        )],
-        guild_ids=settings.get_setting('slash_guild_ids')
+        )]
     )
     async def client_slash_addnote(self, ctx: SlashContext, note):
         max_length = 2000 - len(f'__Note #{self.max_notes_user:,}__\n')
@@ -172,8 +171,7 @@ To remove several notes, use the removenotes command."""
             description='The note to remove.',
             option_type=4,
             required=True
-        )],
-        guild_ids=settings.get_setting('slash_guild_ids')
+        )]
     )
     async def client_slash_removenote(self, ctx: SlashContext, index: int):
         note_list = await self.get_notes(ctx.author.id)
@@ -275,8 +273,7 @@ To remove only one note, use the removenote command."""
             description='The note to view. Leave empty to show all notes.',
             option_type=4,
             required=False
-        )],
-        guild_ids=settings.get_setting('slash_guild_ids')
+        )]
     )
     async def client_slash_shownote(self, ctx: SlashContext, index: int = None):
         note_list = await self.get_notes(ctx.author.id)
