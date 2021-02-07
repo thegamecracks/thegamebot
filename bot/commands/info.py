@@ -2,10 +2,14 @@ import datetime
 import sys
 import random
 import time
-import typing
+from typing import Optional
 
 import discord
 from discord.ext import commands
+from discord_slash.utils import manage_commands
+from discord_slash import cog_ext as dslash_cog
+from discord_slash import SlashContext
+import discord_slash as dslash
 import humanize
 import psutil
 import pytz
@@ -38,6 +42,7 @@ class Informative(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.process = psutil.Process()
+        self.bot.slash.get_cog_commands(self)
 
 
 
@@ -205,10 +210,10 @@ Optional settings:
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_commandinfo(self, ctx, *, command):
         """Get statistics about a command."""
-        def get_group_uses(stats, command):
-            "Recursively count the uses of a command group."
+        def get_group_uses(stats, cmd):
+            """Recursively count the uses of a command group."""
             uses = 0
-            for sub in command.commands:
+            for sub in cmd.commands:
                 if isinstance(sub, commands.Group):
                     uses += get_group_uses(stats, sub)
                 uses += stats[sub.qualified_name]
@@ -309,37 +314,56 @@ Optional settings:
 
 
 
-    @commands.command(name='invite')
-    @commands.cooldown(1, 60, commands.BucketType.channel)
-    async def client_invite(self, ctx):
-        "Get the bot's invite link."
-        perms = discord.Permissions(
-            add_reactions=True,
-            read_messages=True,
-            send_messages=True,
-            embed_links=True,
-            attach_files=True,
-            read_message_history=True,
-            external_emojis=True,
-            change_nickname=True,
-            connect=True,
-            speak=True
-        )
+    def get_invite_link(self, perms: Optional[discord.Permissions] = None,
+                        slash_commands=True):
+        if perms is None:
+            perms = discord.Permissions(
+                add_reactions=True,
+                read_messages=True,
+                send_messages=True,
+                embed_links=True,
+                attach_files=True,
+                read_message_history=True,
+                external_emojis=True,
+                change_nickname=True,
+                connect=True,
+                speak=True
+            )
 
         link = discord.utils.oauth_url(self.bot.user.id, perms)
 
-        # Add slash command scope
-        link = link.replace('scope=bot', 'scope=bot%20applications.commands')
+        if slash_commands:
+            link = link.replace('scope=bot', 'scope=bot%20applications.commands')
 
+        return link
+
+
+    @commands.command(name='invite')
+    @commands.cooldown(1, 60, commands.BucketType.channel)
+    async def client_invite(self, ctx):
+        """Get the bot's invite link."""
+        link = self.get_invite_link()
         embed = discord.Embed(
-            color=utils.get_bot_color(),
-            description=f'[OAuth2 Invite Link]({link})'
+            color=utils.get_bot_color()
+        ).set_author(
+            name=f'—> Invitation link <—',
+            url=link
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
         )
 
         await ctx.send(embed=embed)
+
+
+    @dslash_cog.cog_slash(
+        name='invite',
+        description="Get the invite link for the bot."
+    )
+    async def client_slash_invite(self, ctx: SlashContext):
+        link = self.get_invite_link()
+
+        await ctx.send(content=f'[Invitation link]({link})', complete_hidden=True)
 
 
 
@@ -496,7 +520,7 @@ This command uses the IANA timezone database."""
         name='userinfo')
     @commands.cooldown(3, 20, commands.BucketType.user)
     async def client_userinfo(self, ctx,
-                              streamer_friendly: typing.Optional[bool] = True,
+                              streamer_friendly: Optional[bool] = True,
                               *, user=None):
         """Get information about a user by name or mention.
 
@@ -510,8 +534,6 @@ Format referenced from the Ayana bot."""
         if user is None:
             user = ctx.author
         else:
-            user_input = user
-
             try:
                 user = await commands.MemberConverter().convert(ctx, user)
             except commands.MemberNotFound as e:
@@ -576,6 +598,7 @@ Format referenced from the Ayana bot."""
             description = '*For more information, ' \
                           'use this command in a server.*'
             activity = None
+            guild = None
             joined = None
             nickname = None
             roles = None
