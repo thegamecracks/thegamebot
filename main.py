@@ -21,23 +21,26 @@ from bot import utils
 from bot.other import discordlogger
 
 cogs = [
-    'bot.commands.administrative',
-    'bot.commands.background',
-    'bot.commands.ciphers',
-    'bot.commands.embedding',
-    'bot.commands.games',
-    'bot.commands.graphing',
-    'bot.commands.guildirish',
-    'bot.commands.images',
-    'bot.commands.info',
-    'bot.commands.notes',
-    'bot.commands.prefix',
-    'bot.commands.mathematics',
-    'bot.commands.randomization',
-    'bot.commands.reminders',
-    'bot.commands.undefined',
-    'jishaku',
+    f'bot.commands.{c}' for c in (
+        'administrative',
+        'background',
+        'ciphers',
+        'embedding',
+        'games',
+        'graphing',
+        'guildirish',
+        'images',
+        'info',
+        'mathematics',
+        'notes',
+        'prefix',
+        'randomization',
+        'reminders',
+        'undefined',
+        'uptime',
+    )
 ]
+cogs.extend(('jishaku',))
 
 disabled_intents = [
     'bans', 'integrations', 'webhooks', 'invites',
