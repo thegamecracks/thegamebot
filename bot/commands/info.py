@@ -374,7 +374,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name=f"{len(roles):,} Role{'s' if len(roles) != 1 else ''}",
-            value=', '.join([str(r) for r in roles]),
+            value=', '.join([r.mention for r in roles]),
             inline=False
         )
         embed.set_footer(
@@ -506,7 +506,7 @@ Format referenced from the Ayana bot."""
                 user.joined_at.strftime('%Y/%m/%d %a %X UTC')
             )
             nickname = user.nick
-            roles = [role.name for role in user.roles]
+            roles = user.roles
             if len(roles) > 1:
                 # Has a role(s); remove @everyone
                 roles = roles[:0:-1]
@@ -618,7 +618,7 @@ Format referenced from the Ayana bot."""
         if roles is not None:
             embed.add_field(
                 name=f"{len(roles):,} Role{'s' if len(roles) != 1 else ''}",
-                value=', '.join(roles),
+                value=', '.join([r.mention for r in roles]),
                 inline=False
             )
         embed.set_footer(
