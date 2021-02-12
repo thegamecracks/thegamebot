@@ -1,13 +1,16 @@
 import discord
 from discord.ext import commands
+import emoji
 
 
 class CommandConverter(commands.Converter):
-    """Convert an argument to a Command.
+    """Converts to a Command.
+
     Args:
         run_checks (bool): If True, checks if the bot can run with the
             given command and context. Otherwise returns the command
             regardless if the user is able to run it.
+
     """
     def __init__(self, run_checks=True):
         self.run_checks = True
@@ -66,3 +69,19 @@ class CommandConverter(commands.Converter):
         except commands.CheckFailure as e:
             raise commands.BadArgument(str(e)) from e
         return c
+
+
+class UnicodeEmojiConverter(commands.Converter):
+    """Converts to a string unicode emoji.
+
+    This merely just uses regex to verify if the argument
+    is a unicode emoji; no other conversion is done.
+
+    """
+    async def convert(self, ctx, argument):
+        regex = emoji.get_emoji_regexp('en')
+
+        if regex.fullmatch(argument):
+            return argument
+        raise commands.BadArgument(
+            f'Could not convert "{argument}" into a unicode emoji.')

@@ -49,10 +49,8 @@ class Prefix(commands.Cog):
 
         bot_mentions = (f'<@{self.bot.user.id}>', f'<@!{self.bot.user.id}>')
 
-        # Ignore proper/invalid command invokations
-        # ctx = await self.bot.get_context(message)
-        # if ctx.valid:
-        #     return
+        # Check if the message content ONLY consists of the mention
+        # and return otherwise
         if message.content not in bot_mentions:
             return
 
