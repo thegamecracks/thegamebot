@@ -12,15 +12,6 @@ from bot import utils
 inflector = inflect.engine()
 
 
-def has_guild_permissions_dm_safe(*args, **kwargs):
-    """A variant of has_guild_permissions that does not throw NoPrivateMessage
-    in DMs."""
-    original = commands.has_guild_permissions(*args, **kwargs).predicate
-    async def predicate(ctx):
-        return ctx.guild is not None and await original(ctx)
-    return commands.check(predicate)
-
-
 class IrishSquad(commands.Cog):
     """Commands for Irish Squad."""
     qualified_name = 'Irish Squad'
@@ -202,7 +193,7 @@ class IrishSquad(commands.Cog):
 
     @client_charges.command(name='reset')
     @commands.check_any(
-        has_guild_permissions_dm_safe(manage_guild=True),
+        commands.has_guild_permissions(manage_guild=True),
         checks.is_bot_owner()
     )
     @commands.cooldown(1, 60)

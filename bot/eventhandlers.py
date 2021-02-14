@@ -19,7 +19,7 @@ handlers = [
 ]
 
 COMMAND_ERROR_IGNORE_EXCEPTIONS = (
-    commands.CommandNotFound,)
+    commands.CommandNotFound, commands.CheckFailure)
 # Prevents errors from being processed in this set of exceptions
 COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
