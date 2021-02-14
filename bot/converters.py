@@ -74,14 +74,12 @@ class CommandConverter(commands.Converter):
 class UnicodeEmojiConverter(commands.Converter):
     """Converts to a string unicode emoji.
 
-    This merely just uses regex to verify if the argument
+    This merely just uses a lookup table to verify if the argument
     is a unicode emoji; no other conversion is done.
 
     """
     async def convert(self, ctx, argument):
-        regex = emoji.get_emoji_regexp('en')
-
-        if regex.fullmatch(argument):
+        if argument in emoji.UNICODE_EMOJI_ALIAS_ENGLISH:
             return argument
         raise commands.BadArgument(
             f'Could not convert "{argument}" into a unicode emoji.')
