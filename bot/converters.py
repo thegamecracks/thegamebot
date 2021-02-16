@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import emoji
 
+__all__ = ('CommandConverter', 'UnicodeEmojiConverter')
+
 
 class CommandConverter(commands.Converter):
     """Converts to a Command.
@@ -77,9 +79,23 @@ class UnicodeEmojiConverter(commands.Converter):
     This merely just uses a lookup table to verify if the argument
     is a unicode emoji; no other conversion is done.
 
+    Args:
+        partial_emoji (bool): If True, returns a discord.PartialEmoji
+            instead of just the emoji as a string.
+
+    Returns:
+        PartialEmoji
+        str
+
     """
+    def __init__(self, partial_emoji=False):
+        self.partial_emoji = partial_emoji
+
     async def convert(self, ctx, argument):
         if argument in emoji.UNICODE_EMOJI_ALIAS_ENGLISH:
+            if self.partial_emoji:
+                return discord.PartialEmoji(name=argument)
             return argument
+
         raise commands.BadArgument(
             f'Could not convert "{argument}" into a unicode emoji.')
