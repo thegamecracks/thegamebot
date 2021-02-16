@@ -4,20 +4,9 @@ from discord.ext import commands
 
 from bot import settings
 
-COMMAND_COOLDOWN_SETTINGS = (20, 60, commands.BucketType.user)
-
-global_checks_wrapped = [
-    'command_cooldown',
-]
-
-GlobalCheckPredicate = collections.namedtuple(
-    'GlobalCheckPredicate', ['predicate', 'call_once'],
-    defaults={'call_once': False}
-)
-
 
 # Errors
-class UserOnCooldown(commands.CheckFailure):
+class UserOnCooldown(commands.CommandError):
     """Raised when a user has invoked too many commands
     and is being globally ratelimited."""
     __slots__ = ('retry_after',)
@@ -37,24 +26,6 @@ class InvalidBotOwner(InvalidIdentification):
 
 class InvalidBotAdmin(InvalidIdentification):
     """Raised when a command requires the user to be in ADMIN_IDS."""
-
-
-# Global checks
-def command_cooldown(bot):
-    mapping = commands.CooldownMapping.from_cooldown(
-        *COMMAND_COOLDOWN_SETTINGS)
-
-    async def predicate(ctx):
-        bucket = mapping.get_bucket(ctx.message)
-        if bucket.update_rate_limit():
-            # user is rate limited
-            raise UserOnCooldown(
-                bucket.get_retry_after(),
-                'User is using commands too frequently.'
-            )
-        return True
-
-    return GlobalCheckPredicate(predicate, call_once=True)
 
 
 # Checks
@@ -92,7 +63,38 @@ def is_in_guild(guild_id):
     return commands.check(predicate)
 
 
+class Checks(commands.Cog):
+    """Global bot checks."""
+
+    GLOBAL_COOLDOWN_SETTINGS = (20, 60, commands.BucketType.user)
+
+    def __init__(self, bot, *, global_cooldown_settings=None):
+        """
+        Args:
+            bot (commands.Bot): The discord bot.
+            global_cooldown_settings (Optional[Tuple[int, int, commands.BucketType]]):
+                The settings to use for the global cooldown (rate, per, type).
+                Defaults to self.GLOBAL_COOLDOWN_SETTINGS.
+
+        """
+        self.bot = bot
+
+        if global_cooldown_settings is None:
+            global_cooldown_settings = self.GLOBAL_COOLDOWN_SETTINGS
+        self.global_cooldown = commands.CooldownMapping.from_cooldown(
+            *global_cooldown_settings)
+
+    def bot_check_once(self, ctx):
+        # Global cooldown
+        bucket = self.global_cooldown.get_bucket(ctx.message)
+        if bucket.update_rate_limit():
+            raise UserOnCooldown(
+                bucket.get_retry_after(),
+                'User is using commands too frequently.'
+            )
+
+        return True
+
+
 def setup(bot):
-    for check in global_checks_wrapped:
-        predicate, call_once = globals()[check](bot)
-        bot.add_check(predicate, call_once=call_once)
+    bot.add_cog(Checks(bot))
