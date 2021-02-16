@@ -40,10 +40,6 @@ class Informative(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.process = psutil.Process()
-        self.bot.slash.get_cog_commands(self)
-
-    def cog_unload(self):
-        self.bot.slash.remove_cog_commands(self)
 
 
 
@@ -284,14 +280,13 @@ Optional settings:
         await ctx.send(embed=embed)
 
 
-    @dslash_cog.cog_slash(
-        name='invite',
-        description="Get the invite link for the bot."
-    )
+    @dslash_cog.cog_slash(name='invite')
     async def client_slash_invite(self, ctx: SlashContext):
+        """Get the invite link for the bot."""
         link = self.get_invite_link()
 
-        await ctx.send(content=f'[Invitation link]({link})', complete_hidden=True)
+        await ctx.respond(eat=True)
+        await ctx.send(content=f'[Invitation link]({link})', hidden=True)
 
 
 

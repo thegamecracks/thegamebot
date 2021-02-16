@@ -46,10 +46,6 @@ class Randomization(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.bot.slash.get_cog_commands(self)
-
-    def cog_unload(self):
-        self.bot.slash.remove_cog_commands(self)
 
 
 
@@ -183,7 +179,6 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
 
     @dslash_cog.cog_slash(
         name='8ball',
-        description="Shake an eight-ball for a question.",
         options=[manage_commands.create_option(
             name='question',
             description='The question to ask. Can be left empty.',
@@ -192,7 +187,9 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         )]
     )
     async def client_slash_eightball(self, ctx: SlashContext, question=''):
-        await ctx.send(content=random.choice(CLIENT_EIGHTBALL))
+        """Shake an eight-ball for a question."""
+        await ctx.respond()
+        await ctx.send(random.choice(CLIENT_EIGHTBALL))
 
 
 
@@ -215,7 +212,6 @@ Ayana command used as reference."""
 
     @dslash_cog.cog_slash(
         name='pick',
-        description="Choose one of the given options.",
         options=[manage_commands.create_option(
             name='first',
             description='The first option.',
@@ -236,8 +232,9 @@ Ayana command used as reference."""
     )
     async def client_slash_pick(self, ctx: SlashContext,
                                 choice1, choice2, extra=None):
-        """Select one of your given choices.
-Ayana command used as reference."""
+        """Choose one of the given options."""
+        await ctx.respond()
+
         if extra is not None:
             choices = utils.parse_var_positional(extra)
         else:
@@ -248,7 +245,7 @@ Ayana command used as reference."""
         selected = random.choice(CLIENT_PICK_DIALOGUE).format(
             choice=random.choice(choices))
 
-        await ctx.send(content=selected)
+        await ctx.send(selected)
 
 
 

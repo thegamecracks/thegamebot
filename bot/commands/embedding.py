@@ -30,10 +30,6 @@ class Embedding(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.bot.slash.get_cog_commands(self)
-
-    def cog_unload(self):
-        self.bot.slash.remove_cog_commands(self)
 
 
 
@@ -285,7 +281,6 @@ You will be DM'd for your parameters."""
 
     @dslash_cog.cog_slash(
         name='hyperlink',
-        description="Send a message with the ability to replace links with custom text.",
         options=[manage_commands.create_option(
             name='message',
             description="The message to format. Example: text [display text](https://mylink.com/) text",
@@ -294,14 +289,16 @@ You will be DM'd for your parameters."""
         )]
     )
     async def client_slash_hyperlink(self, ctx: SlashContext, message):
+        """Send a message with the ability to replace links with custom text."""
+        await ctx.respond(eat=True)
         if not all(s in message for s in ('(', ')[', ']')):
             return await ctx.send(
-                content='Your message should use a custom text hyperlink at least once.\n'
-                        'See the example in the message option.',
-                complete_hidden=True
+                'Your message should use a custom text hyperlink at least once.\n'
+                'See the example in the message option.',
+                hidden=True
             )
         content = f"**Hyperlink message by {ctx.author.mention}**\n{message}"
-        await ctx.send(3, content, allowed_mentions=discord.AllowedMentions.none())
+        await ctx.send(content, allowed_mentions=discord.AllowedMentions.none())
 
 
 

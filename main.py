@@ -114,9 +114,7 @@ async def main():
     # Setup slash command system
     with utils.update_text('Adding slash command extension',
                            'Added slash command extension'):
-        bot.slash = dslash.SlashCommand(
-            bot, auto_register=True, override_type=True
-        )
+        bot.slash = dslash.SlashCommand(bot, sync_commands=True, sync_on_cog_reload=True)
 
     # Load extensions
     for i, name in enumerate(cogs, start=1):
