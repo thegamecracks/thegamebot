@@ -9,8 +9,10 @@ class Database:
     Methods:
         add_row(table, row)
         delete_rows(table, *, where)
-        get_rows(table, *columns, where=None, as_row=True)
+        get_one(table, *, where, as_row=True)
+        get_rows(table, *, where, as_row=True)
         update_rows(table, row, *, where)
+        yield_rows(table, *, where)
 
         vacuum()
 

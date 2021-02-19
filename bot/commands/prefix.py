@@ -42,9 +42,8 @@ class Prefix(commands.Cog):
                 pass
 
         # Ignore messages that are from bot or didn't mention the bot
-        if self.bot.user not in message.mentions:
-            return
-        if message.author == self.bot.user:
+        if (self.bot.user not in message.mentions
+                or message.author == self.bot.user):
             return
 
         bot_mentions = (f'<@{self.bot.user.id}>', f'<@!{self.bot.user.id}>')
@@ -109,8 +108,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
             # Escape escape characters before printing
             clean_prefix = prefix.replace('\\', r'\\')
             await self.prefixdb.update_prefix(ctx.guild.id, prefix)
-            await ctx.send(
-                f'Successfully changed prefix to: "{clean_prefix}"')
+            await ctx.send(f'Successfully changed prefix to: "{clean_prefix}"')
 
 
     @client_changeprefix.error

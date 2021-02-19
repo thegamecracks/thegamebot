@@ -66,7 +66,7 @@ def is_in_guild(guild_id):
 class Checks(commands.Cog):
     """Global bot checks."""
 
-    GLOBAL_COOLDOWN_SETTINGS = (20, 60, commands.BucketType.user)
+    GLOBAL_COOLDOWN_SETTINGS = (15, 60, commands.BucketType.user)
 
     def __init__(self, bot, *, global_cooldown_settings=None):
         """

@@ -212,13 +212,13 @@ async def on_resumed():
 
 
 async def on_command_error(ctx, error):
+    error_unpacked = getattr(error, 'original', error)
     if isinstance(error, COMMAND_ERROR_IGNORE_EXCEPTIONS):
         return
     elif ctx.command.callback.__name__ in COMMAND_ERROR_CALLBACK_BLACKLIST:
         # command is to be ignored
         return
-    elif isinstance(getattr(error, 'original', error), ERRORS_TO_LIMIT):
-        error_unpacked = getattr(error, 'original', error)
+    elif isinstance(error_unpacked, ERRORS_TO_LIMIT):
         if command_error_limiter.check_user(ctx, error_unpacked):
             # user is rate limited on receiving a particular error
             return
@@ -351,7 +351,7 @@ async def on_command_error(ctx, error):
             commands.BotMissingAnyRole)):
         await ctx.send(
             'I am {}'.format(
-                missing_x_to_run('role', convert_roles(error.missing_perms))
+                missing_x_to_run('role', convert_roles(error.missing_roles))
             ),
             delete_after=10
         )
@@ -362,9 +362,11 @@ async def on_command_error(ctx, error):
     #     ))
     #     pass
     elif isinstance(error, commands.ChannelNotFound):
-        await ctx.send('I cannot find the given channel.', delete_after=8)
+        await ctx.send('I cannot find the given channel '
+                       f'"{error.argument}".', delete_after=8)
     elif isinstance(error, commands.ChannelNotReadable):
-        await ctx.send('I cannot read messages in the channel.', delete_after=8)
+        await ctx.send('I cannot read messages in the channel '
+                       f'{error.argument.mention}.', delete_after=8)
     elif isinstance(error, commands.CommandOnCooldown):
         embed = discord.Embed(
             color=utils.get_bot_color()
@@ -374,7 +376,7 @@ async def on_command_error(ctx, error):
                     round(error.retry_after * 10) / 10
                 )
             ),
-            icon_url=str(ctx.author.avatar_url)
+            icon_url=ctx.author.avatar_url
         )
 
         embed.description = get_cooldown_description(ctx, error)
@@ -396,7 +398,7 @@ async def on_command_error(ctx, error):
             color=utils.get_bot_color()
         ).set_footer(
             text=get_concurrency_description(ctx, error),
-            icon_url=str(ctx.author.avatar_url)
+            icon_url=ctx.author.avatar_url
         )
 
         await ctx.send(embed=embed)
@@ -421,7 +423,7 @@ async def on_command_error(ctx, error):
                             commands.MissingAnyRole)):
         await ctx.send(
             'You are {}'.format(
-                missing_x_to_run('role', convert_roles(error.missing_perms))
+                missing_x_to_run('role', convert_roles(error.missing_roles))
             ),
             delete_after=10
         )
@@ -434,8 +436,7 @@ async def on_command_error(ctx, error):
         # await ctx.send('This command is for the bot owner only.')
         await ctx.send(get_denied_message(), delete_after=6)
     elif isinstance(error, commands.NSFWChannelRequired):
-        await ctx.send('The given channel must be marked as NSFW.',
-                       delete_after=10)
+        await ctx.send('The channel must be marked as NSFW.', delete_after=10)
     elif isinstance(error, commands.UnexpectedQuoteError):
         await ctx.send('Did not expect a quotation mark.', delete_after=10)
     elif isinstance(error, (commands.UserNotFound,
@@ -456,13 +457,12 @@ async def on_command_error(ctx, error):
                 'You can retry in {0} plural("second", {0}).'.format(
                     round(error.retry_after * 10) / 10)
             ),
-            icon_url=str(ctx.author.avatar_url)
+            icon_url=ctx.author.avatar_url
         )
 
         await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
-    elif (isinstance(error, commands.CommandInvokeError)
-          and isinstance(error.original, discord.Forbidden)
-          and error.original.code == 50007):
+    elif (isinstance(error_unpacked, discord.Forbidden)
+          and error_unpacked.code == 50007):
         # Cannot send messages to this user
         await ctx.send('I tried DMing you but you have your DMs '
                        'disabled for this server.', delete_after=10)
