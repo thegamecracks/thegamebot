@@ -18,9 +18,11 @@ handlers = [
     'on_resumed',
 ]
 
-COMMAND_ERROR_IGNORE_EXCEPTIONS = (
-    commands.CommandNotFound, commands.CheckFailure)
+COMMAND_ERROR_IGNORE_EXCEPTIONS = (commands.CommandNotFound,)
 # Prevents errors from being processed in this set of exceptions
+COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
+# Same as above except this prevents raising the error if the exception
+# was not matched. Helpful for ignoring superclasses of exceptions.
 COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
 # specified by the callback name of the command ('client_execute', etc.)
@@ -139,6 +141,8 @@ class CommandErrorCooldown:
         }
 
     def check_user(self, ctx, error):
+        """Check if a user is ratelimited for an exception.
+        Returns True if they are ratelimited."""
         mapping = self.error_mapping.get(type(error))
         if mapping is None:
             return False
@@ -156,6 +160,7 @@ ERRORS_TO_LIMIT_COOLDOWN_MAPPING = {
     commands.MissingPermissions: None,
     commands.MissingRole: None,
     commands.NoPrivateMessage: None,
+    commands.PrivateMessageOnly: None,
     commands.NotOwner: None,
     commands.UserInputError: (5, 30, commands.BucketType.user),
     checks.UserOnCooldown: (1, 5, commands.BucketType.user),
@@ -355,12 +360,6 @@ async def on_command_error(ctx, error):
             ),
             delete_after=10
         )
-    # elif isinstance(error, commands.CommandNotFound):
-    #     Command "x" is not found
-    #     await ctx.send('Unknown command: {}'.format(
-    #         error.args[0].split()[1].strip('"')
-    #     ))
-    #     pass
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send('I cannot find the given channel '
                        f'"{error.argument}".', delete_after=8)
@@ -433,10 +432,12 @@ async def on_command_error(ctx, error):
     elif isinstance(error, (
             commands.NotOwner, checks.InvalidBotOwner,
             checks.InvalidBotAdmin)):
-        # await ctx.send('This command is for the bot owner only.')
         await ctx.send(get_denied_message(), delete_after=6)
     elif isinstance(error, commands.NSFWChannelRequired):
         await ctx.send('The channel must be marked as NSFW.', delete_after=10)
+    elif isinstance(error, commands.PrivateMessageOnly):
+        await ctx.send('You must be in DMs to use this command.',
+                       delete_after=10)
     elif isinstance(error, commands.UnexpectedQuoteError):
         await ctx.send('Did not expect a quotation mark.', delete_after=10)
     elif isinstance(error, (commands.UserNotFound,
@@ -466,7 +467,7 @@ async def on_command_error(ctx, error):
         # Cannot send messages to this user
         await ctx.send('I tried DMing you but you have your DMs '
                        'disabled for this server.', delete_after=10)
-    else:
+    elif not isinstance(error, COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER):
         raise error
 
 
