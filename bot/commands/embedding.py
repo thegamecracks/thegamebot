@@ -2,6 +2,7 @@ import asyncio
 import collections
 import datetime
 import functools
+import re
 
 import discord
 from discord.ext import commands
@@ -27,6 +28,8 @@ class Embedding(commands.Cog):
         'author':             ('--author', '-A'),
         'authorurl':          ('--authorurl', '-AU')
     }
+
+    hyperlink_regex = re.compile('\[.+\]\(.+\)')
 
     def __init__(self, bot):
         self.bot = bot
@@ -291,7 +294,7 @@ You will be DM'd for your parameters."""
     async def client_slash_hyperlink(self, ctx: SlashContext, message):
         """Send a message with the ability to replace links with custom text."""
         await ctx.respond(eat=True)
-        if not all(s in message for s in ('(', ')[', ']')):
+        if not self.hyperlink_regex.search(message):
             return await ctx.send(
                 'Your message should use a custom text hyperlink at least once.\n'
                 'See the example in the message option.',
