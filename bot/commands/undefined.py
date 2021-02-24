@@ -8,7 +8,6 @@ import discord
 from discord.ext import commands
 
 from bot.classes.confirmation import AdaptiveConfirmation
-from bot.converters import UnicodeEmojiConverter
 from bot.database import GuildDatabase
 from bot import utils
 
@@ -129,17 +128,6 @@ Dictionary comes from dwyl/english-words github."""
             await ctx.send(f'{word} is a word.')
         else:
             await ctx.send(f'{word} is not a word.')
-
-
-
-
-
-    @commands.command(name='emojitest')
-    @commands.cooldown(4, 10, commands.BucketType.channel)
-    async def client_emojitest(
-            self, ctx, emoji: Union[discord.Emoji, UnicodeEmojiConverter]):
-        """Echo a custom/unicode emoji."""
-        await ctx.send(emoji)
 
 
 
