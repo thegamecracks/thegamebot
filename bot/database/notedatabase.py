@@ -3,6 +3,8 @@
 Table dependencies:
     Users
 """
+import datetime
+
 from . import userdatabase as user_db
 
 TABLE_NOTES = """
@@ -12,15 +14,16 @@ CREATE TABLE IF NOT EXISTS Notes (
     time_of_entry TIMESTAMP,
     content TEXT NOT NULL,
     FOREIGN KEY(user_id) REFERENCES Users(id)
+        ON DELETE CASCADE
 );
 """
 
 
 class NoteDatabase(user_db.UserDatabase):
-    "Provide an interface to a UserDatabase with a Notes table."
+    """Provide an interface to a UserDatabase with a Notes table."""
 
-    async def add_note(self, user_id: int, time_of_entry,
-            content: str, *, add_user=False):
+    async def add_note(self, user_id: int, time_of_entry: datetime.datetime,
+                       content: str, *, add_user=True):
         """Add a note to the Notes table.
 
         Args:
@@ -32,6 +35,9 @@ class NoteDatabase(user_db.UserDatabase):
                 Otherwise, the user_id foreign key can be violated.
 
         """
+        user_id = int(user_id)
+        content = str(content)
+
         if add_user:
             await self.add_user(user_id)
 
@@ -55,33 +61,32 @@ class NoteDatabase(user_db.UserDatabase):
             List[aiosqlite.Row]: A list of deleted entries if pop is True.
 
         """
+        note_id = int(note_id)
         return await self.delete_rows(
             'Notes', where=f'note_id={note_id}', pop=pop)
 
     async def delete_note_by_user_id(self, user_id: int, entry_num: int):
-        """Delete a note from the Notes table by user_id and entry_num.
+        """Delete a note from the Notes table by user_id and entry_num."""
+        user_id = int(user_id)
 
-        user_id is not escaped.
-
-        """
-        notes = self.get_notes(user_id)
+        notes = await self.get_notes(user_id)
         note_id = notes[entry_num]['note_id']
         await self.delete_rows('Notes', where=f'note_id={note_id}')
 
-    async def get_notes(self, user_id: int, *, as_Row=True):
+    async def get_notes(self, user_id: int, *, as_row=True):
         """Get one or more notes for a user.
-
-        user_id is not escaped.
 
         Args:
             user_id (int): The id of the user to get notes from.
+            as_row (bool)
 
         """
+        user_id = int(user_id)
         return await self.get_rows(
-            'Notes', where=f'user_id={user_id}', as_Row=as_Row)
+            'Notes', where=f'user_id={user_id}', as_row=as_row)
 
 
 def setup(connection):
-    "Set up the Notes table for a sqlite3 connection."
+    """Set up the Notes table with a sqlite3 connection."""
     with connection as conn:
         conn.execute(TABLE_NOTES)

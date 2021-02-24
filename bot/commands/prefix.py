@@ -1,8 +1,9 @@
+# TODO: remove guild from database when removed
 import discord
 from discord.ext import commands
 import inflect
 
-from bot.database import PrefixDatabase, DATABASE_USERS
+from bot.database import PrefixDatabase
 from bot import utils
 
 inflector = inflect.engine()
@@ -18,12 +19,12 @@ def bot_owner_or_has_guild_permissions(**perms):
 
 
 class Prefix(commands.Cog):
+    """Commands for changing the bot's prefix."""
     qualified_name = 'Prefix'
-    description = "Commands for changing the bot's prefix."
 
     def __init__(self, bot):
         self.bot = bot
-        self.prefixdb = PrefixDatabase(DATABASE_USERS)
+        self.prefixdb = PrefixDatabase
         self.mention_prefix_cooldown = commands.CooldownMapping.from_cooldown(
             1, 15, commands.BucketType.member)
 
@@ -41,17 +42,14 @@ class Prefix(commands.Cog):
                 pass
 
         # Ignore messages that are from bot or didn't mention the bot
-        if self.bot.user not in message.mentions:
-            return
-        if message.author == self.bot.user:
+        if (self.bot.user not in message.mentions
+                or message.author == self.bot.user):
             return
 
         bot_mentions = (f'<@{self.bot.user.id}>', f'<@!{self.bot.user.id}>')
 
-        # Ignore proper/invalid command invokations
-        # ctx = await self.bot.get_context(message)
-        # if ctx.valid:
-        #     return
+        # Check if the message content ONLY consists of the mention
+        # and return otherwise
         if message.content not in bot_mentions:
             return
 
@@ -94,7 +92,8 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
 
         if not prefix:
             ctx.command.reset_cooldown(ctx)
-            return await ctx.send('An empty prefix is not allowed.')
+            return await ctx.send(
+                'An empty prefix is not allowed.', delete_after=6)
 
         await ctx.trigger_typing()
 
@@ -103,13 +102,13 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
         )
 
         if prefix == current_prefix:
-            await ctx.send('That is already the current prefix.')
+            await ctx.send('That is already the current prefix.',
+                           delete_after=6)
         else:
             # Escape escape characters before printing
             clean_prefix = prefix.replace('\\', r'\\')
             await self.prefixdb.update_prefix(ctx.guild.id, prefix)
-            await ctx.send(
-                f'Successfully changed prefix to: "{clean_prefix}"')
+            await ctx.send(f'Successfully changed prefix to: "{clean_prefix}"')
 
 
     @client_changeprefix.error

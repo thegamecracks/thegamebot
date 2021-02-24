@@ -10,22 +10,22 @@ import inflect
 
 from bot import utils
 from bot.classes.timeobj import parse_timedelta
-from bot.database import ReminderDatabase, DATABASE_USERS
+from bot.database import ReminderDatabase
 from bot.other import discordlogger
 
 inflector = inflect.engine()
 
 
 class Reminders(commands.Cog):
+    """Commands for setting up reminders."""
     qualified_name = 'Reminders'
-    description = 'Commands for setting up reminders.'
 
     send_reminders_near_due = datetime.timedelta(minutes=11)
     # NOTE: should be just a bit longer than task loop
 
     def __init__(self, bot):
         self.bot = bot
-        self.reminderdb = ReminderDatabase(DATABASE_USERS)
+        self.reminderdb = ReminderDatabase
         self.cache = {}  # user_id: reminders
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
@@ -45,8 +45,8 @@ class Reminders(commands.Cog):
 
 
 
-    async def add_reminder(self, user_id, utcdue, content, add_user=False):
-        "Adds a reminder and invalidates the user's cache."
+    async def add_reminder(self, user_id, utcdue, content, add_user=True):
+        """Adds a reminder and invalidates the user's cache."""
         reminder_id = await self.reminderdb.add_reminder(
             user_id, utcdue, content, add_user=add_user)
         self.cache.pop(user_id, None)
@@ -130,16 +130,19 @@ You can have a maximum of 5 reminders."""
                 return await self.send_with_disclaimer(
                     ctx,
                     'Could not understand your reminder request. Check this '
-                    "command's help page for allowed syntax."
+                    "command's help page for allowed syntax.",
+                    delete_after=6
                 )
 
             if td.total_seconds() < 30:
                 return await self.send_with_disclaimer(
                     ctx, 'You must set a reminder lasting for at '
-                    'least 30 seconds!')
+                    'least 30 seconds.', delete_after=6)
             elif not content:
                 return await self.send_with_disclaimer(
-                    ctx, 'You must have a message with your reminder!')
+                    ctx, 'You must have a message with your reminder.',
+                    delete_after=6
+                )
 
             # Round seconds down if td does not specify seconds
             if td.seconds % 60 == 0:
@@ -148,8 +151,7 @@ You can have a maximum of 5 reminders."""
             utcdue = utcnow + td
 
             await self.add_reminder(
-                ctx.author.id, utcdue, content,
-                add_user=True
+                ctx.author.id, utcdue, content
             )
 
             await self.send_with_disclaimer(
@@ -164,7 +166,7 @@ You can have a maximum of 5 reminders."""
         else:
             await self.send_with_disclaimer(
                 ctx, 'Sorry, but you have reached your maximum limit '
-                'of 5 reminders.'
+                'of 5 reminders.', delete_after=6
             )
 
 
@@ -183,13 +185,13 @@ To remove several reminders, use the removereminders command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You already don't have any reminders.")
+                ctx, "You already don't have any reminders.", delete_after=6)
 
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
             await self.send_with_disclaimer(
-                ctx, 'That reminder index does not exist.')
+                ctx, 'That reminder index does not exist.', delete_after=6)
         else:
             await self.delete_reminder_by_id(reminder['reminder_id'])
             await self.send_with_disclaimer(
@@ -212,23 +214,24 @@ To remove only one reminder, use the removereminder command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You already don't have any reminders.")
+                ctx, "You already don't have any reminders.", delete_after=6)
 
         if indices.lower() == 'all':
             for reminder in reminder_list:
                 await self.delete_reminder_by_id(reminder['reminder_id'])
             await self.send_with_disclaimer(
-                ctx, 'Reminders successfully deleted!')
+                ctx, 'Reminders successfully deleted!', delete_after=6)
 
         else:
             start, end = [int(n) for n in indices.split('-')]
             start -= 1
             if start < 0:
                 return await self.send_with_disclaimer(
-                    ctx, 'Start must be 1 or greater.')
+                    ctx, 'Start must be 1 or greater.', delete_after=6)
             elif end > len(reminder_list):
                 return await self.send_with_disclaimer(
-                    ctx, f'End must only go up to {len(reminder_list)}.')
+                    ctx, f'End must only go up to {len(reminder_list)}.',
+                    delete_after=6)
 
             for i in range(start, end):
                 reminder = reminder_list[i]
@@ -250,17 +253,17 @@ To remove only one reminder, use the removereminder command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You don't have any reminders.")
+                ctx, "You don't have any reminders.", delete_after=6)
 
         if index < 1:
             return await self.send_with_disclaimer(
-                ctx, 'Index must be 1 or greater.')
+                ctx, 'Index must be 1 or greater.', delete_after=6)
 
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
             await self.send_with_disclaimer(
-                ctx, 'That index does not exist.')
+                ctx, 'That index does not exist.', delete_after=6)
         else:
             utcdue = datetime.datetime.fromisoformat(reminder['due'])
             embed = discord.Embed(
@@ -294,12 +297,12 @@ To remove only one reminder, use the removereminder command."""
 
         if len(reminder_list) == 0:
             return await self.send_with_disclaimer(
-                ctx, "You don't have any reminders.")
+                ctx, "You don't have any reminders.", delete_after=6)
 
         # Create fields for each reminder, limiting them
         # to 140 characters/5 lines
         fields = [
-            utils.truncate_message(reminder['content'], 140, size_lines=5)
+            utils.truncate_message(reminder['content'], 140, max_lines=5)
             for reminder in reminder_list
         ]
         color = utils.get_user_color(ctx.author)

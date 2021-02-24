@@ -163,8 +163,8 @@ MORSECODE_PROSIGNS_ENCODE_ONLY = {
 
 
 class Ciphers(commands.Cog):
+    """Commands for encoding/decoding text."""
     qualified_name = 'Ciphers'
-    description = 'Commands for encoding/decoding text.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -209,6 +209,7 @@ class Ciphers(commands.Cog):
     @commands.cooldown(2, 5, commands.BucketType.member)
     async def client_ciphercaesar(self, ctx, shift: int, *, string: str):
         """Takes an amount of letters to shift and a string.
+
 shift: An integer amount of letters to shift. Can be a negative integer.
 string: A string to cipher."""
         await ctx.send(self.ciphercaesar(shift, string))
@@ -239,10 +240,12 @@ string: A string to cipher."""
         name='reversecipher',
         brief='The Reverse Cipher.',
         aliases=('reverse',))
-    async def client_cipherreverse(self, ctx, *, string: str):
+    @commands.cooldown(1, 3, commands.BucketType.member)
+    async def client_cipherreverse(self, ctx, *, message: str):
         """Takes a string and reverses it.
-string: A string to cipher."""
-        result = string[::-1]
+
+message: A message to cipher."""
+        result = message[::-1]
 
         await ctx.send(result)
 
@@ -283,6 +286,7 @@ for x in range(key):
     @commands.cooldown(1, 3, commands.BucketType.member)
     async def client_ciphercolumnar(self, ctx, key: int, *, string: str):
         """See http://inventwithpython.com/cracking/chapter7.html
+
 key: The integer key to use in the cipher.
  Must be between 2 and half the message size.
 string: A string to cipher.
@@ -302,7 +306,7 @@ move to the next column to the right. Skip any shaded boxes.
 This will be the ciphertext."""
         # Test if key is in valid range
         if key < 2 or key > len(string) // 2:
-            return await ctx.send('Key is out of range.')
+            return await ctx.send('Key is out of range.', delete_after=8)
 
         await ctx.send(self.ciphercolumnar(key, string))
 
@@ -348,21 +352,23 @@ This will be the ciphertext."""
         brief='The One-time Pad Cipher.',
         aliases=('otpc',))
     @commands.cooldown(1, 3, commands.BucketType.member)
-    async def client_cipherotp(self, ctx, mode: str, text: str, key: str):
+    async def client_cipherotp(self, ctx, mode: commands.clean_content,
+                               text: str, key: str):
         """Cipher/decipher alphanumeric text (excluding spaces) \
 using the one-time pad cipher.
+
 mode: Indicate whether to cipher or decipher the text
- ("cipher"/"ci", "decipher"/"de").
+ ("encode"/"en", "decode"/"de").
 text: The text to cipher/decipher.
 key: The one time key to use."""
         mode = mode.casefold()
 
-        if mode in ('cipher', 'ci'):
+        if mode in ('encode', 'en'):
             mode = False
-        elif mode in ('decipher', 'de'):
+        elif mode in ('decode', 'de'):
             mode = True
         else:
-            return await ctx.send('Mode must be either "cipher" or "decipher"')
+            return await ctx.send('Unknown mode "{mode}"', delete_after=6)
 
         await ctx.send(self.cipherotp(text, key, mode))
 
@@ -472,12 +478,10 @@ key: The one time key to use."""
         brief='The morse code encrypter/decrypter.',
         aliases=('morse', 'mc', 'mcode'))
     @commands.cooldown(1, 3, commands.BucketType.member)
-    async def client_morsecode(self, ctx,
-        mode: str, spacing: str, *, string: str):
+    async def client_morsecode(
+            self, ctx, mode: commands.clean_content,
+            spacing: commands.clean_content, *, string: str):
         """Translates text to morse code and back.
-mode: Either "encode"/"en" or "decode"/"de". Selects between encoding and decoding.
-spacing: Either "space"/"spaces" or "bar"/"bars". Selects between using " "/" / " and "|"/"||" to show letter and word gaps.
-string: The text or morse code to encrypt/decrypt.
 Allowed characters:
     abcdefghijklmnopqrstuvwxyz 0123456789,;.:?!()+-/=@&_'"
 Prosigns that are encoded and decoded cleanly:
@@ -494,7 +498,11 @@ Prosigns that are decoded differently:
     <BT>  New paragraph           -> =
     <KN>  Invite specific station -> (
     <SN>  Understood (alternate form <VE> can be used, but decodes to <SN>)
-Other characters will be passed through."""
+Other characters will be passed through.
+
+mode: Either "encode"/"en" or "decode"/"de". Selects between encoding and decoding.
+spacing: Either "space"/"spaces" or "bar"/"bars". Selects between using " "/" / " and "|"/"||" to show letter and word gaps.
+string: The text or morse code to encrypt/decrypt."""
         mode = mode.casefold()
         spacing = spacing.casefold()
 
@@ -503,7 +511,7 @@ Other characters will be passed through."""
         elif mode in ('decode', 'de'):
             decoding = True
         else:
-            raise ValueError(f'Unknown mode {mode!r}')
+            return await ctx.send(f'Unknown mode "{mode}"', delete_after=6)
 
         if spacing in ('space', 'spaces'):
             character_gap = ' '
@@ -512,7 +520,8 @@ Other characters will be passed through."""
             character_gap = '|'
             space_char = '||'
         else:
-            raise ValueError(f'Unknown spacing {spacing!r}')
+            return await ctx.send(
+                f'Unknown spacing "{spacing}"', delete_after=6)
 
         message = self.morsecode(
             decoding, string,
@@ -520,13 +529,6 @@ Other characters will be passed through."""
         )
 
         await ctx.send(f'```\n{message}```')
-
-
-    @client_morsecode.error
-    async def client_morsecode_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, ValueError):
-            await ctx.send(str(error))
 
 
     @commands.command(
@@ -576,9 +578,10 @@ Other characters will be passed through."""
         name='vigenerecipher',
         brief='The Vigenere Cipher.')
     @commands.cooldown(1, 3, commands.BucketType.member)
-    async def client_vigenerecipher(self, ctx,
-        mode: str, key: str, *, text: str):
+    async def client_vigenerecipher(
+            self, ctx, mode: commands.clean_content, key: str, *, text: str):
         """Encrypt.
+
 mode: Either "encrypt"/"en" or "decrypt"/"de". Selects between encrypting and decrypting.
 key: The key to use.
 text: The text to encrypt/decrypt."""
@@ -589,17 +592,10 @@ text: The text to encrypt/decrypt."""
         elif mode in ('decrypt', 'de'):
             decrypting = True
         else:
-            raise ValueError(f'Unknown mode {mode!r}')
+            return await ctx.send(f'Unknown mode "{mode}"', delete_after=6)
 
         await ctx.send(
             '```' + self.ciphervigenere(text, key, decrypting) + '```')
-
-
-    @client_vigenerecipher.error
-    async def client_vigenerecipher_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, ValueError):
-            await ctx.send(str(error))
 
 
 

@@ -2,16 +2,21 @@ import asyncio
 import collections
 import datetime
 import functools
+import re
 
 import discord
 from discord.ext import commands
+from discord_slash.utils import manage_commands
+from discord_slash import cog_ext as dslash_cog
+from discord_slash import SlashContext
+import discord_slash as dslash
 
 from bot import utils
 
 
 class Embedding(commands.Cog):
+    """Commands for creating embeds."""
     qualified_name = 'Embedding'
-    description = 'Commands for creating embeds.'
 
     embed_specs = {
         'title':    ('--title', '-T'),
@@ -23,6 +28,8 @@ class Embedding(commands.Cog):
         'author':             ('--author', '-A'),
         'authorurl':          ('--authorurl', '-AU')
     }
+
+    hyperlink_regex = re.compile('\[.+\]\(.+\)')
 
     def __init__(self, bot):
         self.bot = bot
@@ -42,10 +49,10 @@ class Embedding(commands.Cog):
             *parameters):
         """Create an embed.
 Example:
-    embed 0xDDA212 "description with \\"quotes\\"" --title "Title"
-If you want to stop links from being embedded in your message,
+> embed 0xDDA212 "description with \\\\"quotes\\\\"" --title "Title"
+If you want to stop links from being embedded in your command,
 you can use code block tags like so:
-    embed FFCC22 description `​`​` --title Title `​`​`
+> embed FFCC22 description \`\`​\` --title Title \`\`\`
 
 -T  --title        "<text>"
 -TU --titleurl     <url>
@@ -146,7 +153,13 @@ These are the limits set by Discord:
             embed_dict['fields'] = list(fields.values())
         embed = discord.Embed.from_dict(embed_dict)
         embed.timestamp = datetime.datetime.now().astimezone()
-        await ctx.send(embed=embed)
+        try:
+            await ctx.send(embed=embed)
+        except discord.HTTPException as e:
+            await ctx.send(
+                f'There was an error with your embed parameters: {e.text}',
+                delete_after=10
+            )
 
 
 
@@ -159,7 +172,8 @@ These are the limits set by Discord:
         """Commands for using the Embed's hyperlink feature.
 
 These commands only work in servers."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
         ctx.command.reset_cooldown(ctx)
 
 
@@ -171,10 +185,11 @@ These commands only work in servers."""
 You will be DM'd for your parameters."""
         async def cancel_message(message):
             await message.edit(
-                content=f'~~{message.content}~~ Canceled hyperlink.')
+                content=f'~~{message.content}~~ Canceled hyperlink.',
+                delete_after=10
+            )
 
         def check(message):
-            "Wait for a message in the author's DMs."
             return message.channel == ctx.author.dm_channel
 
         link_request = await ctx.author.send(
@@ -232,10 +247,11 @@ Make sure there's a space before and after the hyperlink.
 You will be DM'd for your parameters."""
         async def cancel_message(message):
             await message.edit(
-                content=f'~~{message.content}~~ Canceled hyperlink.')
+                content=f'~~{message.content}~~ Canceled hyperlink.',
+                delete_after=10
+            )
 
         def check(message):
-            "Wait for a message in the author's DMs."
             return message.channel == ctx.author.dm_channel
 
         message_request = await ctx.author.send(
@@ -261,6 +277,31 @@ You will be DM'd for your parameters."""
         )
 
         await ctx.send(embed=embed)
+
+
+
+
+
+    @dslash_cog.cog_slash(
+        name='hyperlink',
+        options=[manage_commands.create_option(
+            name='message',
+            description="The message to format. Example: text [display text](https://mylink.com/) text",
+            option_type=3,
+            required=True
+        )]
+    )
+    async def client_slash_hyperlink(self, ctx: SlashContext, message):
+        """Send a message with the ability to replace links with custom text."""
+        await ctx.respond(eat=True)
+        if not self.hyperlink_regex.search(message):
+            return await ctx.send(
+                'Your message should use a custom text hyperlink at least once.\n'
+                'See the example in the message option.',
+                hidden=True
+            )
+        content = f"**Hyperlink message by {ctx.author.mention}**\n{message}"
+        await ctx.send(content, allowed_mentions=discord.AllowedMentions.none())
 
 
 

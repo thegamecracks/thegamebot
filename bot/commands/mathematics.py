@@ -21,8 +21,8 @@ dec_or_hex = Union[decimal.Decimal, to_hex]
 
 
 class Mathematics(commands.Cog):
+    """Commands for mathematical operations."""
     qualified_name = 'Mathematics'
-    description = 'Commands for mathematical operations.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -41,7 +41,7 @@ class Mathematics(commands.Cog):
     async def client_add_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
+            await ctx.send(error.args[1] + '.', delete_after=10)
 
 
 
@@ -61,7 +61,7 @@ class Mathematics(commands.Cog):
     async def client_subtract_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
+            await ctx.send(error.args[1] + '.', delete_after=10)
 
 
 
@@ -81,7 +81,7 @@ class Mathematics(commands.Cog):
     async def client_multiply_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
+            await ctx.send(error.args[1] + '.', delete_after=10)
 
 
 
@@ -101,7 +101,9 @@ class Mathematics(commands.Cog):
     async def client_divide_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
+            await ctx.send(error.args[1] + '.', delete_after=10)
+        elif isinstance(error, ZeroDivisionError):
+            await ctx.send('Division by Zero occurred.', delete_after=5)
 
 
 
@@ -121,7 +123,7 @@ class Mathematics(commands.Cog):
     async def client_exponent_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
+            await ctx.send(error.args[1] + '.', delete_after=10)
 
 
 
@@ -141,7 +143,7 @@ class Mathematics(commands.Cog):
     async def client_sqrt_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, OverflowError):
-            await ctx.send(error.args[1] + '.')
+            await ctx.send(error.args[1] + '.', delete_after=10)
 
 
 
@@ -154,17 +156,17 @@ class Mathematics(commands.Cog):
     async def client_evaluate(self, ctx, *, expr: str):
         """Evaluates a simple mathematical expression.
 Syntax:
-    **: Exponentation
-    //: Floor division
-     %: Modulus
-     ~: Bitwise NOT
-     |: Bitwise OR
-     &: Bitwise AND
-     ^: Bitwise XOR
-    <<: Left Shift
-    >>: Right Shift
-
-Example expression: (1+3) ** -2 - 7 // 9e2
+```yaml
+**: Exponentation
+//: Floor division
+ %: Modulus
+ ~: Bitwise NOT
+ |: Bitwise OR
+ &: Bitwise AND
+ ^: Bitwise XOR
+<<: Left Shift
+>>: Right Shift
+``` Example expression: `(1+3) ** -2 - 7 // 9e2`
 
 To reveal the evaluation of your expression, add --debug to your expression."""
         debugging = '--debug' in expr
@@ -201,15 +203,17 @@ To reveal the evaluation of your expression, add --debug to your expression."""
     async def client_evaluate_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, SyntaxError):
-            await ctx.send(f'Undefined Syntax Error occurred: {error}')
+            await ctx.send(f'Undefined Syntax Error occurred: {error}',
+                           delete_after=10)
         elif isinstance(error, ZeroDivisionError):
-            await ctx.send('Division by Zero occurred.')
+            await ctx.send('Division by Zero occurred.', delete_after=5)
         elif isinstance(error, ValueError):
-            await ctx.send(str(error))
+            await ctx.send(str(error), delete_after=10)
         elif isinstance(error, TypeError):
-            await ctx.send(str(error))
+            await ctx.send(str(error), delete_after=10)
         elif isinstance(error, decimal.Overflow):
-            await ctx.send('Could not calculate due to overflow.')
+            await ctx.send('Could not calculate due to overflow.',
+                           delete_after=8)
 
 
 
@@ -276,9 +280,9 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
     async def client_fibonacci_error(self, ctx, error):
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):
-            await ctx.send(str(error))
+            await ctx.send(str(error), delete_after=10)
         elif isinstance(error, OverflowError):
-            await ctx.send(str(error))
+            await ctx.send(str(error), delete_after=10)
 
 
 
@@ -297,17 +301,18 @@ If y is "high", calculates the highest divisor of x other than itself."""
         await ctx.channel.trigger_typing()
 
         if x > 1_000_000:
-            await ctx.send('X must be below one million.')
+            await ctx.send('X must be below one million.', delete_after=6)
         elif y == 'low' or y == 'high':
             await ctx.send(utils.gcd(x, y))
         else:
             try:
                 y = int(y)
             except ValueError:
-                await ctx.send('Y is not an integer.')
+                await ctx.send('Y is not an integer.', delete_after=6)
             else:
                 if y > 1_000_000:
-                    await ctx.send('Y must be below one million.')
+                    await ctx.send('Y must be below one million.',
+                                   delete_after=6)
                 else:
                     await ctx.send(utils.gcd(x, y))
 
@@ -328,9 +333,10 @@ setting - low or high: Returns either the lowest or highest divisor
 
         if n < 2:
             return await ctx.send(f'{n} is not a prime number;\n'
-                           'all whole numbers below 3 are not prime.')
+                                  'all whole numbers below 3 are not prime.')
         elif n > 1_000_000:
-            return await ctx.send('N must be below one million.')
+            return await ctx.send('N must be below one million.',
+                                  delete_after=6)
 
 
         divisor = utils.gcd(n, setting)
@@ -402,7 +408,8 @@ The highest divisor is {n//divisor}, which can be multiplied by {divisor}.')
 n - The number to test.
 The maximum number to check factors is 10000."""
         if n > 10000:
-            return await ctx.send('N must be below ten thousand.')
+            return await ctx.send('N must be below ten thousand.',
+                                  delete_after=6)
 
         await ctx.channel.trigger_typing()
 
@@ -418,12 +425,10 @@ The maximum number to check factors is 10000."""
     @client_factors.error
     async def client_factors_error(self, ctx, error):
         error = getattr(error, 'original', error)
-        if isinstance(error, commands.BadArgument):
-            await ctx.send('An integer must be given.')
-        elif isinstance(error, ValueError):
-            await ctx.send(str(error))
+        if isinstance(error, ValueError):
+            await ctx.send(str(error), delete_after=10)
         elif isinstance(error, TypeError):
-            await ctx.send(str(error))
+            await ctx.send(str(error), delete_after=10)
 
 
 
@@ -503,7 +508,8 @@ Temperature conversions:
 
         await ctx.send('{quantity}{unit:~} ({unit})'.format(
             quantity=quantity,
-            unit=converted_unit.units))
+            unit=converted_unit.units
+        ))
 
 
 
@@ -550,11 +556,9 @@ n: The number to convert."""
                 num = [n[:-1] for n in msg.split() if n[:-1].isnumeric()][0]
                 msg = ('There is a character within the number not part of'
                     f' base {num}.')
-            await ctx.send(msg)
+            await ctx.send(msg, delete_after=10)
         elif isinstance(error, TypeError):
-            await ctx.send(str(error))
-        else:
-            await ctx.send('An unspecified error has occurred.')
+            await ctx.send(str(error), delete_after=10)
 
 
 

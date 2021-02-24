@@ -39,8 +39,8 @@ def embed_thatapiguy(ctx, response: dict):
 
 
 class Images(commands.Cog):
+    """Commands for getting images."""
     qualified_name = 'Images'
-    description = 'Commands for getting images.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -55,16 +55,21 @@ class Images(commands.Cog):
     async def client_getcatimage(self, ctx):
         """\N{CAT FACE}"""
         if CAT_API_KEY is None:
-            return await ctx.send('Sorry, but the bot currently cannot '
-                                  'query for a cat image.')
+            await ctx.send(
+                'Sorry, but the bot currently cannot query for a cat image.',
+                delete_after=10
+            )
+            return await asyncio.sleep(10)
 
         await ctx.trigger_typing()
 
         try:
             cat = await query_thatapiguy(CAT_API_URL, CAT_API_KEY)
         except ValueError as e:
-            return await ctx.send('Could not get a cat image; '
-                                  f'status code {e.args[1]}')
+            return await ctx.send(
+                f'Could not get a cat image; status code {e.args[1]}',
+                delete_after=8
+            )
 
         await ctx.send(embed=embed_thatapiguy(ctx, cat))
 
@@ -78,16 +83,21 @@ class Images(commands.Cog):
     async def client_getdogimage(self, ctx):
         """\N{DOG FACE}"""
         if DOG_API_KEY is None:
-            return await ctx.send('Sorry, but the bot currently cannot '
-                                  'query for a dog image.')
+            await ctx.send(
+                'Sorry, but the bot currently cannot query for a dog image.',
+                delete_after=10
+            )
+            return await asyncio.sleep(10)
 
         await ctx.trigger_typing()
 
         try:
             dog = await query_thatapiguy(DOG_API_URL, DOG_API_KEY)
         except ValueError as e:
-            return await ctx.send('Failed to query a dog image; '
-                                  f'status code {e.args[1]}')
+            return await ctx.send(
+                f'Failed to query a dog image; status code {e.args[1]}',
+                delete_after=8
+            )
 
         await ctx.send(embed=embed_thatapiguy(ctx, dog))
 

@@ -12,6 +12,7 @@ from bot import utils
 message_length_cooldown = commands.CooldownMapping.from_cooldown(
     1, 30, commands.BucketType.user)
 
+
 class HelpCommand(commands.HelpCommand):
 
     help_categories_per_page = 9  # Max of 25 fields
@@ -73,7 +74,7 @@ class HelpCommand(commands.HelpCommand):
                 the input that caused it,
                 and the command that doesn't have the requested subcommand.
         """
-        if isinstance(command, Group) and len(command.all_commands) > 0:
+        if isinstance(command, commands.Group) and len(command.all_commands) > 0:
             message = 'Command "{}" has no subcommand named {}'.format(
                 command.qualified_name, string)
         else:
@@ -103,7 +104,9 @@ class HelpCommand(commands.HelpCommand):
                 # haven't recently received one
                 if not message_length_cooldown.update_rate_limit(ctx.message):
                     await destination.send(
-                        'Help message is a bit long; sent it to you in DMs.')
+                        'Help message is a bit long; sent it to you in DMs.',
+                        delete_after=8
+                    )
         else:
             await destination.send(content, embed=embed, *args, **kwargs)
 
@@ -220,16 +223,16 @@ class HelpCommand(commands.HelpCommand):
         return embed
 
     async def get_commands(self):
-        """Return all sorted commands the bot has categorized by sorted cogs.
+        """Return all sorted commands the bot has, categorized by sorted cogs.
 
         Returns:
-            List[commands.Cog, List[commands.Command]]
+            List[Optional[commands.Cog], List[commands.Command]]
 
         """
         categories = collections.defaultdict(list)
 
-        for command in await self.filter_commands(self.context.bot.commands):
-            categories[type(command.cog)].append(command)
+        for cmd in await self.filter_commands(self.context.bot.commands):
+            categories[cmd.cog].append(cmd)
 
         # Create a paired list of of the dictionary
         categories_list = sorted(
@@ -238,8 +241,8 @@ class HelpCommand(commands.HelpCommand):
         )
 
         # Sort each command by name
-        for _, commands in categories_list:
-            commands.sort(key=lambda x: x.qualified_name)
+        for _, cmds in categories_list:
+            cmds.sort(key=lambda x: x.qualified_name)
 
         return categories_list
 
@@ -271,7 +274,7 @@ class HelpCommand(commands.HelpCommand):
                 cog = self.context.bot.get_cog(string)
             except (IndexError, ValueError):
                 # Not a page number request
-                await self.send(error)
+                await self.send(error, delete_after=6)
                 return
 
         if cog is None:
@@ -280,7 +283,7 @@ class HelpCommand(commands.HelpCommand):
                 embed = await self.create_help_category_page(page_num=page_num)
             except ValueError as e:
                 # Invalid page number
-                await destination.send(str(e))
+                await destination.send(str(e), delete_after=6)
             else:
                 await self.send(embed=embed)
         else:
@@ -289,7 +292,7 @@ class HelpCommand(commands.HelpCommand):
                 embed = await self.create_help_cog_page(cog, page_num=page_num)
             except ValueError as e:
                 # Invalid page number
-                await destination.send(str(e))
+                await destination.send(str(e), delete_after=6)
             else:
                 await self.send(embed=embed)
 
@@ -314,7 +317,7 @@ class HelpCommand(commands.HelpCommand):
         embed = discord.Embed(
             title=self.get_command_signature(group),
             color=utils.get_bot_color(),
-            description=group.description
+            description=group.help or group.short_doc
         )
 
         # Add fields
@@ -328,19 +331,19 @@ class HelpCommand(commands.HelpCommand):
 
     async def send_command_help(self, command):
         "Sends help for an individual command."
-        description = f'`{self.get_command_signature(command)}`\n'
+        description = [f'`{self.get_command_signature(command)}`\n']
 
         if command.help:
-            description += f'```{command.help}```'
+            description.append(command.help)
         elif command.short_doc:
-            description += f'```{command.short_doc}```'
+            description.append(command.short_doc)
         else:
-            description += 'There is no description for this command.'
+            description.append('There is no description for this command.')
 
         embed = discord.Embed(
             title=command.qualified_name,
             color=utils.get_bot_color(),
-            description=description
+            description=''.join(description)
         )
         if command.cog is not None:
             embed.set_author(name=f'In {command.cog.qualified_name} category')

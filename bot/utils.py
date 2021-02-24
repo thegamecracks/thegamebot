@@ -1,27 +1,32 @@
+import contextlib
 import datetime
 import decimal
 import itertools  # rawincount()
 import math
 import pathlib    # exception_message()
-import string
 import sys        # exception_message()
 import traceback  # exception_message()
+from typing import List, Iterable, Union, Optional
 
 from dateutil.relativedelta import relativedelta
 import discord
+from discord.ext.commands.view import StringView
 import inflect
+import prettify_exceptions
 
 from bot import settings
 from bot.other import discordlogger
 
 inflector = inflect.engine()
 
+logger = discordlogger.get_logger()
+
 # Whitelist Digits, Decimal Point, Main Arithmetic,
 # Order of Operations, Function Arithmetic (modulus,),
 # Binary Arithmetic (bitwise NOT, OR, AND, XOR, shifts)
 # Scientific Notation, and Imaginary Part for evaluate command
-CLIENT_EVALUATE_WHITELIST = set(
-    string.digits
+SAFE_EVAL_WHITELIST = frozenset(
+    '0123456789'
     + '.'
     + '*/+-'
     + '%'
@@ -32,11 +37,11 @@ CLIENT_EVALUATE_WHITELIST = set(
     + 'j'
 )
 
-logger = discordlogger.get_logger()
-
 
 def convert_base(base_in: int, base_out: int, n,
-        mapping='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
+                 mapping=('0123456789'
+                          'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                          'abcdefghijklmnopqrstuvwxyz-_')):
     """Converts a number to another base.
     Accepted bases are 2, 36, and all in-between.
     Base 36 uses 0-9 and a-z (case-insensitive).
@@ -54,15 +59,13 @@ def convert_base(base_in: int, base_out: int, n,
     elif min(base_in, base_out) < 2:
         raise ValueError('Given base is less than 2.')
 
-    if base_out == 10 and base_in <= 36 \
-           and mapping == '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-        # int() already represents in base 10, use that for optimization
-        # unless base_in is larger than int()'s maximum base allowed
-        # or the mapping is different that what int() uses
-        # ("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    mapping_normal = mapping.startswith('0123456789ABCDEFGHJIKLMNOPQRSTUVWXYZ')
+
+    if base_out == 10 and base_in <= 36 and mapping_normal:
+        # use int() for optimization
         return int(n, base_in)
 
-    if base_in <= 36 and mapping:
+    if base_in <= 36 and mapping_normal:
         n_int = int(n, base_in)
     else:
         n_int = 0
@@ -85,8 +88,9 @@ def datetime_difference(current, prior):
     return relativedelta(current, prior)
 
 
-def fuzzy_match_word(s, choices, return_possible=False):
-    """Matches a string with a given evidence by token (case-insensitive).
+def fuzzy_match_word(s, choices: Iterable[str], return_possible=False) \
+        -> Optional[Union[str, List[str]]]:
+    """Matches a string to given choices by token (case-insensitive).
 
     Choices can be matched even if the given string has tokens out of order:
         >>> fuzzy_match_word('orb ghost', ['Ghost Orb', 'Ghost Writing'])
@@ -101,13 +105,14 @@ def fuzzy_match_word(s, choices, return_possible=False):
             a list of those matches will be returned.
 
     Returns:
-        None
+        None: Returned if there are multiple matches and
+              `return_possible` is False.
         str
-        List[str]:
-            Returned if `return_possible` and there are multiple matches.
+        List[str]: Returned if there are multiple matches and
+                   `return_possible` is True.
 
     """
-    possible = choices
+    possible = list(choices) if not isinstance(choices, list) else choices
     possible_lower = [s.lower() for s in possible]
 
     # See if the phrase already exists
@@ -136,6 +141,28 @@ def fuzzy_match_word(s, choices, return_possible=False):
         possible_lower = [s.lower() for s in possible]
 
     return possible if return_possible and possible else None
+
+
+def parse_var_positional(s):
+    """Parse a string in the same way as done in a command *args.
+
+    Returns:
+        List[str]
+
+    Raises:
+        discord.ext.commands.ExpectedClosingQuoteError
+        discord.ext.commands.InvalidEndOfQuotedStringError
+        discord.ext.commands.UnexpectedQuoteError
+
+    """
+    view = StringView(s)
+    words = []
+    while not view.eof:
+        view.skip_ws()
+        w = view.get_quoted_word()
+        if w != ' ':
+            words.append(w)
+    return words
 
 
 def timedelta_string(
@@ -252,6 +279,26 @@ def exception_message(
     return msg
 
 
+def exception_message_pretty(
+        exc_type=None, exc_value=None, exc_traceback=None,
+        header: str = '', log_handler=logger) -> str:
+    """Create a traceback message using the prettify_exceptions module.
+    This acts similar to `exception_message`."""
+    if exc_type is None and exc_value is None and exc_traceback is None:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+    elif exc_type is None or exc_value is None or exc_traceback is None:
+        raise ValueError('An exception type/value/traceback was passed '
+                         'but is missing the other values')
+
+    if log_handler is not None:
+        log_handler.exception('')
+
+    return '\n'.join(
+        prettify_exceptions.DefaultFormatter().format_exception(
+            exc_type, exc_value, exc_traceback)
+    )
+
+
 def gcd(a, b='high'):
     """Calculate the Greatest Common Divisor of a and b.
 
@@ -277,13 +324,13 @@ def gcd(a, b='high'):
 
 
 def get_bot_color():
-    "Return the bot's color from settings."
+    """Return the bot's color from settings."""
     return int(settings.get_setting('bot_color'), 16)
 
 
 def get_user_color(
         user, default_color=None):
-    "Return a user's role color if they are in a guild, else default_color."
+    """Return a user's role color if they are in a guild, else default_color."""
     return (
         user.color if isinstance(user, discord.Member)
         else default_color if default_color is not None
@@ -373,82 +420,141 @@ def rawincount(filename):
 
 def safe_eval(x):
     """Filters a string before evaluating.
-Uses CLIENT_EVALUATE_WHITELIST as the filter."""
+Uses SAFE_EVAL_WHITELIST as the filter."""
     return num(eval(
-        ''.join([char for char in x if char in CLIENT_EVALUATE_WHITELIST])
+        ''.join([char for char in x if char in SAFE_EVAL_WHITELIST])
     ))
 
 
 def truncate_message(
-        message, size=2000, size_lines=None, placeholder='[...]'):
+        message: str, max_size: int = 2000, max_lines: Optional[int] = None,
+        placeholder: str = '[...]') -> str:
     """Truncate a message to a given amount of characters or lines.
 
     This should be used when whitespace needs to be retained as
     `textwrap.shorten` will collapse whitespace.
 
-    Message is stripped of whitespace.
+    Message is stripped of whitespace initially, then after cutting the
+    message to just under max_size, trailing whitespace is stripped.
+
+    The placeholder will be prefixed with a newline if the trailing whitespace
+    that was stripped includes a newline, or if excess lines were removed.
+    Otherwise it will prefix with a space.
+
+    The placeholder will not be prefixed if it would exceed the max_size.
+        >>> truncate_message('Hello world!', 11, placeholder='[...]')
+        'Hello [...]'
+        >>> truncate_message('Hello world!', 10, placeholder='[...]')
+        'Hello[...]'
+
+    If the message is completely wiped and the placeholder exceeds max_size,
+    an empty string is returned.
+        >>> truncate_message('Hello world!', 5, placeholder='[...]')
+        '[...]'
+        >>> truncate_message('Hello world!', 4, placeholder='[...]')
+        ''
+
+    Args:
+        message (str): The message to truncate.
+        max_size (int): The max length the message can be.
+        max_lines (Optional[int]): The max number of lines
+            the message can have.
+        placeholder (str): The placeholder to append if the message
+            gets truncated.
+
+    Returns:
+        str
 
     """
+    def get_trailing_whitespace(s):
+        stripped = s.rstrip()
+        whitespace = s[len(stripped):]
+        return stripped, whitespace
+
+    # Check arguments
+    if max_size < 0:
+        raise ValueError(f'Max size cannot be negative ({max_size!r})')
+    elif max_size == 0:
+        return ''
+    if max_lines is not None:
+        if max_lines < 0:
+            raise ValueError(f'Max lines cannot be negative ({max_lines!r})')
+        elif max_lines == 0:
+            return ''
+
     message = message.strip()
 
-    in_code_block = 0
-
+    # Check if the message needs to be truncated
+    under_size = len(message) <= max_size
+    if under_size and max_lines is None:
+        return message
     lines = message.split('\n')
-    chars = 0
-    for line_i, line in enumerate(lines):
-        if size_lines is not None and line_i == size_lines:
-            # Reached maximum lines
-            break
+    excess_lines = len(lines) - max_lines if max_lines is not None else 0
+    if max_lines is not None:
+        if under_size and excess_lines <= 0:
+            return message
+        else:
+            # Remove excess lines
+            for _ in range(excess_lines):
+                lines.pop()
 
+    in_code_block = 0
+    placeholder_len = len(placeholder)
+    length = 0
+    placeholder_prefix = '\n' if excess_lines > 0 else ' '
+    # Find the line that exceeds max_size
+    for line_i, line in enumerate(lines):
         in_code_block = (in_code_block + line.count('```')) % 2
 
-        new_chars = chars + len(line)
-        if new_chars > size:
-            # This line exceeds max size; truncate it by word
-            words = line.split(' ')
-            last_word = len(words) - 1  # for compensating space split
-            line_chars = chars
+        new_length = length + len(line)
+        # Adjust size to compensate for newlines, length of placeholder,
+        # and completing the code block if needed
+        max_size_adjusted = (max_size - line_i - placeholder_len
+                             - in_code_block * 3)
 
-            for word_i, word in enumerate(words):
-                new_line_chars = line_chars + len(word)
+        if new_length > max_size_adjusted:
+            # This line exceeds max_size_adjusted
+            placeholder_prefix = ' ' if line else '\n'
+            if line:
+                # Find the word that exceeds the length
+                words = line.split(' ')
+                words_len = len(words)
+                length_sub = length
+                wi = 0
+                if words_len > 1:
+                    for wi, w in enumerate(words):
+                        # NOTE: This for-loop should always break
+                        length_sub += len(w)
 
-                if new_line_chars > (
-                        size - len(placeholder)
-                        - in_code_block * 3):
-                    # This word exceeds the max size; truncate to here
-                    break
+                        if length_sub > max_size_adjusted:
+                            # This word exceeds the max size; truncate to here
+                            break
 
-                if word_i != last_word:
-                    new_line_chars += 1
+                        if wi != words_len:
+                            length_sub += 1  # Add 1 for space
 
-                line_chars = new_line_chars
-            else:
-                raise RuntimeError(f'line {line_i:,} exceeded max size but '
-                                   'failed to determine where to '
-                                   'truncate the line')
-
-            if word_i == 0:
-                # Line becomes empty; go back to last line
-                # and add placeholder
-                break
-            else:
-                # Truncate line and return new message
-                line = ' '.join(words[:word_i] + [placeholder])
-                return (
-                    '\n'.join(lines[:line_i] + [line])
-                    + '```' * in_code_block
-                )
+                # Replace with truncated line
+                line = ' '.join(words[:wi])
+                lines[line_i] = line
+            break
         else:
-            chars = new_chars
-    else:
-        # Message did not exceed max size or lines; no truncation
-        return message
-    # Message exceeded max lines but not max size; truncate to line
-    return (
-        '\n'.join(lines[:line_i])
-        + f' {placeholder}'
-        + '```' * in_code_block
-    )
+            length = new_length
+
+    # Join lines together
+    final = '\n'.join(lines[:line_i + 1])
+
+    # Strip trailing whitespace
+    final, whitespace = get_trailing_whitespace(final)
+    final_len = len(final) + placeholder_len + in_code_block * 3
+    if '\n' in whitespace:
+        placeholder_prefix = '\n'
+    if not final or final_len + len(placeholder_prefix) > max_size:
+        placeholder_prefix = ''
+        if final_len > max_size:
+            return ''
+
+    return (f'{final}{placeholder_prefix}{placeholder}'
+            f"{'```' * in_code_block}")
 
 
 # Decorators
@@ -467,3 +573,20 @@ def print_error(func):
             print('\t' + repr(args[2]))
             await func(*args, **kwargs)
     return wrapper
+
+
+# Context managers
+@contextlib.contextmanager
+def update_text(before, after):
+    """A context manager for printing one line of text and at the end,
+    writing over it."""
+    after += ' ' * (len(before) - len(after))
+    try:
+        yield print(before, end='\r', flush=True)
+    finally:
+        print(after)
+
+
+def iterable_has(iterable, *args):
+    """Used for parsing *args in commands."""
+    return any(s in iterable for s in args)

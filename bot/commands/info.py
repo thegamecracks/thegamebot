@@ -2,77 +2,30 @@ import datetime
 import sys
 import random
 import time
-import typing
+from typing import Optional
 
-from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
+from discord_slash.utils import manage_commands
+from discord_slash import cog_ext as dslash_cog
+from discord_slash import SlashContext
+import discord_slash as dslash
 import humanize
 import psutil
 import pytz
 
-from bot import settings
-from bot import utils
-
-
-class CommandConverter(commands.Converter):
-    async def can_run(self, ctx, command):
-        """A variant of command.can_run() that doesn't check if
-        the command is disabled."""
-        original = ctx.command
-        ctx.command = command
-
-        try:
-            if not await ctx.bot.can_run(ctx):
-                return False
-
-            cog = command.cog
-            if cog is not None:
-                local_check = commands.Cog._get_overridden_method(cog.cog_check)
-                if local_check is not None:
-                    ret = await discord.utils.maybe_coroutine(local_check, ctx)
-                    if not ret:
-                        return False
-
-            predicates = command.checks
-            if not predicates:
-                # since we have no checks, then we just return True.
-                return True
-
-            return await discord.utils.async_all(
-                predicate(ctx) for predicate in predicates)
-        finally:
-            ctx.command = original
-
-    async def convert(self, ctx, argument):
-        c = ctx.bot.get_command(argument)
-        try:
-            if c is None:
-                raise commands.BadArgument(
-                    f'Could not convert "{argument}" into a command.')
-            elif not await self.can_run(ctx, c):
-                raise commands.BadArgument(f'The user cannot use "{argument}".')
-        except commands.CheckFailure as e:
-            raise commands.BadArgument(str(e)) from e
-        return c
-
-
-def iterable_has(iterable, *args):
-    "Used for parsing *args in commands."
-    return any(s in iterable for s in args)
+from bot import converters, settings, utils
 
 
 class Informative(commands.Cog):
+    """Informative commands."""
     qualified_name = 'Informative'
-    description = 'Informative commands.'
 
     ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS = False
     # If True, members of any guild the bot is in can be looked up in DMs.
     # Note that this has no effect when the members intent is disabled.
 
     DATETIME_DIFFERENCE_PRECISION = {'minutes': False, 'seconds': False}
-
-    UPTIME_ALLOWED_DOWNTIME = 10
 
     COMMANDINFO_BUCKETTYPE_DESCRIPTIONS = {
         commands.BucketType.default:  'globally',
@@ -87,79 +40,6 @@ class Informative(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.process = psutil.Process()
-
-
-
-
-
-    def update_last_connect(self, *, force_update=False):
-        if not self.bot.uptime_is_online:
-            # Calculate downtime
-            now = datetime.datetime.now().astimezone()
-            diff = now - self.bot.uptime_last_disconnect
-
-            # Only update last connect if downtime was long,
-            # else record the downtime
-            if force_update or (diff.total_seconds()
-                                > self.UPTIME_ALLOWED_DOWNTIME):
-                self.bot.uptime_last_connect = now
-                self.bot.uptime_last_connect_adjusted = now
-                self.bot.uptime_total_downtime = datetime.timedelta()
-
-                if force_update:
-                    print('Uptime: forced uptime reset')
-                else:
-                    print(
-                        'Uptime: Downtime of {} seconds exceeded allowed '
-                        'downtime ({} seconds); resetting uptime'.format(
-                            diff.total_seconds(),
-                            self.UPTIME_ALLOWED_DOWNTIME
-                        )
-                    )
-            else:
-                self.bot.uptime_total_downtime += diff
-                self.bot.uptime_last_connect_adjusted = (
-                    self.bot.uptime_last_connect
-                    + self.bot.uptime_total_downtime
-                )
-                print('Uptime:', 'Recorded downtime of',
-                      diff.total_seconds(), 'seconds')
-
-            self.bot.uptime_is_online = True
-
-
-    @commands.Cog.listener()
-    async def on_command_completion(self, ctx):
-        """Used for tracking processed commands."""
-        self.bot.info_processed_commands[ctx.command.qualified_name] += 1
-
-    @commands.Cog.listener()
-    async def on_connect(self):
-        """Used for uptime tracking.
-
-        Triggered when waking up from computer sleep.
-        As there is no way to tell how long the computer went for sleep,
-        this forces the last_connect time to be updated.
-
-        """
-        self.update_last_connect(force_update=True)
-
-
-    @commands.Cog.listener()
-    async def on_disconnect(self):
-        """Used for uptime tracking."""
-        self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
-        self.bot.uptime_is_online = False
-
-
-    @commands.Cog.listener()
-    async def on_resumed(self):
-        """Used for uptime tracking.
-
-        Triggered when reconnecting from an internet loss.
-
-        """
-        self.update_last_connect()
 
 
 
@@ -193,28 +73,30 @@ Optional settings:
 
         await ctx.trigger_typing()
 
-        field_statistics = (
-            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}\n"
-        )
+        field_statistics = [
+            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}"
+        ]
 
         if self.bot.intents.members:
             member_count = sum(not u.bot for u in self.bot.users)
+            s_member_count = f'{member_count:,}'
         else:
-            member_count = 'Unavailable'
+            member_count = sum(g.member_count for g in self.bot.guilds)
+            s_member_count = f'~{member_count:,}'
 
         commands_processed = sum(
             self.bot.info_processed_commands.values()) + 1
 
-        field_statistics += (
-            f'# Members: {member_count:,}\n'
-            f'# Servers: {len(self.bot.guilds):,}\n'
-            f'# Commands: {len(self.bot.commands):,}\n'
-            f'# Commands processed: {commands_processed:,}\n'
-            f'Python version: {version_python}\n'
-            f'D.py version: {discord.__version__}\n'
-        )
+        field_statistics.extend((
+            f'# Members: {s_member_count}',
+            f'# Servers: {len(self.bot.guilds):,}',
+            f'# Commands: {len(self.bot.commands):,}',
+            f'# Commands processed: {commands_processed:,}',
+            f'Python version: {version_python}',
+            f'D.py version: {discord.__version__}'
+        ))
 
-        if iterable_has(args, '-S', '--system'):
+        if utils.iterable_has(args, '-S', '--system'):
             # Add system information
             p = self.process
             with p.oneshot():
@@ -229,17 +111,17 @@ Optional settings:
                         max(1, cpu / 2) * random.uniform(5, 30)
                     )
 
-            field_statistics += (
-                f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds\n'
-                f'> CPU usage: {cpu:.3g}%\n'
-                f'> Memory usage: {humanize.naturalsize(mem_usage)}\n'
-                f'> Threads: {num_threads}\n'
-                f'> Handles: {num_handles}\n'
-            )
+            field_statistics.extend((
+                f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds',
+                f'> CPU usage: {cpu:.3g}%',
+                f'> Memory usage: {humanize.naturalsize(mem_usage)}',
+                f'> Threads: {num_threads}',
+                f'> Handles: {num_handles}'
+            ))
 
         embed.add_field(
             name='Statistics',
-            value=field_statistics
+            value='\n'.join(field_statistics)
         )
 
         await ctx.send(embed=embed)
@@ -248,14 +130,14 @@ Optional settings:
 
 
 
-    @commands.command(name='commandinfo')
+    @commands.command(name='commandinfo', aliases=('cinfo',))
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_commandinfo(self, ctx, *, command):
         """Get statistics about a command."""
-        def get_group_uses(stats, command):
-            "Recursively count the uses of a command group."
+        def get_group_uses(stats, cmd):
+            """Recursively count the uses of a command group."""
             uses = 0
-            for sub in command.commands:
+            for sub in cmd.commands:
                 if isinstance(sub, commands.Group):
                     uses += get_group_uses(stats, sub)
                 uses += stats[sub.qualified_name]
@@ -263,9 +145,10 @@ Optional settings:
 
         # Search for the command
         try:
-            command = await CommandConverter().convert(ctx, command)
+            command = await converters.CommandConverter().convert(ctx, command)
         except commands.BadArgument:
-            return await ctx.send("That command doesn't exist.")
+            return await ctx.send("That command doesn't exist.",
+                                  delete_after=6)
 
         # Create a response
         embed = discord.Embed(
@@ -283,41 +166,50 @@ Optional settings:
                    else '\N{NO ENTRY}')
 
         # Write description
-        description = ''
+        description = []
 
         # Insert cog
         if command.cog is not None:
-            description += (
-                f'Categorized under: __{command.cog.qualified_name}__\n')
+            description.append(
+                f'Categorized under: __{command.cog.qualified_name}__')
 
         # Insert aliases
         if len(command.aliases) == 1:
-            description += f"Alias: {command.aliases[0]}\n"
+            description.append(f"Alias: {command.aliases[0]}")
         elif len(command.aliases) > 1:
-            description += f"Aliases: {', '.join(command.aliases)}\n"
+            description.append(f"Aliases: {', '.join(command.aliases)}")
 
         # Insert parent
         if command.parent is not None:
-            description += f'Parent command: {command.parent.name}\n'
+            description.append(f'Parent command: {command.parent.name}')
 
         # Insert enabled status
-        description += f"Is enabled: {enabled}\n"
+        description.append(f"Is enabled: {enabled}")
 
         # Insert hidden status
         if command.hidden:
-            description += 'Is hidden: \N{WHITE HEAVY CHECK MARK}\n'
+            description.append('Is hidden: \N{WHITE HEAVY CHECK MARK}')
 
         # Insert cooldown
-        cooldown = command._buckets._cooldown
+        cooldown: commands.Cooldown = command._buckets._cooldown
         if cooldown is not None:
             cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
                 cooldown.type, '')
-            description += (
+            description.append(
                 'Cooldown settings: '
-                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}\n'
+                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}'
             )
-        else:
-            description += 'Cooldown settings: unlimited\n'
+
+        # Insert concurrency limit
+        concurrency: commands.MaxConcurrency = command._max_concurrency
+        if concurrency is not None:
+            concurrency_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
+                concurrency.per, '')
+            concurrency_wait = '(has queue)' if concurrency.wait else ''
+            description.append(
+                'Concurrency settings: '
+                f'{concurrency.number} {concurrency_type} {concurrency_wait}'
+            )
 
         # Insert uses
         uses = stats[command.qualified_name]
@@ -330,15 +222,15 @@ Optional settings:
             uses += 1
 
         if is_group:
-            description += (
-                f'# subcommands: {len(command.commands):,}\n'
-                f'# uses (including subcommands): {uses:,}\n'
-            )
+            description.extend((
+                f'# subcommands: {len(command.commands):,}',
+                f'# uses (including subcommands): {uses:,}'
+            ))
         else:
-            description += f'# uses: {uses:,}\n'
+            description.append(f'# uses: {uses:,}')
 
         # Finalize embed
-        embed.description = description
+        embed.description = '\n'.join(description)
 
         await ctx.send(embed=embed)
 
@@ -346,34 +238,55 @@ Optional settings:
 
 
 
-    @commands.command(name='invite')
-    @commands.cooldown(1, 60, commands.BucketType.channel)
-    async def client_invite(self, ctx):
-        "Get the bot's invite link."
-        perms = discord.Permissions(
-            add_reactions=True,
-            read_messages=True,
-            send_messages=True,
-            embed_links=True,
-            attach_files=True,
-            read_message_history=True,
-            external_emojis=True,
-            change_nickname=True,
-            connect=True,
-            speak=True
-        )
+    def get_invite_link(self, perms: Optional[discord.Permissions] = None,
+                        slash_commands=True):
+        if perms is None:
+            perms = discord.Permissions(
+                add_reactions=True,
+                read_messages=True,
+                send_messages=True,
+                embed_links=True,
+                attach_files=True,
+                read_message_history=True,
+                external_emojis=True,
+                change_nickname=True,
+                connect=True,
+                speak=True
+            )
 
         link = discord.utils.oauth_url(self.bot.user.id, perms)
 
+        if slash_commands:
+            link = link.replace('scope=bot', 'scope=bot%20applications.commands')
+
+        return link
+
+
+    @commands.command(name='invite')
+    @commands.cooldown(1, 60, commands.BucketType.channel)
+    async def client_invite(self, ctx):
+        """Get the bot's invite link."""
+        link = self.get_invite_link()
         embed = discord.Embed(
-            color=utils.get_bot_color(),
-            description=f'[OAuth2 Invite Link]({link})'
+            color=utils.get_bot_color()
+        ).set_author(
+            name=f'—> Invitation link <—',
+            url=link
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
         )
 
         await ctx.send(embed=embed)
+
+
+    @dslash_cog.cog_slash(name='invite')
+    async def client_slash_invite(self, ctx: SlashContext):
+        """Get the invite link for the bot."""
+        link = self.get_invite_link()
+
+        await ctx.respond(eat=True)
+        await ctx.send(content=f'[Invitation link]({link})', hidden=True)
 
 
 
@@ -456,7 +369,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name=f"{len(roles):,} Role{'s' if len(roles) != 1 else ''}",
-            value=', '.join([str(r) for r in roles]),
+            value=', '.join([r.mention for r in roles]),
             inline=False
         )
         embed.set_footer(
@@ -490,7 +403,7 @@ This command uses the IANA timezone database."""
         try:
             tz = pytz.timezone(timezone)
         except pytz.UnknownTimeZoneError:
-            return await ctx.send('Unknown timezone.')
+            return await ctx.send('Unknown timezone.', delete_after=6)
 
         UTC = pytz.utc
         utcnow = UTC.localize(datetime.datetime.utcnow())
@@ -530,7 +443,7 @@ This command uses the IANA timezone database."""
         name='userinfo')
     @commands.cooldown(3, 20, commands.BucketType.user)
     async def client_userinfo(self, ctx,
-                              streamer_friendly: typing.Optional[bool] = True,
+                              streamer_friendly: Optional[bool] = True,
                               *, user=None):
         """Get information about a user by name or mention.
 
@@ -544,14 +457,13 @@ Format referenced from the Ayana bot."""
         if user is None:
             user = ctx.author
         else:
-            user_input = user
-
             try:
                 user = await commands.MemberConverter().convert(ctx, user)
             except commands.MemberNotFound as e:
                 if (not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS
                         and ctx.guild is None):
-                    return await ctx.send('Cannot search for members in DMs.')
+                    return await ctx.send(
+                        'Cannot search for members in DMs.', delete_after=8)
                 # Else allow error handler to deal with it
                 raise e
             else:
@@ -567,7 +479,9 @@ Format referenced from the Ayana bot."""
                         elif not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS:
                             # Disallowed showing guild members in DMs
                             return await ctx.send(
-                                'Cannot search for members in DMs.')
+                                'Cannot search for members in DMs.',
+                                delete_after=8
+                            )
 
         # Extract attributes based on whether its a Member or User
         if isinstance(user, discord.Member):
@@ -587,7 +501,7 @@ Format referenced from the Ayana bot."""
                 user.joined_at.strftime('%Y/%m/%d %a %X UTC')
             )
             nickname = user.nick
-            roles = [role.name for role in user.roles]
+            roles = user.roles
             if len(roles) > 1:
                 # Has a role(s); remove @everyone
                 roles = roles[:0:-1]
@@ -607,6 +521,7 @@ Format referenced from the Ayana bot."""
             description = '*For more information, ' \
                           'use this command in a server.*'
             activity = None
+            guild = None
             joined = None
             nickname = None
             roles = None
@@ -698,7 +613,7 @@ Format referenced from the Ayana bot."""
         if roles is not None:
             embed.add_field(
                 name=f"{len(roles):,} Role{'s' if len(roles) != 1 else ''}",
-                value=', '.join(roles),
+                value=', '.join([r.mention for r in roles]),
                 inline=False
             )
         embed.set_footer(

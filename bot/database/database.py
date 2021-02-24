@@ -3,38 +3,27 @@ import datetime
 import aiosqlite
 
 
-class Singleton(type):
-    # https://stackoverflow.com/q/6760685
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Database(metaclass=Singleton):
+class Database:
     """Provide a higher-level interface to a database.
 
     Methods:
         add_row(table, row)
         delete_rows(table, *, where)
-        get_rows(table, *columns, where=None, as_Row=True)
+        get_one(table, *, where, as_row=True)
+        get_rows(table, *, where, as_row=True)
         update_rows(table, row, *, where)
+        yield_rows(table, *, where)
 
         vacuum()
 
         row_to_dict(Row)
 
     """
-    # FIXME: using Singleton is probably a dumb way of making sure
-    # caches of subclasses are preserved across instantiations;
-    # why not just have dbsetup create all the instances?
     __slots__ = ['path', 'last_change']
 
     PRAGMAS = 'PRAGMA foreign_keys = 1'
 
     def __init__(self, path):
-        """Create a Database with a path to a given sqlite db file."""
         self.path = path
         self.set_last_change(datetime.datetime.now(), table=None)
 
@@ -111,10 +100,10 @@ class Database(metaclass=Singleton):
         if pop:
             return rows
 
-    async def get_one(self, table: str, *, where: str = '1', as_Row=True):
+    async def get_one(self, table: str, *, where: str = '1', as_row=True):
         """Get one row from a table.
 
-        If as_Row, rows will be returned as aiosqlite.Row objects.
+        If as_row, rows will be returned as aiosqlite.Row objects.
         Otherwise, rows are returned as tuples.
 
         Returns:
@@ -125,7 +114,7 @@ class Database(metaclass=Singleton):
         """
         async with aiosqlite.connect(self.path) as db:
             await db.execute(self.PRAGMAS)
-            if as_Row:
+            if as_row:
                 db.row_factory = aiosqlite.Row
 
             c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
@@ -135,7 +124,7 @@ class Database(metaclass=Singleton):
 
         return row
 
-    async def get_rows(self, table: str, *, where: str = '1', as_Row=True):
+    async def get_rows(self, table: str, *, where: str = '1', as_row=True):
         """Get a list of rows from a table.
 
         Args:
@@ -143,7 +132,7 @@ class Database(metaclass=Singleton):
             where (Optional[str]):
                 An optional parameter specifying a condition.
                 By default, returns all rows in the table.
-            as_Row (bool):
+            as_row (bool):
                 If True, rows will be returned as aiosqlite.Row objects.
                 Otherwise, rows are returned as tuples.
 
@@ -154,7 +143,7 @@ class Database(metaclass=Singleton):
         """
         async with aiosqlite.connect(self.path) as db:
             await db.execute(self.PRAGMAS)
-            if as_Row:
+            if as_row:
                 db.row_factory = aiosqlite.Row
 
             c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
@@ -164,7 +153,7 @@ class Database(metaclass=Singleton):
         return rows
 
     async def update_rows(self, table: str, row: dict, *, where: str):
-        "Update one or more rows in a table."
+        """Update one or more rows in a table."""
 
         def create_placeholders(row: dict) -> (str, list):
             """Create the placeholders for setting keys.
@@ -191,8 +180,13 @@ class Database(metaclass=Singleton):
 
         self.set_last_change(datetime.datetime.now(), table)
 
+    async def vacuum(self):
+        """Vacuum the database."""
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute('VACUUM')
+
     async def yield_rows(
-            self, table: str, *, where: str = '1', as_Row=True):
+            self, table: str, *, where: str = '1', as_row=True):
         """Yield a list of rows from a table.
 
         Args:
@@ -200,7 +194,7 @@ class Database(metaclass=Singleton):
             where (Optional[str]):
                 An optional parameter specifying a condition.
                 By default, yields all rows in the table.
-            as_Row (bool):
+            as_row (bool):
                 If True, rows will be returned as aiosqlite.Row objects.
                 Otherwise, rows are returned as tuples.
 
@@ -211,7 +205,7 @@ class Database(metaclass=Singleton):
         """
         async with aiosqlite.connect(self.path) as db:
             await db.execute(self.PRAGMAS)
-            if as_Row:
+            if as_row:
                 db.row_factory = aiosqlite.Row
 
             c = await db.execute(f'SELECT * FROM {table} WHERE {where}')
@@ -221,9 +215,9 @@ class Database(metaclass=Singleton):
             await c.close()
 
     @staticmethod
-    def row_to_dict(Row):
-        "Convert an aiosqlite.Row into a dictionary."
+    def row_to_dict(row):
+        """Convert an aiosqlite.Row into a dictionary."""
         d = {}
-        for k, v in zip(Row.keys(), Row):
+        for k, v in zip(row.keys(), row):
             d[k] = v
         return d

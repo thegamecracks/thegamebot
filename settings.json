@@ -100,5 +100,9 @@
     "owner_ids": [
         153551102443257856
     ],
-    "print_error_mode": "raise"
+    "print_error_mode": "raise",
+    "slash_guild_ids": [
+        297463612870492160,
+        456838870731063296
+    ]
 }

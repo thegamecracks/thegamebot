@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import contextlib
+import decimal
 import functools
 import io
 ##import multiprocessing
@@ -35,14 +36,57 @@ from bot import utils
 ##    return wrapper
 
 
+def format_dollars(dollars: decimal.Decimal):
+    dollars = round_dollars(dollars)
+    sign = '-' if dollars < 0 else ''
+    dollar_part = abs(int(dollars))
+    cent_part = abs(int(dollars % 1 * 100))
+    return '{}${:,}.{:02d}'.format(sign, dollar_part, cent_part)
+
+
+class DollarConverter(commands.Converter):
+    """A decimal.Decimal converter that strips leading dollar signs
+    and can round to the nearest cent."""
+
+    def __init__(self, *, nearest_cent=True):
+        super().__init__()
+        self.nearest_cent = nearest_cent
+
+    async def convert(self, ctx, arg):
+        arg = arg.lower()
+        thousands = 1000 if arg.endswith('k') else 1
+        arg = arg.replace(',', '').lstrip('$').rstrip('k')
+        try:
+            d = decimal.Decimal(arg) * thousands
+        except decimal.InvalidOperation:
+            raise commands.BadArgument(f'Dollar syntax error: {arg!r}')
+        return round_dollars(d) if self.nearest_cent else d
+
+
+class PercentConverter(commands.Converter):
+    """A decimal.Decimal converter that supports specifying percentages."""
+    async def convert(self, ctx, arg):
+        try:
+            if arg.endswith('%'):
+                arg = arg.rstrip('%')
+                return decimal.Decimal(arg) / 100
+            return decimal.Decimal(arg)
+        except decimal.InvalidOperation:
+            raise commands.BadArgument(f'Decimal syntax error: {arg!r}')
+
+
+def round_dollars(d) -> decimal.Decimal:
+    """Round a number-like object to the nearest cent."""
+    cent = decimal.Decimal('0.01')
+    return decimal.Decimal(d).quantize(cent, rounding=decimal.ROUND_HALF_UP)
+
+
 class Graphing(commands.Cog):
+    """Commands for graphing things.
+Most of the text-related commands can support obtaining text using:
+the "text" parameter; file attachment; replying to a message;
+or the last message that was sent."""
     qualified_name = 'Graphing'
-    description = (
-        'Commands for graphing things.\n'
-        'Most of the text-related commands can support obtaining text by: '
-        'the "text" parameter; file attachment; replying to a message; '
-        'or the last message that was sent.'
-    )
 
     TEXT_ANALYSIS_FILESIZE_LIMIT = 300_000
     # Maximum file size allowed for client_frequencyanalysis in number of bytes
@@ -108,9 +152,9 @@ class Graphing(commands.Cog):
             # Raises: discord.HTTPException, discord.Forbidden,
             # discord.NotFound, UnicodeError
 
-        if message is not None and not using_ctx_message and not text:
-            # Check the message content and otherwise if that is empty,
-            # keep it at one level of recursion
+        if not text and not using_ctx_message:
+            # message argument was passed; check the message content
+            # and if that is empty, keep it at one level of recursion
             text = message.content
             if not text:
                 return False, 'There is no text to analyse.'
@@ -121,19 +165,14 @@ class Graphing(commands.Cog):
         if not text and ref is not None:
             # Try recursing into the message the user replied to.
             # First check the cache, then fetch the message
-            message = None
-            if ref.cached_message is not None:
-                message = ref.cached_message
-            elif perms.read_message_history:
-                channel = self.bot.get_channel(ref.channel_id)
-                if channel is not None:
-                    message = await channel.fetch_message(ref.message_id)
+            message = ref.resolved
 
-            if message is not None:
-                ref_text = await self.get_text(ctx, text, message=message)
-
-                if ref_text[0] is True:
-                    return ref_text
+            if isinstance(message, discord.DeletedReferencedMessage):
+                return False, 'The given message was deleted.'
+            elif message is None:
+                return False, 'Could not resolve your replied message.'
+            else:
+                return await self.get_text(ctx, text, message=message)
 
         if not text and perms.read_message_history:
             # Try recursing into the last message sent
@@ -167,6 +206,176 @@ class Graphing(commands.Cog):
             return False, 'There are no english letters in this text.'
 
         return True, text
+
+
+
+
+
+    def interest_simple_compound(self, p, r, t, n):
+        """Return a list of terms and a dictionary mapping the principal
+        and interest over those terms.
+
+        Args:
+            p (decimal.Decimal): The principal.
+            r (decimal.Decimal): The interest rate.
+            t (int): The investment term.
+            n (int): The number of compounding periods per term.
+
+        """
+        samples = t*n + 1
+
+        terms = np.linspace(0, t, samples)
+
+        # decimal.Decimal() arrays can't be created with linspace()
+        # (see numpy #8909), so this linear space has to be done manually.
+        payments = np.ndarray((samples,), dtype=decimal.Decimal)
+        start = decimal.Decimal()
+        step = decimal.Decimal(t) / (t * n)
+        for i in range(samples):
+            payments[i] = start
+            start += step
+
+        principal = np.full(terms.shape, p, dtype=decimal.Decimal)
+
+        simple_interest = p * r * payments
+        compound_amount = p * (1 + r/n) ** (n * payments)
+        compound_interest = compound_amount - principal - simple_interest
+
+        return terms, {
+            'Principal': principal,
+            'Simple': simple_interest,
+            'Compound': compound_interest
+        }
+
+
+    def interest_stackplot(self, ctx, p, r, t, n):
+        """Graph the interest of an investment over a given term.
+
+        Args:
+            ctx (discord.ext.commands.Context)
+            p (decimal.Decimal): The principal.
+            r (decimal.Decimal): The interest rate.
+            t (int): The investment term.
+            n (int): The number of compounding periods per term.
+
+        Returns:
+            Tuple[BytesIO, str]: The image and a message paired
+                along with it.
+
+        """
+        bot_color = '#' + hex(utils.get_bot_color())[2:]
+
+        terms, data = self.interest_simple_compound(p, r, t, n)
+
+        fig, ax = plt.subplots()
+
+        # Graph stackplot
+        ax.stackplot(terms, data.values(), labels=data.keys())
+        ax.legend(loc='upper left')
+
+        # Move ylim so principal won't take up the majority of the plot
+        simple_interest = data['Simple'][-1]
+        compound_interest = data['Compound'][-1]
+        maximum = p + simple_interest + compound_interest
+        minimum = p - p * decimal.Decimal('0.05')
+        ax.set_ylim([minimum, maximum])
+
+        # Add labels
+        ax.set_title('Simple and Compound Interest')
+        ax.set_xlabel('Term')
+        ax.set_ylabel('Amount')
+
+        # Remove the x-axis margins
+        ax.margins(x=0)
+
+        # Force integer ticks
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        # Set colors and add shadow to labels
+        labels = (
+            [ax.title, ax.xaxis.label, ax.yaxis.label]
+            + ax.get_legend().get_texts() + ax.get_xticklabels()
+            + ax.get_yticklabels()
+        )
+        for item in labels:
+            item.set_color(bot_color)
+            item.set_path_effects([
+                path_effects.withSimplePatchShadow(
+                    offset=(1, -1),
+                    alpha=self.TEXT_SHADOW_ALPHA
+                )
+            ])
+
+        # Color the spines and ticks
+        for spine in ax.spines.values():
+            spine.set_color(bot_color)
+        ax.tick_params(colors=bot_color)
+
+        # Create message
+        simple_amount = p + simple_interest
+        message = (
+            'Present Value: {}\n'
+            'Future Values: {} simple; {} compound'
+        ).format(format_dollars(p), format_dollars(simple_amount),
+                 format_dollars(maximum))
+
+        f = io.BytesIO()
+        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
+        # bbox_inches, pad_inches: removes padding around the graph
+
+        plt.close(fig)
+        return f, message
+
+
+    @commands.command(name='interest')
+    @commands.cooldown(3, 60, commands.BucketType.channel)
+    @commands.max_concurrency(3, wait=True)
+    async def client_interest(
+            self, ctx, principal: DollarConverter, rate: PercentConverter,
+            term: int, periods: int = 1):
+        """Calculate simple and compound interest.
+
+principal: The initial investment.
+rate: The interest rate. Can be specified as a percentage.
+term: The number of terms.
+periods: The number of compounding periods in each term."""
+        if not 0 < rate <= 100:
+            return await ctx.send(
+                'The interest rate must be between 0% and 100,000%.',
+                delete_after=10
+            )
+        elif term * periods > min(36500, 36500000 / principal):
+            # This tries keeping the numbers within a reasonable amount
+            return await ctx.send(
+                'The principal/term/periods are too large to calculate.',
+                delete_after=10
+            )
+
+        await ctx.trigger_typing()
+
+        loop = asyncio.get_running_loop()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            f, content = await loop.run_in_executor(
+                None, self.interest_stackplot, ctx,
+                principal, rate, term, periods
+            )
+        f.seek(0)
+
+        await ctx.send(
+            content, file=discord.File(f, 'Word Count Pie Chart.png'))
+
+
+    @client_interest.error
+    async def client_interest_error(self, ctx, error):
+        error = getattr(error, 'original', error)
+
+        if isinstance(error, decimal.InvalidOperation):
+            return await ctx.send(
+                'The calculations were too large to handle.',
+                delete_after=10
+            )
 
 
 
@@ -213,13 +422,10 @@ class Graphing(commands.Cog):
         # Force integer ticks
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
-        # Set fonts
+        # Set colors and add shadow to labels
         for item in ([ax.title, ax.xaxis.label, ax.yaxis.label]
                      + ax.get_xticklabels() + ax.get_yticklabels()):
-            item.set_family('calibri')
-            item.set_fontsize(18)
             item.set_color(bot_color)
-            # Add shadow
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
                     offset=(1, -1),
@@ -227,13 +433,6 @@ class Graphing(commands.Cog):
                 )
             ])
 
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
-
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
         # Color the spines and ticks
         for spine in ax.spines.values():
             spine.set_color(bot_color)
@@ -243,6 +442,7 @@ class Graphing(commands.Cog):
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
 ##        conn.send(f)
         return f
 
@@ -366,7 +566,7 @@ To see the different methods you can use to provide text, check the help message
         # Add labels
         if len(words) <= len(top_words):
             ax.set_title(
-                f'Top Words ({total_words:,} total)\n'
+                f'Word Count ({total_words:,} total)\n'
                 f'for {ctx.author.display_name}\n'
             )
         else:
@@ -378,12 +578,10 @@ To see the different methods you can use to provide text, check the help message
             )
         # NOTE: newline is appended at the end just to pad it from the labels
 
-        # Set fonts
+        # Set font styles
         all_text = texts + autotexts
         for item in ([ax.title] + all_text):
-            item.set_family('calibri')
             item.set_color(bot_color)
-        ax.title.set_fontsize(18)
         for item in all_text:
             # Add shadow
             item.set_path_effects([
@@ -397,14 +595,11 @@ To see the different methods you can use to provide text, check the help message
         for item in autotexts:
             item.set_fontsize(12)
 
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
-
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
         return f
 
 
@@ -470,11 +665,10 @@ To see the different methods you can use to provide text, check the help message
         # we have data for.
         ax.set_yticks(yticks)
 
-        # Set fonts
+        # Set colors
         for item in ([ax.xaxis.label, ax.yaxis.label, ax.zaxis.label]
                      + ax.get_xticklabels() + ax.get_yticklabels()
                      + ax.get_zticklabels()):
-            item.set_family('calibri')
             item.set_color(bot_color)
 
         # Set spine and pane colors
@@ -484,10 +678,6 @@ To see the different methods you can use to provide text, check the help message
 
         # Set tick colors
         ax.tick_params(colors=bot_color)
-
-        # Create transparent background
-        ax.set_facecolor('#00000000')
-        fig.patch.set_facecolor('#36393F4D')
 
         return fig, ax
 
@@ -508,6 +698,7 @@ To see the different methods you can use to provide text, check the help message
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
 
+        plt.close(fig)
         return f
 
 
@@ -585,6 +776,7 @@ To see the different methods you can use to provide text, check the help message
 
         anim.save(fp, writer='pillow', fps=frames / duration)
 
+        plt.close(fig)
         return fp
 
 
@@ -598,9 +790,11 @@ To see the different methods you can use to provide text, check the help message
         loop = asyncio.get_running_loop()
 
         if duration < 1:
-            return await ctx.send('Duration must be at least 1 second.')
+            return await ctx.send(
+                'Duration must be at least 1 second.', delete_after=6)
         if frames < 1:
-            return await ctx.send('There must be at least 1 frame.')
+            return await ctx.send(
+                'There must be at least 1 frame.', delete_after=6)
 
         func = functools.partial(
             self.test_bar_graphs_3d_gif,
@@ -618,7 +812,9 @@ To see the different methods you can use to provide text, check the help message
         filesize = Path(fp).stat().st_size
         if filesize > filesize_limit:
             return await ctx.send(
-                'Unfortunately the file is too large to upload.')
+                'Unfortunately the file is too large to upload.',
+                delete_after=10
+            )
 
         with open(fp, 'rb') as f:
             await ctx.send(file=discord.File(f, '3D Graph Animation Test.gif'))

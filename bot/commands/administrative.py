@@ -6,7 +6,7 @@ import contextlib
 import io
 import textwrap
 import time
-import typing
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -14,19 +14,37 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from bot import checks
-from bot import settings
-from bot import utils
+from bot.classes.confirmation import AdaptiveConfirmation
 from bot.other import discordlogger
+from bot import checks, converters, settings, utils
 
 
 def get_user_for_log(ctx):
     return f'{ctx.author} ({ctx.author.id})'
 
 
+def send_restart_signal():
+    """Create a file named RESTART that the batch file running the script
+    loop should detect and recognize to rerun the bot again."""
+    open('RESTART', 'w').close()
+
+
+class BucketTypeConverter(commands.Converter):
+    async def convert(self, ctx, argument):
+        try:
+            # Convert by number
+            return commands.BucketType(argument)
+        except ValueError:
+            try:
+                # Convert by enum name
+                return getattr(commands.BucketType, argument)
+            except AttributeError:
+                raise commands.BadArgument(f'{argument!r} is not a valid BucketType')
+
+
 class Administrative(commands.Cog):
+    """Administrative commands available for owners/admins."""
     qualified_name = 'Administrative'
-    description = 'Administrative commands available for owners/admins.'
 
     def __init__(self, bot):
         self.bot = bot
@@ -40,35 +58,171 @@ class Administrative(commands.Cog):
     @checks.is_bot_owner()
     async def client_block(self, ctx, x: int = 20):
         """Block the operation of the bot."""
-        await ctx.send(f'Blocking for {x} seconds.')
+        message = await ctx.send(f'Blocking for {x} seconds.')
         time.sleep(x)
-        await ctx.send('Finished blocking.')
-
-
-    @client_block.error
-    async def client_block_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, checks.InvalidBotOwner):
-            await ctx.send(get_denied_message())
+        await message.edit(content='Finished blocking.')
 
 
 
 
 
-    @commands.command(name='cooldown')
+    @commands.group(name='cooldown', invoke_without_command=True)
     @checks.is_bot_admin()
-    async def client_cooldown(self, ctx, *, command):
-        """Reset your cooldown for a command.
+    async def client_cooldown(self, ctx):
+        """Modify a command's cooldown."""
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
 
-Will reset cooldowns for all subcommands in a group."""
-        com = self.bot.get_command(command)
 
-        if com is None:
-            await ctx.send('Unknown command.')
+    @client_cooldown.command(name='update')
+    async def client_cooldown_update(
+            self, ctx,
+            command: converters.CommandConverter,
+            rate: Optional[int] = None,
+            per: Optional[float] = None,
+            type: BucketTypeConverter = None):
+        """Update a command's cooldown."""
+        type: commands.BucketType
+        command: commands.Command
 
-        com.reset_cooldown(ctx)
+        # Fill missing arguments
+        old_cool: commands.CooldownMapping = command._buckets
+        if old_cool.valid:
+            rate = old_cool._cooldown.rate if rate is None else rate
+            per = old_cool._cooldown.per if per is None else per
+            type = old_cool._cooldown.type if type is None else type
 
-        await ctx.send('Cooldown reset.')
+        # Default arguments
+        if type is None:
+            type = commands.BucketType.default
+
+        # Check arguments
+        if rate is None:
+            return await ctx.send(
+                'There is no cooldown; `rate` must be specified.',
+                delete_after=10
+            )
+        elif rate < 1:
+            return await ctx.send('`rate` cannot be below 1.', delete_after=10)
+        elif per is None:
+            return await ctx.send(
+                'There is no cooldown; `per` must be specified.',
+                delete_after=10
+            )
+        elif per < 0:
+            return await ctx.send('`per` cannot be negative.', delete_after=10)
+
+        buckets = commands.CooldownMapping(commands.Cooldown(rate, per, type))
+        command._buckets = buckets
+
+        await ctx.send(f'Updated cooldown for {command.name}.')
+
+
+    @client_cooldown.command(name='reset')
+    async def client_cooldown_reset(self, ctx,
+                                    everyone: Optional[bool] = False,
+                                    *, command: converters.CommandConverter):
+        """Reset a command's cooldown.
+
+everyone: If true, this will reset everyone's cooldown. Otherwise it only
+resets your cooldown.
+command: The name of the command to reset."""
+        command: commands.Command
+
+        if not command._buckets.valid:
+            return await ctx.send('This command does not have a cooldown.',
+                                  delete_after=10)
+
+        if everyone:
+            buckets = command._buckets
+            buckets._cache.clear()
+        else:
+            command.reset_cooldown(ctx)
+
+        await ctx.send(f'Resetted cooldown for {command.name}.')
+
+
+    @client_cooldown.command(name='remove')
+    async def client_cooldown_remove(
+            self, ctx, *, command: converters.CommandConverter):
+        """Remove a command's cooldown."""
+        command: commands.Command
+
+        if not command._buckets.valid:
+            return await ctx.send('This command does not have a cooldown.',
+                                  delete_after=10)
+
+        buckets = commands.CooldownMapping(None)
+        command._buckets = buckets
+
+        await ctx.send(f'Removed cooldown for {command.name}.')
+
+
+
+
+
+    @commands.group(name='concurrency', invoke_without_command=True)
+    @checks.is_bot_admin()
+    async def client_concurrency(self, ctx):
+        """Modify a command's max concurrency."""
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
+
+
+    @client_concurrency.command(name='update')
+    async def client_concurrency_update(
+            self, ctx,
+            command: converters.CommandConverter,
+            number: Optional[int] = None,
+            per: Optional[BucketTypeConverter] = None,
+            wait: bool = None):
+        """Update a command's concurrency limit."""
+        command: commands.Command
+
+        # Fill missing arguments
+        old_con: commands.MaxConcurrency = command._max_concurrency
+        if old_con is not None:
+            number = old_con.number if number is None else number
+            per = old_con.per if per is None else number
+            wait = old_con.wait if wait is None else wait
+
+        # Default arguments
+        if per is None:
+            per = commands.BucketType.default
+        if wait is None:
+            wait = False
+
+        # Check arguments
+        if number is None:
+            return await ctx.send(
+                'There is no concurrency limit; `number` must be specified.',
+                delete_after=10
+            )
+        elif number < 1:
+            return await ctx.send('`number` cannot be below 1.', delete_after=10)
+
+        con = commands.MaxConcurrency(number, per=per, wait=wait)
+        command._max_concurrency = con
+        # NOTE: no need to worry about race conditions since MaxConcurrency.release()
+        # excepts KeyError if the bucket does not exist
+
+        await ctx.send(f'Updated concurrency limits for {command.name}.')
+
+
+    @client_concurrency.command(name='remove')
+    async def client_concurrency_remove(self, ctx, *,
+                                        command: converters.CommandConverter):
+        """Remove a command's max concurrency limit."""
+        command: commands.Command
+
+        if command._max_concurrency is None:
+            return await ctx.send(
+                'This command does not have a max concurrency limit.',
+                delete_after=10
+            )
+
+        command._max_concurrency = None
+        await ctx.send(f'Removed concurrency limits for {command.name}.')
 
 
 
@@ -90,7 +244,7 @@ Will reset cooldowns for all subcommands in a group."""
     @commands.command(name='execute')
     @checks.is_bot_owner()
     async def client_execute(
-            self, ctx, sendIOtoDM: typing.Optional[bool] = False, *, x: str):
+            self, ctx, sendIOtoDM: Optional[bool] = False, *, x: str):
         """Run python code in an async condition.
 Graphs can be generated if a Figure is returned.
 
@@ -141,6 +295,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
             with contextlib.redirect_stdout(f):
                 result = await environment['func']()
         except Exception:
+            # TODO: paginate error message
             error_message = utils.exception_message()
             return await ctx.send(f'```py\n{error_message}```')
 
@@ -150,6 +305,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
             image = io.BytesIO()
             result.savefig(
                 image, format='png', bbox_inches='tight', pad_inches=0)
+            plt.close(result)
             image.seek(0)
             image = discord.File(image, 'Graph.png')
             result = None
@@ -173,7 +329,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     async def client_clearsettingscache(self, ctx):
         """Clear the settings cache."""
         settings.clear_cache()
-        await ctx.send('Cleared cache.')
+        await ctx.send('Cleared cache.', delete_after=10)
 
 
 
@@ -184,7 +340,8 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
+                       delete_after=6)
 
 
     @client_presence.command(name='competing')
@@ -208,7 +365,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -232,7 +389,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -260,7 +417,7 @@ https://www.twitch.tv/thegamecracks ."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(name='listening')
@@ -284,7 +441,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -309,7 +466,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
     @client_presence.command(
@@ -332,7 +489,7 @@ This removes any activity the bot currently has."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.')
+                await ctx.send('Unknown status given.', delete_after=8)
 
 
 
@@ -367,6 +524,9 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 return 'This extension failed to be reloaded.'
 
         if extension == 'all':
+            logger.info('Attempting to reload all extensions '
+                        f'by {get_user_for_log(ctx)}')
+            await ctx.trigger_typing()
             # NOTE: must cast dict into list as extensions is mutated
             # during reloading
             for ext in list(self.bot.extensions):
@@ -380,6 +540,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
         else:
             logger.info(f'Attempting to reload {extension} extension '
                         f'by {get_user_for_log(ctx)}')
+            await ctx.trigger_typing()
             result = reload(extension)
             if result is not None:
                 await ctx.send(result)
@@ -472,9 +633,30 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         error = getattr(error, 'original', error)
         if isinstance(error, AttributeError):
             if "'NoneType' object has no attribute" in str(error):
-                await ctx.send('I cannot find the given channel.')
+                await ctx.send('I cannot find the given channel.', delete_after=8)
         elif isinstance(error, discord.Forbidden):
-            await ctx.send('I cannot access this given channel.')
+            await ctx.send('I cannot access this given channel.', delete_after=8)
+
+
+
+
+
+    @commands.command(name='restart')
+    @checks.is_bot_owner()
+    async def client_restart(self, ctx):
+        """Restarts the bot."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm(
+            'Are you sure you want to RESTART the bot?')
+
+        if confirmed:
+            await prompt.update('Restarting.', prompt.emoji_yes.color)
+            send_restart_signal()
+            print(f'Initiating restart by {get_user_for_log(ctx)}')
+            await self.bot.logout()
+        else:
+            await prompt.update('Cancelled restart.', prompt.emoji_no.color)
 
 
 
@@ -482,14 +664,21 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
     @commands.command(
         name='shutdown',
-        brief='Shutdown the bot.',
         aliases=('close', 'exit', 'quit', 'stop'))
     @checks.is_bot_owner()
     async def client_shutdown(self, ctx):
-        """Shuts down the bot."""
-        print('Shutting down')
-        await ctx.send('Shutting down.')
-        await self.bot.logout()
+        """Shutdown the bot."""
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+
+        confirmed = await prompt.confirm(
+            'Are you sure you want to SHUTDOWN the bot?')
+
+        if confirmed:
+            await prompt.update('Shutting down.', prompt.emoji_yes.color)
+            print(f'Initiating shutdown by {get_user_for_log(ctx)}')
+            await self.bot.logout()
+        else:
+            await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
 
 
 

@@ -3,21 +3,28 @@ import textwrap
 
 import discord
 from discord.ext import commands
+from discord_slash.utils import manage_commands
+from discord_slash import cog_ext as dslash_cog
+from discord_slash import SlashContext
+import discord_slash as dslash
 import inflect
 
-from bot.database import NoteDatabase, DATABASE_USERS
+
+from bot.database import NoteDatabase
 from bot import utils
 
 inflector = inflect.engine()
 
 
 class Notes(commands.Cog):
+    """Commands for saving notes."""
     qualified_name = 'Notes'
-    description = 'Commands for saving notes.'
+
+    max_notes_user = 20
 
     def __init__(self, bot):
         self.bot = bot
-        self.notedb = NoteDatabase(DATABASE_USERS)
+        self.notedb = NoteDatabase
         self.cache = {}  # user_id: notes
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
@@ -28,12 +35,12 @@ class Notes(commands.Cog):
 
 
     async def add_note(self, user_id, *args, **kwargs):
-        "Adds a note and invalidates the user's cache."
+        """Adds a note and invalidates the user's cache."""
         await self.notedb.add_note(user_id, *args, **kwargs)
         del self.cache[user_id]
 
     async def delete_note_by_note_id(self, note_id, pop=False):
-        "Remove a note by note_id and update the cache."
+        """Remove a note by note_id and update the cache."""
         deleted = await self.notedb.delete_note_by_note_id(note_id, pop=True)
 
         updated_ids = frozenset(note['user_id'] for note in deleted)
@@ -59,18 +66,16 @@ class Notes(commands.Cog):
 
     @commands.command(name='addnote')
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_addnote(self, ctx, *, note):
-        """Add a note.
-
-You can have a maximum of 20 notes."""
+        """Store a note on the bot."""
         await ctx.channel.trigger_typing()
 
         total_notes = len(await self.get_notes(ctx.author.id))
 
-        if total_notes < 20:
+        if total_notes < self.max_notes_user:
             await self.add_note(
-                ctx.author.id, datetime.datetime.now().astimezone(), note,
-                add_user=True
+                ctx.author.id, datetime.datetime.now().astimezone(), note
             )
 
             await ctx.send(
@@ -80,7 +85,49 @@ You can have a maximum of 20 notes."""
             )
         else:
             await ctx.send(
-                'Sorry, but you have reached your maximum limit of 20 notes.')
+                'Sorry, but you have reached your maximum limit of '
+                f'{self.max_notes_user:,} notes.',
+                delete_after=6
+            )
+
+
+    @dslash_cog.cog_subcommand(
+        base='notes',
+        name='add',
+        description=f'Store a note. You can have a maximum of {max_notes_user:,} notes.',
+        base_description='Commands for saving notes.',
+        options=[manage_commands.create_option(
+            name='text',
+            description='The content of your note.',
+            option_type=3,
+            required=True
+        )]
+    )
+    async def client_slash_addnote(self, ctx: SlashContext, note):
+        await ctx.respond(eat=True)
+
+        max_length = 2000 - len(f'__Note #{self.max_notes_user:,}__\n')
+        if len(note) > max_length:
+            return await ctx.send('This note is too large.', hidden=True)
+
+        total_notes = len(await self.get_notes(ctx.author.id))
+
+        if total_notes < self.max_notes_user:
+            await self.add_note(
+                ctx.author.id, datetime.datetime.now().astimezone(), note
+            )
+
+            await ctx.send(
+                'Your {} note has been added!'.format(
+                    inflector.ordinal(total_notes + 1)
+                ), hidden=True
+            )
+        else:
+            await ctx.send(
+                'Sorry, but you have reached your maximum limit of '
+                f'{self.max_notes_user:,} notes.',
+                hidden=True
+            )
 
 
 
@@ -88,6 +135,7 @@ You can have a maximum of 20 notes."""
 
     @commands.command(name='removenote')
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_removenote(self, ctx, index: int):
         """Remove a note.
 
@@ -98,15 +146,47 @@ To remove several notes, use the removenotes command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You already don't have any notes.")
+            return await ctx.send("You already don't have any notes.",
+                                  delete_after=6)
 
         try:
             note = note_list[index - 1]
         except IndexError:
-            await ctx.send('That note index does not exist.')
+            await ctx.send('That note index does not exist.', delete_after=6)
         else:
             await self.delete_note_by_note_id(note['note_id'])
             await ctx.send('Note successfully deleted!')
+
+
+    @dslash_cog.cog_subcommand(
+        base='notes',
+        name='remove',
+        options=[manage_commands.create_option(
+            name='index',
+            description='The note to remove.',
+            option_type=4,
+            required=True
+        )]
+    )
+    async def client_slash_removenote(self, ctx: SlashContext, index: int):
+        """Remove a note by index. To see the indices for your notes, use /notes show."""
+        await ctx.respond(eat=True)
+
+        note_list = await self.get_notes(ctx.author.id)
+
+        if len(note_list) == 0:
+            return await ctx.send("You already don't have any notes.",
+                                  hidden=True)
+
+        try:
+            note = note_list[index - 1]
+        except IndexError:
+            await ctx.send('That note index does not exist.',
+                           hidden=True)
+        else:
+            await self.delete_note_by_note_id(note['note_id'])
+            await ctx.send('Note successfully deleted!',
+                           hidden=True)
 
 
 
@@ -114,6 +194,7 @@ To remove several notes, use the removenotes command."""
 
     @commands.command(name='removenotes')
     @commands.cooldown(1, 5, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_removenotes(self, ctx, indices):
         """Remove multiple notes.
 
@@ -124,7 +205,8 @@ To remove only one note, use the removenote command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You already don't have any notes.")
+            return await ctx.send("You already don't have any notes.",
+                                  delete_after=6)
 
         if indices.lower() == 'all':
             for note in note_list:
@@ -135,10 +217,13 @@ To remove only one note, use the removenote command."""
             start, end = [int(n) for n in indices.split('-')]
             start -= 1
             if start < 0:
-                return await ctx.send('Start must be 1 or greater.')
+                return await ctx.send('Start must be 1 or greater.',
+                                      delete_after=6)
             elif end > len(note_list):
                 return await ctx.send(
-                    f'End must only go up to {len(note_list)}.')
+                    f'End must only go up to {len(note_list)}.',
+                    delete_after=6
+                )
 
             for i in range(start, end):
                 note = note_list[i]
@@ -151,6 +236,7 @@ To remove only one note, use the removenote command."""
 
     @commands.command(name='shownote')
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_shownote(self, ctx, index: int):
         """Show one of your notes."""
         await ctx.channel.trigger_typing()
@@ -158,15 +244,14 @@ To remove only one note, use the removenote command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You don't have any notes.")
-
-        if index < 1:
-            return await ctx.send('Index must be 1 or greater.')
+            return await ctx.send("You don't have any notes.", delete_after=6)
+        elif index < 1:
+            return await ctx.send('Index must be 1 or greater.', delete_after=6)
 
         try:
             note = note_list[index - 1]
         except IndexError:
-            await ctx.send('That note index does not exist.')
+            await ctx.send('That note index does not exist.', delete_after=6)
         else:
             await ctx.send(embed=discord.Embed(
                 title=f'Note #{index:,}',
@@ -175,6 +260,58 @@ To remove only one note, use the removenote command."""
                 timestamp=datetime.datetime.fromisoformat(
                     note['time_of_entry'])
             ))
+
+
+    @dslash_cog.cog_subcommand(
+        base='notes',
+        name='show',
+        options=[manage_commands.create_option(
+            name='index',
+            description='The note to view. Leave empty to show all notes.',
+            option_type=4,
+            required=False
+        )]
+    )
+    async def client_slash_shownote(self, ctx: SlashContext, index: int = None):
+        """Show one or all of your notes."""
+        await ctx.respond(eat=True)
+
+        note_list = await self.get_notes(ctx.author.id)
+        notes_len = len(note_list)
+
+        if notes_len == 0:
+            return await ctx.send("You don't have any notes.", hidden=True)
+        elif index is not None:
+            # Show one note
+            if index < 1:
+                return await ctx.send('Index must be 1 or greater.', hidden=True)
+
+            try:
+                note = note_list[index - 1]
+            except IndexError:
+                await ctx.send('That note index does not exist.', hidden=True)
+            else:
+                content = (
+                    f'__Note #{index:,}__\n'
+                    f"{note['content']}"
+                )
+                await ctx.send(content, hidden=True)
+        else:
+            # Show all notes
+            # Create fields for each note, keeping it under 2000 characters
+            title_total = len(f'__Note {notes_len:,}__\n')
+            title_total += 2 * notes_len - 2  # Include newlines
+            max_per_field = (2000 - title_total) // self.max_notes_user
+
+            fields = [
+                f'__Note {i:,}__\n'
+                + utils.truncate_message(
+                    note['content'], max_per_field, max_lines=5)
+                for i, note in enumerate(note_list, start=1)
+            ]
+            content = '\n\n'.join(fields)
+
+            await ctx.send(content, hidden=True)
 
 
 
@@ -190,11 +327,11 @@ To remove only one note, use the removenote command."""
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
-            return await ctx.send("You don't have any notes.")
+            return await ctx.send("You don't have any notes.", delete_after=6)
 
         # Create fields for each note, limiting them to 140 characters/5 lines
         fields = [
-            utils.truncate_message(note['content'], 140, size_lines=5)
+            utils.truncate_message(note['content'], 140, max_lines=5)
             for note in note_list
         ]
         color = utils.get_user_color(ctx.author)

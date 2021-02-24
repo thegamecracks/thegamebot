@@ -5,6 +5,7 @@ import sqlite3
 from discord.ext import commands
 
 from . import database
+from . import gamedatabase
 from . import guilddatabase
 from . import irishdatabase
 from . import notedatabase
@@ -12,9 +13,18 @@ from . import prefixdatabase
 from . import reminderdatabase
 from . import userdatabase
 from bot import settings
+from bot import utils
 
 DATABASE_USERS = './data/userdb.db'
 DATABASE_IRISH = './data/irishdb.db'
+
+GameDatabase = gamedatabase.GameDatabase(DATABASE_USERS)
+GuildDatabase = guilddatabase.GuildDatabase(DATABASE_USERS)
+IrishDatabase = irishdatabase.IrishDatabase(DATABASE_IRISH)
+NoteDatabase = notedatabase.NoteDatabase(DATABASE_USERS)
+PrefixDatabase = prefixdatabase.PrefixDatabase(DATABASE_USERS)
+ReminderDatabase = reminderdatabase.ReminderDatabase(DATABASE_USERS)
+UserDatabase = userdatabase.UserDatabase(DATABASE_USERS)
 
 
 def get_prefix():
@@ -27,12 +37,10 @@ def get_prefix():
         commands.Bot(command_prefix=get_prefix())
 
     """
-    db = prefixdatabase.PrefixDatabase(DATABASE_USERS)
-
     async def inner(bot, message):
         guild = message.guild
 
-        # If in DMs, get default prefix or use prefix-less invokation
+        # If in DMs, get default prefix
         if guild is None:
             return commands.when_mentioned_or(
                 settings.get_setting('default_prefix')
@@ -40,8 +48,8 @@ def get_prefix():
 
         # Else, fetch guild prefix
         guild_id = guild.id
-        await db.add_prefix(guild_id, add_guild=True)
-        prefix = await db.get_prefix(guild_id)
+        await PrefixDatabase.add_prefix(guild_id, add_guild=True)
+        prefix = await PrefixDatabase.get_prefix(guild_id)
 
         if prefix is not None:
             return commands.when_mentioned_or(prefix)(bot, message)
@@ -52,20 +60,24 @@ def get_prefix():
 
 def setup_database_users(connection):
     "Setup the tables for the Users database."
-    userdatabase.setup(connection)
-    notedatabase.setup(connection)
-    reminderdatabase.setup(connection)
-    print('Verified user database')
-    guilddatabase.setup(connection)
-    prefixdatabase.setup(connection)
-    print('Verified guild database')
+    with utils.update_text('Verifying user database',
+                           'Verified user database'):
+        userdatabase.setup(connection)
+        notedatabase.setup(connection)
+        reminderdatabase.setup(connection)
+        gamedatabase.setup(connection)
+    with utils.update_text('Verifying guild database',
+                           'Verified guild database'):
+        guilddatabase.setup(connection)
+        prefixdatabase.setup(connection)
 
 
-def setup_database_guild_specific():
-    irishdatabase.setup(sqlite3.connect(DATABASE_IRISH))
-    print('Verified guild-specific databases')
+def setup_database_guild_specific(connection):
+    with utils.update_text('Verifying guild-specific databases',
+                           'Verified guild-specific databases'):
+        irishdatabase.setup(connection)
 
 
 def setup():
     setup_database_users(sqlite3.connect(DATABASE_USERS))
-    setup_database_guild_specific()
+    setup_database_guild_specific(sqlite3.connect(DATABASE_IRISH))
