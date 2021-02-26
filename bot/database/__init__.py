@@ -1,9 +1,5 @@
-from .database import Database
-from .dbsetup import (
-    DATABASE_IRISH, DATABASE_USERS,
-    GameDatabase, GuildDatabase, IrishDatabase, NoteDatabase, PrefixDatabase,
-    ReminderDatabase, UserDatabase, get_prefix, setup
-)
+from .mixin import BotDatabaseMixin
+from . import database
 from . import gamedatabase
 from . import guilddatabase
 from . import irishdatabase

@@ -8,7 +8,6 @@ import discord
 from discord.ext import commands
 
 from bot.classes.confirmation import AdaptiveConfirmation
-from bot.database import GuildDatabase
 from bot import utils
 
 WORDLIST_PATH = 'data/wordlist.txt'
@@ -101,7 +100,6 @@ class Undefined(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.guilddb = GuildDatabase
 
 
 
@@ -231,7 +229,7 @@ information such as notes or game scores."""
             await prompt.update('Goodbye world!', prompt.emoji_no.color)
             await ctx.guild.leave()
             # TODO: remove user information after some time
-            await self.guilddb.remove_guild(ctx.guild.id)
+            await self.bot.dbguilds.remove_guild(ctx.guild.id)
         else:
             await prompt.update('Thanks for keeping me along!',
                                 prompt.emoji_yes.color)

@@ -3,39 +3,32 @@
 Table dependencies:
     Users
 """
-from . import guilddatabase as guild_db
+from . import database as db
 from bot import settings
 
-TABLE_PREFIXES = """
-CREATE TABLE IF NOT EXISTS Prefixes (
-    guild_id INTEGER NOT NULL,
-    prefix TEXT NOT NULL,
-    FOREIGN KEY(guild_id) REFERENCES Guilds(id)
-        ON DELETE CASCADE
-);
-"""
 
-
-class PrefixDatabase(guild_db.GuildDatabase):
+class PrefixDatabase(db.Database):
     """Provide an interface to a GuildDatabase with a Prefixes table."""
-
-    __slots__ = ['prefix_cache']
+    __slots__ = ('prefix_cache',)
 
     PREFIX_SIZE_LIMIT = 20
+
+    TABLE_NAME = 'Prefixes'
+    TABLE_SETUP = """
+    CREATE TABLE IF NOT EXISTS Prefixes (
+        guild_id INTEGER NOT NULL,
+        prefix TEXT NOT NULL,
+        FOREIGN KEY(guild_id) REFERENCES Guilds(id)
+            ON DELETE CASCADE
+    );
+    """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.prefix_cache = {}
 
-    async def has_prefix(self, guild_id: int):
-        """Test if a prefix for a guild exists in the database."""
-        guild_id = int(guild_id)
-
-        return await self.get_prefix(guild_id) is not None
-
-    async def add_prefix(
-            self, guild_id: int, prefix: str = None, *, add_guild=False):
-        """Add a prefix for a guild.
+    async def add_prefix(self, guild_id: int, prefix: str = None):
+        """Add a prefix for a guild if it does not exist.
 
         The prefix is constrained by PREFIX_SIZE_LIMIT.
 
@@ -43,9 +36,6 @@ class PrefixDatabase(guild_db.GuildDatabase):
             guild_id (int)
             prefix (Optional[str]): The prefix to set the guild with.
                 If no prefix is provided, uses default_prefix in settings.
-            add_guild (bool):
-                If True, automatically adds the guild_id to the Guilds table.
-                Otherwise, the guild_id foreign key can be violated.
 
         """
         guild_id = int(guild_id)
@@ -59,16 +49,13 @@ class PrefixDatabase(guild_db.GuildDatabase):
                 'characters long.'
             )
 
-        if add_guild:
-            await self.add_guild(guild_id)
-
-        if not await self.has_prefix(guild_id):
-            result = await self.add_row(
-                'Prefixes', {'guild_id': guild_id, 'prefix': prefix})
+        stored_prefix = await self.get_prefix(guild_id)
+        if stored_prefix is None:
+            await self.add_row(self.TABLE_NAME, {'guild_id': guild_id, 'prefix': prefix})
 
             self.prefix_cache[guild_id] = prefix
-
-            return result
+        else:
+            self.prefix_cache[guild_id] = stored_prefix
 
     async def delete_prefix(self, guild_id: int, pop=False):
         """Delete a prefix from a guild.
@@ -87,19 +74,20 @@ class PrefixDatabase(guild_db.GuildDatabase):
         guild_id = int(guild_id)
 
         prefixes = await self.delete_rows(
-            'Prefixes', where=f'guild_id={guild_id}', pop=pop)
+            self.TABLE_NAME, where={'guild_id': guild_id}, pop=pop)
 
         self.prefix_cache.pop(guild_id, None)
 
         return prefixes
 
-    async def get_prefix(self, guild_id: int, *, as_row=True):
-        """Get the prefix for a guild.
+    async def get_prefix(self, guild_id: int):
+        """Get the prefix for a guild if it exists.
 
         guild_id is not escaped.
 
         Returns:
             str
+            None
 
         """
         guild_id = int(guild_id)
@@ -109,7 +97,7 @@ class PrefixDatabase(guild_db.GuildDatabase):
             return prefix
 
         query = await self.get_one(
-            'Prefixes', where=f'guild_id={guild_id}', as_row=as_row)
+            self.TABLE_NAME, 'prefix', where={'guild_id': guild_id})
 
         if query is None:
             return
@@ -135,12 +123,6 @@ class PrefixDatabase(guild_db.GuildDatabase):
             )
 
         await self.update_rows(
-            'Prefixes', {'prefix': prefix}, where=f'guild_id={guild_id}')
+            self.TABLE_NAME, {'prefix': prefix}, where={'guild_id': guild_id})
 
         self.prefix_cache[guild_id] = prefix
-
-
-def setup(connection):
-    """Set up the prefixes table with a sqlite3 connection."""
-    with connection as conn:
-        conn.execute(TABLE_PREFIXES)

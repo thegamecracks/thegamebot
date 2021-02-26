@@ -2,29 +2,29 @@
 
 This stores its own users.
 """
-from . import userdatabase as user_db
-
-TABLE_USERS = """
-CREATE TABLE IF NOT EXISTS Users (
-    id INTEGER UNIQUE
-             NOT NULL
-             PRIMARY KEY
-);
-"""
-TABLE_CHARGES = """
-CREATE TABLE IF NOT EXISTS Charges (
-    user_id INTEGER NOT NULL,
-    amount INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY(user_id) REFERENCES Users(id)
-        ON DELETE CASCADE
-)"""
+from . import database as db
+from .userdatabase import UserDatabase
 
 
-class ChargeDatabase(user_db.UserDatabase):
+class ChargeDatabase(db.Database):
     """Provide an interface to the Charges table."""
 
-    async def add_charges(self, user_id: int, amount: int, *, add_user=True):
-        """Add charges for a user.
+    TABLE_NAME = 'Charges'
+    TABLE_SETUP = f"""
+    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+        user_id INTEGER NOT NULL,
+        amount INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY(user_id) REFERENCES Users(id)
+            ON DELETE CASCADE
+    );
+    """
+
+    def __init__(self, db, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.db = db
+
+    async def change_charges(self, user_id: int, amount: int, *, add_user=True):
+        """Add or subtract charges from a user.
 
         Args:
             user_id (int)
@@ -38,41 +38,30 @@ class ChargeDatabase(user_db.UserDatabase):
 
         charges = await self.get_charges(user_id, add_user=add_user)
 
+        new = charges + amount
+
+        # async with self.connect() as conn:
+        #     await conn.execute(
+        #         f'UPDATE {self.TABLE_NAME} SET amount=? WHERE user_id=?',
+        #         (new, user_id)
+        #     )
+        #     await conn.commit()
+
         return await self.update_rows(
-            'Charges',
-            {'amount': charges + amount},
-            where=f'user_id={user_id}'
-        )
+            self.TABLE_NAME, {'amount': new}, where={'user_id': user_id})
 
     async def delete_charges(self, user_id: int):
         """Delete a user's charges entry."""
         user_id = int(user_id)
 
-        await self.delete_rows('Charges', where=f'user_id={user_id}')
+        # async with self.connect() as conn:
+        #     await conn.execute(
+        #         f'DELETE FROM {self.TABLE_NAME} WHERE user_id=?',
+        #         (user_id,)
+        #     )
+        #     await conn.commit()
 
-    async def subtract_charges(self, user_id: int, amount: int,
-                               *, add_user=False):
-        """Subtract charges from a user.
-
-        Note that this has no restraints; amount can become negative.
-
-        Args:
-            user_id (int)
-            amount (int)
-            add_user (bool):
-                If True, automatically adds the user_id to the Users table.
-                Otherwise, the user_id foreign key can be violated.
-
-        """
-        user_id = int(user_id)
-
-        charges = await self.get_charges(user_id, add_user=add_user)
-
-        return await self.update_rows(
-            'Charges',
-            {'amount': charges - amount},
-            where=f'user_id={user_id}'
-        )
+        return await self.delete_rows(self.TABLE_NAME, {'user_id': user_id})
 
     async def get_charges(self, user_id: int, add_user=True):
         """Get the number of charges a user has.
@@ -84,28 +73,43 @@ class ChargeDatabase(user_db.UserDatabase):
                 Otherwise, the user_id foreign key can be violated.
 
         """
+        async def get_row():
+            # async with self.connect() as conn:
+            #     async with await conn.execute(
+            #             f'SELECT amount FROM {self.TABLE_NAME} WHERE user_id=?',
+            #             (user_id,)) as c:
+            #         return await c.fetchone()
+            return await self.get_one(
+                self.TABLE_NAME, 'amount', where={'user_id': user_id})
+
         user_id = int(user_id)
 
         if add_user:
-            await self.add_user(user_id)
+            await self.db.users.add_user(user_id)
 
-        row = await self.get_one('Charges', where=f'user_id={user_id}')
+        row = await get_row()
         if row is None:
-            if not await self.has_user(user_id):
+            if await self.db.users.get_user(user_id) is None:
                 raise ValueError(
                     f'User {user_id!r} does not exist in the database')
             else:
                 await self.add_row('Charges', {'user_id': user_id})
-                row = await self.get_one('Charges', where=f'user_id={user_id}')
+                row = await get_row()
         return row['amount']
 
 
-class IrishDatabase(ChargeDatabase):
+class IrishDatabase(db.Database):
     """Provide an interface to the Irish Squad's database."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-def setup(connection):
-    """Set up the Irish Squad tables with a sqlite3 connection."""
-    with connection as conn:
-        conn.execute(TABLE_USERS)
-        conn.execute(TABLE_CHARGES)
+        self.charges = ChargeDatabase(self, *args, **kwargs)
+        self.users = UserDatabase(*args, **kwargs)
+
+    @property
+    def TABLE_SETUP(self):
+        return (
+            self.users.TABLE_SETUP,
+            self.charges.TABLE_SETUP
+        )

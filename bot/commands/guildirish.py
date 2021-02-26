@@ -5,7 +5,6 @@ from discord.ext import commands
 import inflect
 
 from bot.classes.confirmation import AdaptiveConfirmation
-from bot.database import IrishDatabase
 from bot import checks
 from bot import utils
 
@@ -22,7 +21,6 @@ class IrishSquad(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.db = IrishDatabase
 
         if not self.bot.intents.members:
             self.description += ('\n**NOTE**: This category will not be '
@@ -60,22 +58,24 @@ class IrishSquad(commands.Cog):
 
     @client_charges.command(name='add')
     @commands.cooldown(3, 10, commands.BucketType.user)
-    async def client_addcharges(self, ctx, *, amount: int):
+    async def client_addcharges(self, ctx, *, number: int):
         """Add to the number of charges you have."""
-        if amount < 1:
+        if number < 1:
             return await ctx.send('You must add at least one charge.',
                                   delete_after=6)
 
+        db = self.bot.dbirish.charges
+
         await ctx.channel.trigger_typing()
 
-        await self.db.add_charges(ctx.author.id, amount)
-        new_charges = await self.db.get_charges(ctx.author.id)
+        await db.change_charges(ctx.author.id, number)
+        new_charges = await db.get_charges(ctx.author.id)
 
         await ctx.send(
             inflector.inflect(
                 "Added {0:,} plural('charge', {0})! "
                 "You now have {1:,} plural('charge', {1}).".format(
-                    amount, new_charges
+                    number, new_charges
                 )
             )
         )
@@ -86,30 +86,32 @@ class IrishSquad(commands.Cog):
 
     @client_charges.command(name='remove')
     @commands.cooldown(3, 10, commands.BucketType.user)
-    async def client_removecharges(self, ctx, amount: int):
+    async def client_removecharges(self, ctx, number: int):
         """Subtract from the number of charges you have."""
-        if amount < 1:
+        if number < 1:
             return await ctx.send('You must remove at least one charge.',
                                   delete_after=6)
 
+        db = self.bot.dbirish.charges
+
         await ctx.channel.trigger_typing()
 
-        charges = await self.db.get_charges(ctx.author.id)
-        new_charges = charges - amount
+        charges = await db.get_charges(ctx.author.id)
+        new_charges = charges - number
 
         if new_charges < 0:
             return await ctx.send(inflector.inflect(
                 "Cannot remove {0:,} plural('charge', {0}); "
                 "you only have {1:,} plural('charge', {1}).".format(
-                    amount, charges)
+                    number, charges)
             ))
 
-        await self.db.subtract_charges(ctx.author.id, amount)
+        await db.change_charges(ctx.author.id, -number)
         await ctx.send(
             inflector.inflect(
                 "Removed {0:,} plural('charge', {0})! "
                 "You now have {1:,} plural('charge', {1}).".format(
-                    amount, new_charges
+                    number, new_charges
                 )
             )
         )
@@ -122,13 +124,14 @@ class IrishSquad(commands.Cog):
     @commands.cooldown(3, 10, commands.BucketType.user)
     async def client_charges_number(self, ctx, *, user: discord.User = None):
         """Show the number of charges you or someone else has."""
+        db = self.bot.dbirish.charges
         await ctx.channel.trigger_typing()
 
         if user is None:
             user = ctx.author
 
         try:
-            charges = await self.db.get_charges(user.id, add_user=False)
+            charges = await db.get_charges(user.id, add_user=False)
         except ValueError as e:
             # Prevents non-members of the guild from being added
             # to the database
@@ -152,24 +155,23 @@ class IrishSquad(commands.Cog):
     @commands.cooldown(2, 10, commands.BucketType.channel)
     async def client_charges_guildtotal(self, ctx):
         """Show the squad's total charges."""
+        db = self.bot.dbirish.charges
         await ctx.channel.trigger_typing()
 
-        rows = await self.db.get_rows('Charges')
+        async with db.connect() as conn:
+            async with await conn.execute(
+                    f'SELECT SUM(amount) AS total FROM {db.TABLE_NAME}') as c:
+                total = (await c.fetchone())['total']
 
-        total = sum(r['amount'] for r in rows)
-
-        rows = sorted((r for r in rows if r['amount'] != 0),
-                      key=lambda r: r['amount'], reverse=True)
+            async with await conn.execute(
+                    f'SELECT user_id, amount FROM {db.TABLE_NAME} '
+                    'WHERE amount != 0 ORDER BY amount DESC '
+                    f'LIMIT {self.CHARGE_LEADERBOARD_MAX:d}') as c:
+                rows = await c.fetchall()
 
         description = []
         for i, r in enumerate(rows, start=1):
-            if i > self.CHARGE_LEADERBOARD_MAX:
-                description.append('...')
-                break
-
-            user = self.bot.get_user(r['user_id'])
-            mention = user.mention if user is not None else None
-
+            mention = f"<@{r['user_id']}>"
             description.append(f"{mention}: {r['amount']:,}")
 
         embed = None
@@ -206,7 +208,7 @@ This requires a confirmation."""
             "Are you sure you want to reset Irish Squad's number of charges?")
 
         if confirmed:
-            await self.db.delete_rows('Charges', where='1')
+            await self.bot.dbirish.charges.delete_rows('Charges', where='1')
 
             await prompt.update('Completed charge wipe!',
                                 prompt.emoji_yes.color)
@@ -232,39 +234,45 @@ This requires a confirmation."""
         confirmed = await prompt.confirm(
             "Are you sure you want to vacuum the database?")
 
-        if confirmed:
-            guild = self.guild
+        if not confirmed:
+            return await prompt.update('Cancelled clean up.', prompt.emoji_no.color)
 
-            # Remove all IDs from the Users table if they are
-            # not in the guild
-            invalid_users = []
-            async for row in self.db.yield_rows('Users'):
-                user_id = row['id']
-                member = guild.get_member(user_id)
-                if member is None:
-                    try:
-                        member = await guild.fetch_member(user_id)
-                    except discord.NotFound:
-                        member = None
-                if member is None:
-                    invalid_users.append(user_id)
+        db = self.bot.dbirish.users
+        guild = self.guild
 
-            where = 'id IN ({})'.format(
-                ', '.join([str(user_id) for user_id in invalid_users])
-            )
-            await self.db.delete_rows('Users', where=where)
+        invalid_users = []
 
-            # Execute vacuum
-            await self.db.vacuum()
+        async with db.connect() as conn:
+            async with await conn.execute('SELECT id FROM Users') as c:
+                # Remove all IDs from the Users table if they are
+                # not in the guild
+                async for row in c:
+                    user_id = row['id']
+                    member = guild.get_member(user_id)
+                    if member is None:
+                        try:
+                            member = await guild.fetch_member(user_id)
+                        except discord.NotFound:
+                            pass
+                    if member is None:
+                        invalid_users.append(user_id)
 
-            message = inflector.inflect(
-                "Completed clean up!\n{0:,} plural('user', {0}) "
-                "vacuumed.".format(len(invalid_users))
-            )
+            if invalid_users:
+                query = 'DELETE FROM Users WHERE id IN ({})'.format(
+                    ', '.join([str(user_id) for user_id in invalid_users])
+                )
+                await conn.execute(query)
+                await conn.commit()
 
-            await prompt.update(message, prompt.emoji_yes.color)
-        else:
-            await prompt.update('Cancelled clean up.', prompt.emoji_no.color)
+        # Execute vacuum
+        await db.vacuum()
+
+        message = inflector.inflect(
+            "Completed clean up!\n{0:,} plural('user', {0}) "
+            "vacuumed.".format(len(invalid_users))
+        )
+
+        await prompt.update(message, prompt.emoji_yes.color)
 
 
 
