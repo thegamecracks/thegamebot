@@ -9,8 +9,6 @@ from discord_slash import SlashContext
 import discord_slash as dslash
 import inflect
 
-
-from bot.database import NoteDatabase
 from bot import utils
 
 inflector = inflect.engine()
@@ -24,7 +22,6 @@ class Notes(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.notedb = NoteDatabase
         self.cache = {}  # user_id: notes
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
@@ -36,12 +33,13 @@ class Notes(commands.Cog):
 
     async def add_note(self, user_id, *args, **kwargs):
         """Adds a note and invalidates the user's cache."""
-        await self.notedb.add_note(user_id, *args, **kwargs)
+        await self.bot.dbusers.add_user(user_id)
+        await self.bot.dbnotes.add_note(user_id, *args, **kwargs)
         del self.cache[user_id]
 
     async def delete_note_by_note_id(self, note_id, pop=False):
         """Remove a note by note_id and update the cache."""
-        deleted = await self.notedb.delete_note_by_note_id(note_id, pop=True)
+        deleted = await self.bot.dbnotes.delete_note_by_note_id(note_id, pop=True)
 
         updated_ids = frozenset(note['user_id'] for note in deleted)
 
@@ -55,7 +53,7 @@ class Notes(commands.Cog):
 
         if notes is None:
             # Uncached user; add them to cache
-            notes = await self.notedb.get_notes(user_id)
+            notes = await self.bot.dbnotes.get_notes(user_id)
             self.cache[user_id] = notes
 
         return notes

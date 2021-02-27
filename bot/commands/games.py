@@ -15,7 +15,6 @@ from bot.classes.confirmation import AdaptiveConfirmation
 from bot.classes.games import blackjack, multimath
 from bot.classes.get_reaction import get_reaction
 from bot.classes import paginator
-from bot.database import GameDatabase
 from bot import checks, utils
 
 inflector = inflect.engine()
@@ -236,46 +235,7 @@ class Games(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.gamedb = GameDatabase
         self.unturneddb = UnturnedDatabase.from_files()
-
-
-
-
-
-    @commands.command(name='testpages')
-    @commands.is_owner()
-    async def client_testpages(self, ctx):
-        """Create a simple paginator."""
-        embeds = [
-            discord.Embed(title="test page 1",
-                description="This is just some test content!", color=0x115599),
-            discord.Embed(title="test page 2",
-                description="Nothing interesting here.", color=0x5599ff),
-            discord.Embed(title="test page 3",
-                description="Why are you still here?", color=0x191638)
-        ]
-
-        pages = paginator.RemovableReactBotEmbedPaginator(
-            ctx, embeds)
-        await pages.run()
-
-
-
-
-
-    @commands.command(name='testconfirmation')
-    @commands.is_owner()
-    async def client_testconfirmation(self, ctx):
-        """Create a test confirmation prompt."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
-
-        confirmed = await prompt.confirm('Confirmation')
-
-        if confirmed:
-            await prompt.update('Confirmed', prompt.emoji_yes.color)
-        else:
-            await prompt.update('Cancelled', prompt.emoji_no.color)
 
 
 
@@ -375,16 +335,17 @@ size: (optional) The size of the deck to use in the session.
 
             if results.done:
                 if size == 2:
-                    await self.gamedb.blackjack.change(
+                    await self.bot.dbusers.add_user(ctx.author.id)
+                    await self.bot.dbgames.blackjack.change(
                         'played', results.last_player.id, 1)
                     if results.player.maximum == 21:
-                        await self.gamedb.blackjack.change(
+                        await self.bot.dbgames.blackjack.change(
                             'blackjacks', results.last_player.id, 1)
                     if results.winner:
-                        await self.gamedb.blackjack.change(
+                        await self.bot.dbgames.blackjack.change(
                             'wins', results.last_player.id, 1)
                     elif results.winner is False:
-                        await self.gamedb.blackjack.change(
+                        await self.bot.dbgames.blackjack.change(
                             'losses', results.last_player.id, 1)
             else:
                 # Game timed out
@@ -413,8 +374,8 @@ size: (optional) The size of the deck to use in the session.
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_blackjack_stats(self, ctx):
         """View your blackjack stats."""
-        db = self.gamedb.blackjack
-        row = await db.get_blackjack_row(ctx.author.id)
+        await self.bot.dbusers.add_user(ctx.author.id)
+        row = await self.bot.dbgames.blackjack.get_blackjack_row(ctx.author.id)
         blackjacks = row['blackjacks']
         losses = row['losses']
         played = row['played']
@@ -462,7 +423,7 @@ size: (optional) The size of the deck to use in the session.
             'Are you sure you want to reset your blackjack stats?')
 
         if confirmed:
-            await self.gamedb.delete_data(ctx.author.id)
+            await self.bot.dbgames.delete_data(ctx.author.id)
             await prompt.update('Successfully wiped your stats!',
                                 prompt.emoji_yes.color)
         else:

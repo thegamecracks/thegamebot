@@ -5,32 +5,38 @@ Table dependencies:
 """
 from . import database as db
 
-TABLE_USERS = """
-CREATE TABLE IF NOT EXISTS Users (
-    id INTEGER UNIQUE
-             NOT NULL
-             PRIMARY KEY
-);
-"""
-
 
 class UserDatabase(db.Database):
     """Provide an interface to a database with a Users table."""
 
-    async def has_user(self, user_id: int):
-        """Test if a user_id exists in the database."""
-        user_id = int(user_id)
-
-        return await self.get_user(user_id) is not None
+    TABLE_NAME = 'Users'
+    TABLE_SETUP = f"""
+    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+        id INTEGER UNIQUE
+                 NOT NULL
+                 PRIMARY KEY
+    );
+    """
 
     async def add_user(self, user_id: int):
         """Add a user to the database if the user does not exist."""
         user_id = int(user_id)
 
-        if not await self.has_user(user_id):
-            return await self.add_row('Users', {'id': user_id})
+        if await self.get_user(user_id) is None:
+            return await self.add_row(self.TABLE_NAME, {'id': user_id})
 
-    async def get_user(self, user_id: int, *, as_row=True):
+    async def delete_user(self, user_id: int):
+        """Delete a user from the database."""
+        user_id = int(user_id)
+
+        # async with self.connect() as conn:
+        #     await conn.execute(
+        #         f'DELETE FROM {self.TABLE_NAME} WHERE id=?', (user_id,))
+        #     await conn.commit()
+
+        return await self.delete_rows(self.TABLE_NAME, {'id': user_id})
+
+    async def get_user(self, user_id: int):
         """Get a user record from the database.
 
         If the user is not found, returns None.
@@ -38,17 +44,10 @@ class UserDatabase(db.Database):
         """
         user_id = int(user_id)
 
-        return await self.get_one(
-            'Users', where=f'id={user_id}', as_row=as_row)
+        # async with self.connect() as conn:
+        #     async with await conn.execute(
+        #             f'SELECT * FROM {self.TABLE_NAME} WHERE id=?',
+        #             (user_id,)) as c:
+        #         return await c.fetchone()
 
-    async def remove_user(self, user_id: int):
-        """Remove a user from the database."""
-        user_id = int(user_id)
-
-        await self.delete_rows('Users', where=f'id={user_id}')
-
-
-def setup(connection):
-    """Set up the Users table with a sqlite3 connection."""
-    with connection as conn:
-        conn.execute(TABLE_USERS)
+        return await self.get_one(self.TABLE_NAME, where={'id': user_id})

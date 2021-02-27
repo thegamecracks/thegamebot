@@ -3,7 +3,6 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.database import PrefixDatabase
 from bot import utils
 
 inflector = inflect.engine()
@@ -24,7 +23,6 @@ class Prefix(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.prefixdb = PrefixDatabase
         self.mention_prefix_cooldown = commands.CooldownMapping.from_cooldown(
             1, 15, commands.BucketType.member)
 
@@ -34,7 +32,7 @@ class Prefix(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        "Send the bot's prefix if mentioned."
+        """Send the bot's prefix if mentioned."""
         def list_discard(seq, value):
             try:
                 seq.remove(value)
@@ -89,6 +87,7 @@ class Prefix(commands.Cog):
 For prefixes ending with a space or multi-word prefixes, specify it with double quotes:
 <command> "myprefix " """
         prefix = prefix.lstrip()
+        db = self.bot.dbprefixes
 
         if not prefix:
             ctx.command.reset_cooldown(ctx)
@@ -98,7 +97,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
         await ctx.trigger_typing()
 
         current_prefix = (
-            await self.prefixdb.get_prefix(ctx.guild.id)
+            await db.get_prefix(ctx.guild.id)
         )
 
         if prefix == current_prefix:
@@ -107,7 +106,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
         else:
             # Escape escape characters before printing
             clean_prefix = prefix.replace('\\', r'\\')
-            await self.prefixdb.update_prefix(ctx.guild.id, prefix)
+            await db.update_prefix(ctx.guild.id, prefix)
             await ctx.send(f'Successfully changed prefix to: "{clean_prefix}"')
 
 

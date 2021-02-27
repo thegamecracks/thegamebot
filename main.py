@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
 
 from bot import checks
-from bot import database
+from bot.database import BotDatabaseMixin
 from bot import eventhandlers
 from bot.commands import helpcommand
 from bot import settings
@@ -49,12 +49,12 @@ disabled_intents = [
 
 
 
-class Bot(commands.Bot):
+class Bot(BotDatabaseMixin, commands.Bot):
     """A custom version of Bot that allows case-insensitive references
     to cogs. See "?tag case insensitive cogs" on the discord.py server.
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(super().get_prefix, *args, **kwargs)
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
 
 
@@ -69,15 +69,15 @@ async def main():
 
     args = parser.parse_args()
 
-    # Set up databases
-    database.setup()
+    TOKEN = os.getenv('PyDiscordBotToken')
+    if TOKEN is None:
+        return print('Could not get token from environment.')
 
     # Use a non-GUI based backend for matplotlib
     matplotlib.use('Agg')
     mplstyle.use(['data/discord.mplstyle', 'fast'])
 
     # Set up client
-    TOKEN = os.getenv('PyDiscordBotToken')
     logger = discordlogger.get_logger()
     settings.setup()
 
@@ -88,11 +88,13 @@ async def main():
         setattr(intents, attr, False)
 
     bot = Bot(
-        command_prefix=database.get_prefix(),
         help_command=helpcommand.HelpCommand(),
         intents=intents
     )
 
+    with utils.update_text('Setting up databases',
+                           'Set up databases'):
+        await bot.db_setup()
     with utils.update_text('Initializing global checks',
                            'Initialized global checks'):
         checks.setup(bot)

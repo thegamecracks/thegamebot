@@ -10,7 +10,6 @@ import inflect
 
 from bot import utils
 from bot.classes.timeobj import parse_timedelta
-from bot.database import ReminderDatabase
 from bot.other import discordlogger
 
 inflector = inflect.engine()
@@ -20,12 +19,13 @@ class Reminders(commands.Cog):
     """Commands for setting up reminders."""
     qualified_name = 'Reminders'
 
+    MINIMUM_REMINDER_TIME = 30
+
     send_reminders_near_due = datetime.timedelta(minutes=11)
     # NOTE: should be just a bit longer than task loop
 
     def __init__(self, bot):
         self.bot = bot
-        self.reminderdb = ReminderDatabase
         self.cache = {}  # user_id: reminders
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
@@ -45,22 +45,17 @@ class Reminders(commands.Cog):
 
 
 
-    async def add_reminder(self, user_id, utcdue, content, add_user=True):
+    async def add_reminder(self, user_id, utcdue, content):
         """Adds a reminder and invalidates the user's cache."""
-        reminder_id = await self.reminderdb.add_reminder(
-            user_id, utcdue, content, add_user=add_user)
+        reminder_id = await self.bot.dbreminders.add_reminder(
+            user_id, utcdue, content)
         self.cache.pop(user_id, None)
 
-        utcnow = datetime.datetime.utcnow()
-
-        if utcdue - utcnow < self.send_reminders_near_due:
-            # Reminder executes soon; spin up task
-            self.check_to_create_reminder(
-                reminder_id, user_id, content, utcdue)
+        self.check_to_create_reminder(reminder_id, user_id, content, utcdue)
 
     async def delete_reminder_by_id(self, reminder_id, pop=False):
-        "Remove a reminder by reminder_id and update the caches."
-        deleted = await self.reminderdb.delete_reminder_by_id(
+        """Remove a reminder by reminder_id and update the caches."""
+        deleted = await self.bot.dbreminders.delete_reminder_by_id(
             reminder_id, pop=True)
 
         updated_ids = frozenset(reminder['user_id'] for reminder in deleted)
@@ -85,7 +80,7 @@ class Reminders(commands.Cog):
 
         if reminders is None:
             # Uncached user; add them to cache
-            reminders = await self.reminderdb.get_reminders(user_id)
+            reminders = await self.bot.dbreminders.get_reminders(user_id)
             self.cache[user_id] = reminders
 
         return reminders
@@ -131,17 +126,19 @@ You can have a maximum of 5 reminders."""
                     ctx,
                     'Could not understand your reminder request. Check this '
                     "command's help page for allowed syntax.",
-                    delete_after=6
+                    delete_after=10
                 )
 
-            if td.total_seconds() < 30:
+            if td.total_seconds() < self.MINIMUM_REMINDER_TIME:
                 return await self.send_with_disclaimer(
                     ctx, 'You must set a reminder lasting for at '
-                    'least 30 seconds.', delete_after=6)
+                    f'least {self.MINIMUM_REMINDER_TIME} seconds.',
+                    delete_after=10
+                )
             elif not content:
                 return await self.send_with_disclaimer(
                     ctx, 'You must have a message with your reminder.',
-                    delete_after=6
+                    delete_after=10
                 )
 
             # Round seconds down if td does not specify seconds
@@ -150,9 +147,7 @@ You can have a maximum of 5 reminders."""
 
             utcdue = utcnow + td
 
-            await self.add_reminder(
-                ctx.author.id, utcdue, content
-            )
+            await self.add_reminder(ctx.author.id, utcdue, content)
 
             await self.send_with_disclaimer(
                 ctx, 'Your {} reminder has been added!'.format(
@@ -362,7 +357,7 @@ To remove only one reminder, use the removereminder command."""
     def create_reminder_task(self, reminder_id, user_id, utcwhen, td, content):
         """Adds a reminder task to the bot loop and logs it."""
         task = self.bot.loop.create_task(
-            self.reminder_coro(reminder_id, user_id, utcwhen, td, content)
+            self.reminder_coro(reminder_id, user_id, utcwhen, content)
         )
         self.send_reminders_tasks[reminder_id] = task
 
@@ -371,7 +366,7 @@ To remove only one reminder, use the removereminder command."""
 
         return task
 
-    async def reminder_coro(self, reminder_id, user_id, utcwhen, td, content):
+    async def reminder_coro(self, reminder_id, user_id, utcwhen, content):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry():
             await self.delete_reminder_by_id(reminder_id)
@@ -383,12 +378,15 @@ To remove only one reminder, use the removereminder command."""
             discordlogger.get_logger().info(message)
             print(message)
 
-        seconds = td.total_seconds()
+        db = self.bot.dbreminders
+
+        utcnow = datetime.datetime.utcnow()
+        seconds = (utcwhen - utcnow).total_seconds()
 
         await asyncio.sleep(seconds)
 
-        if await self.reminderdb.get_one(
-                'Reminders', where=f'reminder_id={reminder_id}') is None:
+        if await db.get_one(db.TABLE_NAME, 'reminder_id',
+                            where={'reminder_id': reminder_id}) is None:
             # Reminder was deleted during wait; don't send
             return
 
@@ -417,15 +415,15 @@ To remove only one reminder, use the removereminder command."""
 
         try:
             await user.send(embed=embed)
-        except discord.HTTPException as e:
-            log_and_print(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
-                f'HTTPException occurred: {e}'
-            )
         except discord.Forbidden as e:
             log_and_print(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
                 f'was forbidden from sending: {e}'
+            )
+        except discord.HTTPException as e:
+            log_and_print(
+                f'Reminders: failed to send reminder, ID {reminder_id}: '
+                f'HTTPException occurred: {e}'
             )
         else:
             # Successful; remove reminder task and database entry
@@ -440,9 +438,10 @@ To remove only one reminder, use the removereminder command."""
         """Periodically queries the database for reminders and
         spins up reminder tasks as needed.
         """
+        db = self.bot.dbreminders
         utcnow = datetime.datetime.utcnow()
 
-        async for entry in self.reminderdb.yield_rows('Reminders'):
+        async for entry in db.yield_rows(db.TABLE_NAME):
             utcwhen = datetime.datetime.fromisoformat(entry['due'])
 
             self.check_to_create_reminder(

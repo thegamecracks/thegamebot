@@ -5,60 +5,49 @@ Table dependencies:
 """
 from . import database as db
 
-TABLE_GUILDS = """
-CREATE TABLE IF NOT EXISTS Guilds (
-    id INTEGER UNIQUE
-             NOT NULL
-             PRIMARY KEY
-);
-"""
-
 
 class GuildDatabase(db.Database):
     """Provide an interface to a database with a guilds table."""
 
-    async def has_guild(self, guild_id: int):
-        """Test if a guild_id exists in the database."""
-        guild_id = int(guild_id)
-
-        return await self.get_guild(guild_id) is not None
+    TABLE_NAME = 'Guilds'
+    TABLE_SETUP = f"""
+    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+        id INTEGER NOT NULL PRIMARY KEY
+    );
+    """
 
     async def add_guild(self, guild_id: int):
-        """Add a guild to the database if the guild does not exist.
-
-        guild_id is not escaped.
-
-        """
+        """Add a guild to the database if the guild does not exist."""
         guild_id = int(guild_id)
 
-        if not await self.has_guild(guild_id):
-            return await self.add_row('Guilds', {'id': guild_id})
+        if await self.get_guild(guild_id) is None:
+            return await self.add_row(self.TABLE_NAME, {'id': guild_id})
 
-    async def get_guild(self, guild_id: int, *, as_row=True):
+    async def delete_guild(self, guild_id: int):
+        """Delete a guild from the database."""
+        guild_id = int(guild_id)
+
+        # async with self.connect() as conn:
+        #     await conn.execute(
+        #         f'DELETE FROM {self.TABLE_NAME} WHERE id=?',
+        #         (guild_id,)
+        #     )
+        #     await conn.commit()
+
+        return await self.delete_rows(self.TABLE_NAME, {'id': guild_id})
+
+    async def get_guild(self, guild_id: int):
         """Get a guild record from the database.
 
         If the guild is not found, returns None.
 
-        guild_id is not escaped.
-
         """
         guild_id = int(guild_id)
 
-        return await self.get_one(
-            'Guilds', where=f'id={guild_id}', as_row=as_row)
+        # async with self.connect() as conn:
+        #     async with await conn.execute(
+        #             f'SELECT * FROM {self.TABLE_NAME} WHERE id=?',
+        #             (guild_id,)) as c:
+        #         return await c.fetchone()
 
-    async def remove_guild(self, guild_id: int):
-        """Remove a guild from the database.
-
-        guild_id is not escaped.
-
-        """
-        guild_id = int(guild_id)
-
-        await self.delete_rows('Guilds', where=f'id={guild_id}')
-
-
-def setup(connection):
-    """Set up the guilds table with a sqlite3 connection."""
-    with connection as conn:
-        conn.execute(TABLE_GUILDS)
+        return await self.get_one(self.TABLE_NAME, where={'id': guild_id})
