@@ -1,6 +1,15 @@
+/* Center align all elements */
+* {
+	text-align: center !important;
+	margin: auto !important;
+}
+
 body {
 	background-color: #36393F;
 	color: #fff;
 	font-family: "Roboto Slab", sans-serif;
 }
 
+table th, table td {
+	padding: 10px;
+}

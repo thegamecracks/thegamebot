@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+	<h3>
+		{% if mode == "shutdown" %}
+			Shutting down the bot.
+		{% elif mode == "restart" %}
+			Restarting the bot.
+		{% else %}
+			Invalid response.
+		{% endif %}
+	</h3>
+{% endblock %}

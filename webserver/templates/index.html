@@ -1,16 +1,31 @@
-<html>
-<head>
-	<title>thegamebot Homepage</title>
-	<meta charset="utf-8">
-	<meta name="viewport"
-		content="width=device-width, initial-scale=1, user-scalable=yes">
-	<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
+{% block content %}
 	<h1>thegamebot</h1>
-	<p>Uptime: {{ uptime }}</p>
-	<!-- <form action="" method="post">
-		<input type="submit" name="Get Users" value="get users" />
-	</form> -->
-</body>
-</html>
+	<h3>Running on Python {{ python_version }} with discord.py {{ dpy_version }}</h3>
+	<br>
+	<table>
+		<!--<caption>Statistics</caption>-->
+		<thead>
+			<tr>
+				<th>Uptime</th>
+				<th>Member Count</th>
+				<th>Guilds</th>
+				<th>Commands</th>
+				<th>Processed</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>{{ uptime }}</td>
+				<td>{{ members }}</td>
+				<td>{{ guilds }}</td>
+				<td>{{ commands }}</td>
+				<td>{{ commands_processed }}</td>
+			</tr>
+		</tbody>
+	</table>
+	<form action="shutdown" method="post">
+		<input type="submit" name="turn_off" value="Shutdown" onclick="return confirm('Are you sure you want to shut down the bot?')" />
+		<input type="submit" name="turn_off" value="Restart" onclick="return confirm('Are you sure you want to restart the bot?')" />
+	</form>
+{% endblock %}
