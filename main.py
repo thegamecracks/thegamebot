@@ -31,6 +31,7 @@ cogs = [
         'guildirish',
         'images',
         'info',
+        'invites',
         'mathematics',
         'notes',
         'prefix',
@@ -43,7 +44,7 @@ cogs = [
 cogs.extend(('jishaku',))
 
 disabled_intents = [
-    'bans', 'integrations', 'webhooks', 'invites',
+    'bans', 'integrations', 'webhooks',
     'voice_states', 'typing'
 ]
 
