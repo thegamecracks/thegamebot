@@ -677,6 +677,20 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
 
 
+    @commands.command(name='syncslash')
+    @checks.is_bot_owner()
+    @commands.cooldown(1, 15)
+    async def client_sync_slash(self, ctx):
+        """Synchronize slash commands."""
+        async with ctx.typing():
+            await self.bot.slash.sync_all_commands()
+
+        await ctx.send('Synced slash commands.')
+
+
+
+
+
 
 
 
