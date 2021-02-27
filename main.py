@@ -5,8 +5,9 @@ import datetime
 import time
 import os
 
+import aiohttp
 import discord
-from discord.ext import commands
+from discord.ext import commands, ipc
 import discord_slash as dslash
 import matplotlib
 import matplotlib.pyplot as plt
@@ -31,6 +32,7 @@ cogs = [
         'guildirish',
         'images',
         'info',
+        'ipc',
         'mathematics',
         'notes',
         'prefix',
@@ -56,6 +58,39 @@ class Bot(BotDatabaseMixin, commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(super().get_prefix, *args, **kwargs)
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
+
+        self.ipc = ipc.Server(self, secret_key=os.getenv('PyDiscordBotIPCKey'))
+
+    async def on_ipc_ready(self):
+        print('IPC is ready')
+
+    async def on_ipc_error(self, endpoint, error):
+        """Called upon an error being raised within an IPC route"""
+        print('IPC endpoint', endpoint, 'raised an error:', error)
+
+
+async def run_server(bot):
+    """Start the bot's IPC server.
+
+    This is basically a copy of ipc.Server.start except
+    asynchronous methods are executed using async/await
+    instead of loop.run_until_complete.
+
+    """
+    self = bot.ipc
+
+    self.bot.dispatch("ipc_ready")
+
+    self._server = aiohttp.web.Application()
+    self._server.router.add_route("GET", "/", self.handle_accept)
+
+    if self.do_multicast:
+        self._multicast_server = aiohttp.web.Application()
+        self._multicast_server.router.add_route("GET", "/", self.handle_multicast)
+
+        await self._Server__start(self._multicast_server, self.multicast_port)
+
+    await self._Server__start(self._server, self.port)
 
 
 async def main():
@@ -136,6 +171,9 @@ async def main():
     loop = asyncio.get_running_loop()
 
     loop.create_task(bootup_time(bot, start_time))
+
+    # Start IPC server
+    await run_server(bot)
 
     # Start the bot
     print('Starting bot')
