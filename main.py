@@ -57,6 +57,16 @@ class Bot(BotDatabaseMixin, commands.Bot):
         super().__init__(super().get_prefix, *args, **kwargs)
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
 
+    async def restart(self):
+        """Create a file named RESTART and logout.
+
+        The batch file running the script loop should detect
+        and recognize to rerun the bot again.
+
+        """
+        open('RESTART', 'w').close()
+        return await self.logout()
+
 
 async def main():
     start_time = time.perf_counter()

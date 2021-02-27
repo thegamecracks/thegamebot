@@ -23,12 +23,6 @@ def get_user_for_log(ctx):
     return f'{ctx.author} ({ctx.author.id})'
 
 
-def send_restart_signal():
-    """Create a file named RESTART that the batch file running the script
-    loop should detect and recognize to rerun the bot again."""
-    open('RESTART', 'w').close()
-
-
 class BucketTypeConverter(commands.Converter):
     async def convert(self, ctx, argument):
         try:
@@ -652,9 +646,8 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
         if confirmed:
             await prompt.update('Restarting.', prompt.emoji_yes.color)
-            send_restart_signal()
             print(f'Initiating restart by {get_user_for_log(ctx)}')
-            await self.bot.logout()
+            await self.bot.restart()
         else:
             await prompt.update('Cancelled restart.', prompt.emoji_no.color)
 
