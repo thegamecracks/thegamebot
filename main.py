@@ -151,6 +151,16 @@ class IPCClientProcess:
             if stdout:
                 print(stdout.decode(), end='')
 
+    async def restart(self):
+        """Create a file named RESTART and logout.
+
+        The batch file running the script loop should detect
+        and recognize to rerun the bot again.
+
+        """
+        open('RESTART', 'w').close()
+        return await self.logout()
+
 
 async def main():
     start_time = time.perf_counter()
@@ -215,7 +225,7 @@ async def main():
     # Setup slash command system
     with utils.update_text('Adding slash command extension',
                            'Added slash command extension'):
-        bot.slash = dslash.SlashCommand(bot, sync_commands=True, sync_on_cog_reload=True)
+        bot.slash = dslash.SlashCommand(bot)
 
     # Load extensions
     for i, name in enumerate(cogs, start=1):
