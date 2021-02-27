@@ -55,14 +55,15 @@ class Bot(BotDatabaseMixin, commands.Bot):
     """A custom version of Bot that allows case-insensitive references
     to cogs. See "?tag case insensitive cogs" on the discord.py server.
     """
-    def __init__(self, *args, run_ipc=True, **kwargs):
+    def __init__(self, *args, run_ipc=False, **kwargs):
         super().__init__(super().get_prefix, *args, **kwargs)
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
 
-        ipc = None
+        server = None
         if run_ipc:
-            ipc = ipc.Server(self, secret_key=os.getenv('PyDiscordBotIPCKey'))
-        self.ipc = ipc
+            server = ipc.Server(
+                self, secret_key=os.getenv('PyDiscordBotIPCKey'))
+        self.ipc = server
 
     async def on_ipc_ready(self):
         print('IPC is ready')
@@ -96,14 +97,13 @@ async def run_ipc_server(bot):
     await self._Server__start(self._server, self.port)
 
 
-class IPCClientProcess:
-    """Context manager to spawn a subprocess running
-    the IPC client and webserver."""
+class IPCClient:
+    """Manage a subprocess running the IPC client and webserver."""
 
     def __init__(self):
         self.proc = None
 
-    async def __aenter__(self):
+    async def start(self):
         self.proc = await asyncio.create_subprocess_exec(
             sys.executable, 'webserver\webserver.py',
             stdout=asyncio.subprocess.PIPE
@@ -114,10 +114,11 @@ class IPCClientProcess:
 
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_traceback):
+    async def close(self):
         proc, self.proc = self.proc, None
-        proc.terminate()
-        await proc.wait()
+        if proc is not None:
+            proc.terminate()
+            await proc.wait()
 
     async def relay(self):
         proc = self.proc
@@ -208,9 +209,11 @@ async def main():
         bot.load_extension(name)
     print(f'Loaded all extensions         ')
 
+    webserver = IPCClient()
     if args.ipc:
-        # Start IPC server
+        # Start IPC server and client
         await run_ipc_server(bot)
+        await webserver.start()
 
     # Clean up
     del parser, args, attr, i, name
@@ -227,15 +230,16 @@ async def main():
 
     # Start the bot
     print('Starting bot')
-    async with IPCClientProcess():
-        try:
-            await bot.start(TOKEN)
-        except KeyboardInterrupt:
-            logger.info('KeyboardInterrupt: closing bot')
-        except Exception:
-            logger.exception('Exception raised in bot')
-        finally:
-            await bot.close()
+
+    try:
+        await bot.start(TOKEN)
+    except KeyboardInterrupt:
+        logger.info('KeyboardInterrupt: closing bot')
+    except Exception:
+        logger.exception('Exception raised in bot')
+    finally:
+        await bot.close()
+        await webserver.close()
 
 
 if __name__ == '__main__':
