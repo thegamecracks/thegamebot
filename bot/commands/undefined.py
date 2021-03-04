@@ -7,7 +7,7 @@ from typing import Union
 import discord
 from discord.ext import commands
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ReactionConfirmation
 from bot import utils
 
 WORDLIST_PATH = 'data/wordlist.txt'
@@ -221,7 +221,7 @@ https://stackoverflow.com/q/64080277/"""
 
 This will remove data about your server but not any associated user
 information such as notes or game scores."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = ReactionConfirmation(ctx, utils.get_bot_color())
 
         confirmed = await prompt.confirm('Are you sure you want me to leave?')
 

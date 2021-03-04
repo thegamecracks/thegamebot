@@ -14,7 +14,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ReactionConfirmation
 from bot.other import discordlogger
 from bot import checks, converters, settings, utils
 
@@ -639,7 +639,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
     @checks.is_bot_owner()
     async def client_restart(self, ctx):
         """Restarts the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = ReactionConfirmation(ctx, utils.get_bot_color())
 
         confirmed = await prompt.confirm(
             'Are you sure you want to RESTART the bot?')
@@ -661,7 +661,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
     @checks.is_bot_owner()
     async def client_shutdown(self, ctx):
         """Shutdown the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = ReactionConfirmation(ctx, utils.get_bot_color())
 
         confirmed = await prompt.confirm(
             'Are you sure you want to SHUTDOWN the bot?')

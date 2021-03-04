@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ReactionConfirmation
 from bot import checks
 from bot import utils
 
@@ -202,7 +202,7 @@ class IrishSquad(commands.Cog):
     async def client_charges_reset(self, ctx):
         """Reset the number of charges everyone has.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = ReactionConfirmation(ctx, utils.get_bot_color())
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset Irish Squad's number of charges?")
@@ -229,7 +229,7 @@ This requires a confirmation."""
             return await ctx.send('This is currently disabled as the bot '
                                   'cannot fetch member data at this time.')
 
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = ReactionConfirmation(ctx, utils.get_bot_color())
 
         confirmed = await prompt.confirm(
             "Are you sure you want to vacuum the database?")
