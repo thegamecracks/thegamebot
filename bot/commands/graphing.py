@@ -8,11 +8,7 @@ import io
 from pathlib import Path
 import random
 import string
-import textwrap
-import typing
-import warnings
 
-import aiohttp
 import discord
 from discord.ext import commands
 import humanize
@@ -322,6 +318,7 @@ or the last message that was sent."""
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
 
         plt.close(fig)
         return f, message
@@ -355,13 +352,10 @@ periods: The number of compounding periods in each term."""
 
         loop = asyncio.get_running_loop()
 
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', UserWarning)
-            f, content = await loop.run_in_executor(
-                None, self.interest_stackplot, ctx,
-                principal, rate, term, periods
-            )
-        f.seek(0)
+        f, content = await loop.run_in_executor(
+            None, self.interest_stackplot, ctx,
+            principal, rate, term, periods
+        )
 
         await ctx.send(
             content, file=discord.File(f, 'Word Count Pie Chart.png'))
@@ -441,6 +435,7 @@ periods: The number of compounding periods in each term."""
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
 
         plt.close(fig)
 ##        conn.send(f)
@@ -477,14 +472,8 @@ To see the different methods you can use to provide text, check the help message
 ##        parent_conn.close()
 ##        child_conn.close()
 
-        with warnings.catch_warnings():
-            # Suppress warning from matplotlib saying that opening GUI
-            # in alternate thread will likely fail; we are only saving
-            # the figure to be uploaded, not showing it
-            warnings.simplefilter('ignore', UserWarning)
-            f = await loop.run_in_executor(
-                None, self.frequency_analysis, ctx, text)
-        f.seek(0)
+        f = await loop.run_in_executor(
+            None, self.frequency_analysis, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Frequency Analysis.png'))
 
@@ -598,6 +587,7 @@ To see the different methods you can use to provide text, check the help message
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
 
         plt.close(fig)
         return f
@@ -619,11 +609,8 @@ To see the different methods you can use to provide text, check the help message
 
         loop = asyncio.get_running_loop()
 
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', UserWarning)
-            f = await loop.run_in_executor(
-                None, self.word_count_pie, ctx, text)
-        f.seek(0)
+        f = await loop.run_in_executor(
+            None, self.word_count_pie, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Word Count Pie Chart.png'))
 
@@ -697,6 +684,7 @@ To see the different methods you can use to provide text, check the help message
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
         # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
 
         plt.close(fig)
         return f
@@ -712,11 +700,8 @@ To see the different methods you can use to provide text, check the help message
 
         loop = asyncio.get_running_loop()
 
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', UserWarning)
-            f = await loop.run_in_executor(
-                None, self.test_bar_graphs_3d_image, elevation, azimuth)
-        f.seek(0)
+        f = await loop.run_in_executor(
+            None, self.test_bar_graphs_3d_image, elevation, azimuth)
 
         await ctx.send(file=discord.File(f, '3D Graph Test.png'))
 
@@ -755,7 +740,7 @@ To see the different methods you can use to provide text, check the help message
         fig, ax = self.test_bar_graphs_3d()
 
         def azimuth_rotation():
-            "Generates the azimuths rotating around the graph."
+            """Generates the azimuths rotating around the graph."""
             step = direction * 360 / frames
 
             azimuth = start
@@ -764,7 +749,7 @@ To see the different methods you can use to provide text, check the help message
                 azimuth += step
 
         def run(data):
-            "Takes an azimuth from generate_azimuths."
+            """Takes an azimuth from generate_azimuths."""
             ax.view_init(elev=30, azim=data)
             return ()
 
@@ -803,9 +788,7 @@ To see the different methods you can use to provide text, check the help message
         )
 
         with ctx.typing():
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', UserWarning)
-                fp = await loop.run_in_executor(None, func)
+            fp = await loop.run_in_executor(None, func)
 
         filesize_limit = (ctx.guild.filesize_limit if ctx.guild is not None
                           else 8_000_000)
