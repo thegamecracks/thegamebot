@@ -11,7 +11,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot.classes.confirmation import ReactionConfirmation
+from bot.classes.confirmation import AdaptiveConfirmation
 from bot.classes.games import blackjack, multimath
 from bot.classes.get_reaction import get_reaction
 from bot.classes import paginator
@@ -417,7 +417,7 @@ size: (optional) The size of the deck to use in the session.
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def client_blackjack_stats_reset(self, ctx):
         """Reset your blackjack stats."""
-        prompt = ReactionConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
 
         confirmed = await prompt.confirm(
             'Are you sure you want to reset your blackjack stats?')

@@ -75,18 +75,14 @@ class EmbedConfirmation(abc.ABC):
 
 
 class ReactionConfirmation(EmbedConfirmation):
-    """An embed confirmation that takes its input using reactions.
-
-    TODO: Only has support for unicode emoji due to implementation.
-
-    """
-    def __init__(self, ctx, color=0):
+    """An embed confirmation that takes its input using reactions."""
+    def __init__(self, ctx, color=0, *,
+                 yes='\N{WHITE HEAVY CHECK MARK}',
+                 no='\N{CROSS MARK}'):
         super().__init__(ctx, color)
 
-        self.emoji_yes = ConfirmationEmoji(
-            '\N{WHITE HEAVY CHECK MARK}', 0x77B255)
-        self.emoji_no = ConfirmationEmoji(
-            '\N{CROSS MARK}', 0xDD2E44)
+        self.emoji_yes = ConfirmationEmoji(yes, 0x77B255)
+        self.emoji_no = ConfirmationEmoji(no, 0xDD2E44)
 
     def _create_embed(self, title: str) -> discord.Embed:
         return EmbedConfirmation._create_embed(self, title)
@@ -103,9 +99,14 @@ class ReactionConfirmation(EmbedConfirmation):
 
     async def get_answer(self, *, timeout: int) -> Optional[bool]:
         def check(p):
+            def emoji_are_equal():
+                if p.emoji.is_unicode_emoji():
+                    return p.emoji.name in emojis
+                return p.emoji in emojis
+
             return (p.message_id == self.message.id
                     and p.user_id == self.ctx.author.id
-                    and p.emoji.name in emojis)
+                    and emoji_are_equal())
 
         emojis = (self.emoji_yes.emoji, self.emoji_no.emoji)
 
@@ -167,3 +168,10 @@ class TextConfirmation(EmbedConfirmation):
         else:
             content = message.content.strip().lower()
             return content in self.yes
+
+
+def AdaptiveConfirmation(ctx, *args, **kwargs):
+    """Return a Confirmation that works for the given context."""
+    perms = ctx.me.permissions_in(ctx.channel)
+    cls = ReactionConfirmation if perms.add_reactions else TextConfirmation
+    return cls(ctx, *args, **kwargs)
