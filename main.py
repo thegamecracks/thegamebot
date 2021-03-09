@@ -22,6 +22,7 @@ from bot.other import discordlogger
 
 cogs = [
     f'bot.commands.{c}' for c in (
+        'messagetracker',  # dependency
         'administrative',
         'background',
         'ciphers',
