@@ -140,7 +140,7 @@ class Images(commands.Cog):
 
 
     @staticmethod
-    def clean_amongustext(s, width=70):
+    def clean_amongustext(s, width=None):
         """Clean up text for the Among Us font."""
         # Uppercase and remove unknown characters
         whitelist = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZ \n')
@@ -148,10 +148,13 @@ class Images(commands.Cog):
         s = ''.join(chars)
 
         # Wrap to given width while maintaining existing newlines
-        lines = s.split('\n')
-        for i, line in enumerate(lines):
-            lines[i] = textwrap.fill(line, width=width)
-        return '\n'.join(lines)
+        if width is not None:
+            lines = s.split('\n')
+            for i, line in enumerate(lines):
+                lines[i] = textwrap.fill(line, width=width)
+            s = '\n'.join(lines)
+
+        return s
 
 
     def write_amongustext(self, ctx, text, transparent=False):
@@ -190,7 +193,7 @@ Only alphabetic letters are supported.
 Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
         text = self.clean_amongustext(text)
 
-        if (length := len(text)) == 0:
+        if (length := len(text.replace(' ', ''))) == 0:
             return await ctx.send('Only alphabetic characters are allowed.')
         elif (size := length - 140) > 0:
             return await ctx.send(inflector.inflect(
