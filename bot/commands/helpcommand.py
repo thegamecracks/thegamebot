@@ -355,3 +355,23 @@ class HelpCommand(commands.HelpCommand):
                 name=f'In {self.get_cog_name(command.cog)} category')
 
         await self.send(embed=embed)
+
+
+class HelpCommandCog(commands.Cog):
+    qualified_name = 'Help Command'
+
+    def __init__(self, bot):
+        self.bot = bot
+        self._original_help_command = bot.help_command
+
+        bot.help_command = HelpCommand()
+        bot.help_command.cog = bot.get_cog('Informative') or None
+
+    def cog_unload(self):
+        self.bot.help_command = help_command = self._original_help_command
+        if help_command is not None:
+            help_command.cog = self.bot.get_cog('Informative') or None
+
+
+def setup(bot):
+    bot.add_cog(HelpCommandCog(bot))

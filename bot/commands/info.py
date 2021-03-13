@@ -41,6 +41,14 @@ class Informative(commands.Cog):
         self.bot = bot
         self.process = psutil.Process()
 
+        if self.bot.help_command is not None:
+            self.bot.help_command.cog = self
+
+    def cog_unload(self):
+        help_command = self.bot.help_command
+        if help_command is not None:
+            help_command.cog = None
+
 
 
 
