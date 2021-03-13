@@ -337,16 +337,56 @@ and purges outdated messages daily. No user info or message content is stored.""
 
 
 
-    @commands.command(
-        name='ping')
+    @commands.command(name='ping')
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_ping(self, ctx):
         """Get the bot's latency."""
+        def round_ms(n):
+            return round(n * 100_000) / 1000
+
+        # Bot response time
+        now = time.time()
+        created_at = pytz.utc.localize(
+            ctx.message.created_at
+        ).astimezone().timestamp()
+        latency_response_ms = round_ms(now - created_at)
+
+        # Heartbeat
+        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+
+        embed = discord.Embed(
+            title='Pong!',
+            color=utils.get_bot_color()
+        )
+
+        # API typing time
         start = time.perf_counter()
-        message = await ctx.send('pong!')
-        latency = time.perf_counter() - start
-        latency_ms = round(latency * 100000) / 1000
-        await message.edit(content=f'pong! {latency_ms:g}ms')
+        await ctx.trigger_typing()
+        latency_typing_ms = round_ms(time.perf_counter() - start)
+
+        # API message time
+        start = time.perf_counter()
+        message = await ctx.send(embed=embed)
+        latency_message_ms = round_ms(time.perf_counter() - start)
+
+        # Format embed
+        stats = []
+        if latency_response_ms >= 0:
+            stats.append(f'\N{EYES} Bot: {latency_response_ms:g}ms')
+        stats.extend((
+            f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
+            f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
+            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms'
+        ))
+        stats = '\n'.join(stats)
+        embed.description = stats
+
+        embed.set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await message.edit(embed=embed)
 
 
 
