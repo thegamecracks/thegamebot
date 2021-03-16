@@ -12,7 +12,7 @@ class BlackjackDatabase(db.Database):
     TABLE_NAME = 'Blackjack'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        user_id INTEGER NOT NULL,
+        user_id INTEGER PRIMARY KEY NOT NULL,
         played INTEGER NOT NULL DEFAULT 0,
         wins INTEGER NOT NULL DEFAULT 0,
         losses INTEGER NOT NULL DEFAULT 0,
@@ -95,9 +95,9 @@ class GameDatabase(db.Database):
 
     @property
     def TABLE_SETUP(self):
-        return (
+        return '\n'.join([
             self.blackjack.TABLE_SETUP,
-        )
+        ])
 
     async def delete_data(self, user_id: int):
         """Delete a user's data for all games."""

@@ -12,7 +12,7 @@ class ChargeDatabase(db.Database):
     TABLE_NAME = 'Charges'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        user_id INTEGER NOT NULL,
+        user_id INTEGER PRIMARY KEY NOT NULL,
         amount INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY(user_id) REFERENCES Users(id)
             ON DELETE CASCADE
@@ -109,7 +109,7 @@ class IrishDatabase(db.Database):
 
     @property
     def TABLE_SETUP(self):
-        return (
+        return '\n'.join([
             self.users.TABLE_SETUP,
             self.charges.TABLE_SETUP
-        )
+        ])

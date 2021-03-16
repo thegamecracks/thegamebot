@@ -12,9 +12,7 @@ class UserDatabase(db.Database):
     TABLE_NAME = 'Users'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        id INTEGER UNIQUE
-                 NOT NULL
-                 PRIMARY KEY
+        id INTEGER PRIMARY KEY NOT NULL
     );
     """
 

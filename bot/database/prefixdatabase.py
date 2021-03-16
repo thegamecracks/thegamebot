@@ -16,7 +16,7 @@ class PrefixDatabase(db.Database):
     TABLE_NAME = 'Prefixes'
     TABLE_SETUP = """
     CREATE TABLE IF NOT EXISTS Prefixes (
-        guild_id INTEGER NOT NULL,
+        guild_id INTEGER PRIMARY KEY NOT NULL,
         prefix TEXT NOT NULL,
         FOREIGN KEY(guild_id) REFERENCES Guilds(id)
             ON DELETE CASCADE

@@ -12,7 +12,7 @@ class GuildDatabase(db.Database):
     TABLE_NAME = 'Guilds'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        id INTEGER NOT NULL PRIMARY KEY
+        id INTEGER PRIMARY KEY NOT NULL
     );
     """
 

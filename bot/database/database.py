@@ -16,11 +16,11 @@ class AsyncConnection:
             they will be propagated.
 
     """
-    __slots__ = ('conn', 'path', 'statements')
+    __slots__ = ('conn', 'path', 'script')
 
-    def __init__(self, path, statements: Iterable[str]):
+    def __init__(self, path, script: str):
         self.path = path
-        self.statements = statements
+        self.script = script
         self.conn = None
 
     def __repr__(self):
@@ -35,8 +35,7 @@ class AsyncConnection:
         conn.row_factory = aiosqlite.Row
 
         try:
-            for s in self.statements:
-                await conn.execute(s)
+            await conn.executescript(self.script)
         except Exception as e:
             await self.__aexit__(type(e), e, e.__traceback__)
             raise
@@ -64,7 +63,7 @@ class Database:
     """
     __slots__ = ('bot', 'path')
 
-    PRAGMAS = ('PRAGMA foreign_keys = 1',)
+    PRAGMAS = 'PRAGMA foreign_keys = 1;'
     TABLE_SETUP = ''
 
     def __init__(self, bot, path):
@@ -79,11 +78,7 @@ class Database:
         return AsyncConnection(self.path, self.PRAGMAS)
 
     async def setup_table(self, conn):
-        if isinstance(self.TABLE_SETUP, str):
-            await conn.execute(self.TABLE_SETUP)
-        else:
-            for statement in self.TABLE_SETUP:
-                await conn.execute(statement)
+        await conn.executescript(self.TABLE_SETUP)
 
     async def add_row(self, table: str, row: dict):
         """Add a row to a table.
