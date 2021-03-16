@@ -10,6 +10,11 @@ if NOT [%1]==[] (
 	GOTO parse
 )
 
+:: Remove restart file at start of run loop
+IF EXIST "RESTART" (
+	DEL "RESTART"
+)
+
 :: Run the script
 :run
 ".venv\Scripts\python.exe" "main.py" %args%
