@@ -43,7 +43,7 @@ class BlackjackDatabase(db.Database):
 
         new = row[column] + number
 
-        # async with self.connect() as conn:
+        # async with self.connect(writing=True) as conn:
         #     await conn.execute(
         #         f'UPDATE {self.TABLE_NAME} SET {column}=? WHERE user_id=?',
         #         (new, user_id)
@@ -57,7 +57,7 @@ class BlackjackDatabase(db.Database):
         """Delete a user's blackjack data."""
         user_id = int(user_id)
 
-        # async with self.connect() as conn:
+        # async with self.connect(writing=True) as conn:
         #     await conn.execute(
         #         f'DELETE FROM {self.TABLE_NAME} WHERE user_id=?',
         #         (user_id,)
