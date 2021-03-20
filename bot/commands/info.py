@@ -1,3 +1,4 @@
+import collections
 import datetime
 import sys
 import random
@@ -26,6 +27,10 @@ class Informative(commands.Cog):
     # Note that this has no effect when the members intent is disabled.
 
     DATETIME_DIFFERENCE_PRECISION = {'minutes': False, 'seconds': False}
+
+    CHANNELINFO_TYPE_NAMES = {
+        discord.ChannelType.news: 'announcement'
+    }
 
     COMMANDINFO_BUCKETTYPE_DESCRIPTIONS = {
         commands.BucketType.default:  'globally',
@@ -130,6 +135,44 @@ Optional settings:
         embed.add_field(
             name='Statistics',
             value='\n'.join(field_statistics)
+        )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
+    @commands.command(name='channelinfo')
+    @commands.cooldown(3, 15, commands.BucketType.channel)
+    @commands.guild_only()
+    async def client_channelinfo(self, ctx):
+        """Count the different types of channels in the server.
+
+This only counts channels that both you and the bot can see."""
+        def visible_channels():
+            for c in ctx.guild.channels:
+                perms_author = c.permissions_for(ctx.author)
+                perms_me = c.permissions_for(ctx.me)
+                if perms_author.view_channel and perms_me.view_channel:
+                    yield c
+
+        counter = collections.Counter(c.type for c in visible_channels())
+
+        s = ['```yaml']
+        count_length = max(len(str(v)) for v in counter.values())
+        for c, count in counter.most_common():
+            name = self.CHANNELINFO_TYPE_NAMES.get(c, str(c)).capitalize()
+            s.append(f'{count:>{count_length}} : {name}')
+        s.append('```')
+        s = '\n'.join(s)
+
+        embed = discord.Embed(
+            description=s,
+            color=utils.get_bot_color()
+        ).set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
         )
 
         await ctx.send(embed=embed)
