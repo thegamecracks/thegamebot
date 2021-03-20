@@ -4,7 +4,7 @@
     ],
     "bgtask_ListGuildsDelay": 600,
     "bgtask_RandomPresenceMaxDelay": 600,
-    "bgtask_RandomPresenceMinDelay": 180,
+    "bgtask_RandomPresenceMinDelay": 300,
     "bgtask_RandomPresenceOnStartup": true,
     "bgtask_RandomPresenceRandomStatusChance": 30,
     "bgtask_RandomPresences": [

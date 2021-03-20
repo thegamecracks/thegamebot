@@ -242,7 +242,7 @@ This requires a confirmation."""
 
         invalid_users = []
 
-        async with db.connect() as conn:
+        async with db.connect(writing=True) as conn:
             async with await conn.execute('SELECT id FROM Users') as c:
                 # Remove all IDs from the Users table if they are
                 # not in the guild

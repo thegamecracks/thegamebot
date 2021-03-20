@@ -41,6 +41,14 @@ class Informative(commands.Cog):
         self.bot = bot
         self.process = psutil.Process()
 
+        if self.bot.help_command is not None:
+            self.bot.help_command.cog = self
+
+    def cog_unload(self):
+        help_command = self.bot.help_command
+        if help_command is not None:
+            help_command.cog = None
+
 
 
 
@@ -238,6 +246,43 @@ Optional settings:
 
 
 
+    @commands.command(name='messagecount')
+    @commands.guild_only()
+    @commands.cooldown(2, 10, commands.BucketType.channel)
+    async def client_messagecount(self, ctx):
+        """Get the number of messages sent in the server within one day.
+
+This command only records the server ID and timestamps of messages,
+and purges outdated messages daily. No user info or message content is stored."""
+        yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+
+        cog = self.bot.get_cog('MessageTracker')
+        if cog is None:
+            return await ctx.send('Unfortunately the bot is not tracking '
+                                  'message frequency at this time.')
+
+        async with cog.connect() as conn:
+            async with conn.execute(
+                    'SELECT COUNT(*) AS total FROM Messages '
+                    'WHERE guild_id = ? AND created_at > ?',
+                    (ctx.guild.id, yesterday,)) as c:
+                count = (await c.fetchone())['total']
+
+        embed = discord.Embed(
+            title='Server Message Count',
+            description=f'{count:,} messages have been sent in the last 24 hours.',
+            colour=utils.get_bot_color()
+        ).set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
     def get_invite_link(self, perms: Optional[discord.Permissions] = None,
                         slash_commands=True):
         if perms is None:
@@ -292,16 +337,56 @@ Optional settings:
 
 
 
-    @commands.command(
-        name='ping')
+    @commands.command(name='ping')
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_ping(self, ctx):
         """Get the bot's latency."""
+        def round_ms(n):
+            return round(n * 100_000) / 1000
+
+        # Bot response time
+        now = time.time()
+        created_at = pytz.utc.localize(
+            ctx.message.created_at
+        ).astimezone().timestamp()
+        latency_response_ms = round_ms(now - created_at)
+
+        # Heartbeat
+        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+
+        embed = discord.Embed(
+            title='Pong!',
+            color=utils.get_bot_color()
+        )
+
+        # API typing time
         start = time.perf_counter()
-        message = await ctx.send('pong!')
-        latency = time.perf_counter() - start
-        latency_ms = round(latency * 100000) / 1000
-        await message.edit(content=f'pong! {latency_ms:g}ms')
+        await ctx.trigger_typing()
+        latency_typing_ms = round_ms(time.perf_counter() - start)
+
+        # API message time
+        start = time.perf_counter()
+        message = await ctx.send(embed=embed)
+        latency_message_ms = round_ms(time.perf_counter() - start)
+
+        # Format embed
+        stats = []
+        if latency_response_ms >= 0:
+            stats.append(f'\N{EYES} Bot: {latency_response_ms:g}ms')
+        stats.extend((
+            f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
+            f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
+            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms'
+        ))
+        stats = '\n'.join(stats)
+        embed.description = stats
+
+        embed.set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await message.edit(embed=embed)
 
 
 

@@ -8,8 +8,7 @@ from discord.ext import commands
 from bot import settings
 from bot import utils
 
-
-message_length_cooldown = commands.CooldownMapping.from_cooldown(
+cooldown_message_length = commands.CooldownMapping.from_cooldown(
     1, 30, commands.BucketType.user)
 
 
@@ -22,6 +21,8 @@ class HelpCommand(commands.HelpCommand):
 
     help_message_length_threshold = 300
     # Maximum allowed characters in a help message before it is sent via DM
+
+    no_category = 'No Category'
 
     def __init__(self):
         super().__init__(
@@ -102,7 +103,7 @@ class HelpCommand(commands.HelpCommand):
             if ctx.guild is not None:
                 # User sent command in server; only give notification if they
                 # haven't recently received one
-                if not message_length_cooldown.update_rate_limit(ctx.message):
+                if not cooldown_message_length.update_rate_limit(ctx.message):
                     await destination.send(
                         'Help message is a bit long; sent it to you in DMs.',
                         delete_after=8
@@ -157,7 +158,7 @@ class HelpCommand(commands.HelpCommand):
                     field_text.append(com.qualified_name)
             field_text = '\n'.join(field_text)
 
-            fields.append((category.qualified_name, field_text))
+            fields.append((self.get_cog_name(category), field_text))
 
             categories_to_add -= 1
 
@@ -191,7 +192,8 @@ class HelpCommand(commands.HelpCommand):
                 f'Page number must be between 1 and {total_pages}.')
 
         embed = discord.Embed(
-            title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
+            title=f'{self.get_category_name(cog)} - '
+                  f'Page {page_num}/{total_pages}',
             color=utils.get_bot_color(),
             description=(
                 f'{cog.description}\nType {self.clean_prefix}help [command] '
@@ -222,6 +224,9 @@ class HelpCommand(commands.HelpCommand):
 
         return embed
 
+    def get_cog_name(self, cog):
+        return getattr(cog, 'qualified_name', self.no_category)
+
     async def get_commands(self):
         """Return all sorted commands the bot has, categorized by sorted cogs.
 
@@ -237,7 +242,7 @@ class HelpCommand(commands.HelpCommand):
         # Create a paired list of of the dictionary
         categories_list = sorted(
             categories.items(),
-            key=lambda x: x[0].qualified_name
+            key=lambda x: self.get_cog_name(x[0])
         )
 
         # Sort each command by name
@@ -346,6 +351,27 @@ class HelpCommand(commands.HelpCommand):
             description=''.join(description)
         )
         if command.cog is not None:
-            embed.set_author(name=f'In {command.cog.qualified_name} category')
+            embed.set_author(
+                name=f'In {self.get_cog_name(command.cog)} category')
 
         await self.send(embed=embed)
+
+
+class HelpCommandCog(commands.Cog):
+    qualified_name = 'Help Command'
+
+    def __init__(self, bot):
+        self.bot = bot
+        self._original_help_command = bot.help_command
+
+        bot.help_command = HelpCommand()
+        bot.help_command.cog = bot.get_cog('Informative') or None
+
+    def cog_unload(self):
+        self.bot.help_command = help_command = self._original_help_command
+        if help_command is not None:
+            help_command.cog = self.bot.get_cog('Informative') or None
+
+
+def setup(bot):
+    bot.add_cog(HelpCommandCog(bot))

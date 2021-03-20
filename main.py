@@ -15,7 +15,6 @@ import matplotlib.style as mplstyle
 from bot import checks
 from bot.database import BotDatabaseMixin
 from bot import eventhandlers
-from bot.commands import helpcommand
 from bot import settings
 from bot import utils
 from bot.other import discordlogger
@@ -30,7 +29,9 @@ cogs = [
         'graphing',
         'guildirish',
         'images',
-        'info',
+        'messagetracker',  # dependency of info
+        'info',  # dependency of helpcommand
+        'helpcommand',
         'mathematics',
         'notes',
         'prefix',
@@ -97,10 +98,7 @@ async def main():
     for attr in disabled_intents:
         setattr(intents, attr, False)
 
-    bot = Bot(
-        help_command=helpcommand.HelpCommand(),
-        intents=intents
-    )
+    bot = Bot(intents=intents)
 
     with utils.update_text('Setting up databases',
                            'Set up databases'):
