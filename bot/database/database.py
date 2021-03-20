@@ -8,7 +8,14 @@ import aiosqlite
 class AsyncConnection:
     """An outer context manager for an aiosqlite Connection.
 
-    This does NOT support nested with-statements.
+    This does NOT support using nested with-statements with the same object.
+
+    When using connection locks with `writing=True`, be careful not
+    to attempt making several connections to the same database in the
+    same task without unlocking, which would otherwise result in a deadlock:
+        >>> async with AsyncConnection('db', writing=True) as conn1:
+        ...     async with AsyncConnection('db', writing=True) as conn2:
+        ...         pass  # deadlock
 
     Args:
         path (str): The path to the database.
