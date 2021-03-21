@@ -6,7 +6,7 @@ from discord_slash.utils import manage_commands
 from discord_slash import cog_ext as dslash_cog
 from discord_slash import SlashContext
 
-from bot import settings, utils
+from bot import utils
 
 CLIENT_EIGHTBALL = (
     'It is certain.',

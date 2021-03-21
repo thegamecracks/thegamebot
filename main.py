@@ -16,14 +16,12 @@ import matplotlib.style as mplstyle
 
 from bot import checks
 from bot.database import BotDatabaseMixin
-from bot import eventhandlers
-from bot.commands import helpcommand
-from bot import settings
-from bot import utils
+from bot import errors, eventhandlers, utils
 from bot.other import discordlogger
 
 cogs = [
-    f'bot.commands.{c}' for c in (
+    f'bot.cogs.{c}' for c in (
+        'settings',  # dependency of a lot of things
         'administrative',
         'background',
         'ciphers',
@@ -33,7 +31,10 @@ cogs = [
         'guildirish',
         'images',
         'info',
+        'messagetracker',  # dependency of info
+        'info',  # dependency of helpcommand
         'ipc',
+        'helpcommand',
         'mathematics',
         'notes',
         'prefix',
@@ -51,7 +52,7 @@ disabled_intents = [
 ]
 
 
-class Bot(BotDatabaseMixin, commands.Bot):
+class TheGameBot(BotDatabaseMixin, commands.Bot):
     """A custom version of Bot that allows case-insensitive references
     to cogs. See "?tag case insensitive cogs" on the discord.py server.
     """
@@ -71,6 +72,26 @@ class Bot(BotDatabaseMixin, commands.Bot):
     async def on_ipc_error(self, endpoint, error):
         """Called upon an error being raised within an IPC route"""
         print('IPC endpoint', endpoint, 'raised an error:', error)
+
+    def get_cog(self, name):
+        cog = super().get_cog(name)
+        if cog is None and name == 'Settings':
+            raise errors.SettingsNotFound()
+        return cog
+
+    async def is_owner(self, user):
+        return (await super().is_owner(user)
+                or user.id in self.get_cog('Settings').get('owner_ids'))
+
+    async def restart(self):
+        """Create a file named RESTART and logout.
+
+        The batch file running the script loop should detect
+        and recognize to rerun the bot again.
+
+        """
+        open('RESTART', 'w').close()
+        return await self.logout()
 
 
 async def run_ipc_server(bot):
@@ -127,16 +148,6 @@ class IPCClient:
             if stdout:
                 print(stdout.decode(), end='')
 
-    async def restart(self):
-        """Create a file named RESTART and logout.
-
-        The batch file running the script loop should detect
-        and recognize to rerun the bot again.
-
-        """
-        open('RESTART', 'w').close()
-        return await self.logout()
-
 
 async def main():
     start_time = time.perf_counter()
@@ -163,7 +174,6 @@ async def main():
 
     # Set up client
     logger = discordlogger.get_logger()
-    settings.setup()
 
     intents = discord.Intents.default()
     intents.members = args.members
@@ -171,11 +181,7 @@ async def main():
     for attr in disabled_intents:
         setattr(intents, attr, False)
 
-    bot = Bot(
-        help_command=helpcommand.HelpCommand(),
-        intents=intents,
-        run_ipc=args.ipc
-    )
+    bot = TheGameBot(intents=intents, run_ipc=args.ipc)
 
     with utils.update_text('Setting up databases',
                            'Set up databases'):

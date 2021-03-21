@@ -76,13 +76,13 @@ class EmbedConfirmation(abc.ABC):
 
 class ReactionConfirmation(EmbedConfirmation):
     """An embed confirmation that takes its input using reactions."""
-    def __init__(self, ctx, color=0):
+    def __init__(self, ctx, color=0, *,
+                 yes='\N{WHITE HEAVY CHECK MARK}',
+                 no='\N{CROSS MARK}'):
         super().__init__(ctx, color)
 
-        self.emoji_yes = ConfirmationEmoji(
-            '\N{WHITE HEAVY CHECK MARK}', 0x77B255)
-        self.emoji_no = ConfirmationEmoji(
-            '\N{CROSS MARK}', 0xDD2E44)
+        self.emoji_yes = ConfirmationEmoji(yes, 0x77B255)
+        self.emoji_no = ConfirmationEmoji(no, 0xDD2E44)
 
     def _create_embed(self, title: str) -> discord.Embed:
         return EmbedConfirmation._create_embed(self, title)
@@ -98,20 +98,26 @@ class ReactionConfirmation(EmbedConfirmation):
         return message
 
     async def get_answer(self, *, timeout: int) -> Optional[bool]:
-        def check(r, u):
-            return (r.message == self.message and u == self.ctx.author
-                    and r.emoji in emoji)
+        def check(p):
+            def emoji_are_equal():
+                if p.emoji.is_unicode_emoji():
+                    return p.emoji.name in emojis
+                return p.emoji in emojis
 
-        emoji = (self.emoji_yes.emoji, self.emoji_no.emoji)
+            return (p.message_id == self.message.id
+                    and p.user_id == self.ctx.author.id
+                    and emoji_are_equal())
+
+        emojis = (self.emoji_yes.emoji, self.emoji_no.emoji)
 
         try:
-            reaction, user = await self.ctx.bot.wait_for(
-                'reaction_add', check=check, timeout=timeout
+            payload = await self.ctx.bot.wait_for(
+                'raw_reaction_add', check=check, timeout=timeout
             )
         except asyncio.TimeoutError:
             return None
         else:
-            return reaction.emoji == self.emoji_yes.emoji
+            return payload.emoji.name == self.emoji_yes.emoji
         finally:
             try:
                 await self.message.clear_reactions()
@@ -164,37 +170,8 @@ class TextConfirmation(EmbedConfirmation):
             return content in self.yes
 
 
-class AdaptiveConfirmation(ReactionConfirmation, TextConfirmation):
-    """An embed confirmation that uses reactions if possible,
-    otherwise asks via text."""
-    def __init__(self, ctx, color=0):
-        super().__init__(ctx, color)
-
-        # Determine whether to use reactions or text
-        # Reactions will not work if in DMs without members intent
-        mode = 'text'
-        if ctx.guild is not None:
-            bot_perms = self.ctx.me.permissions_in(self.ctx.channel)
-            if bot_perms.add_reactions:
-                mode = 'react'
-        else:
-            mode = 'react' if ctx.bot.intents.members else 'text'
-        self.mode = mode
-
-    def _create_embed(self, title: str) -> discord.Embed:
-        if self.mode == 'react':
-            return super()._create_embed(title)
-        else:
-            return super(ReactionConfirmation, self)._create_embed(title)
-
-    async def _prompt(self, title: str) -> discord.Message:
-        if self.mode == 'react':
-            return await super()._prompt(title)
-        else:
-            return await super(ReactionConfirmation, self)._prompt(title)
-
-    async def get_answer(self, *, timeout: int) -> Optional[bool]:
-        if self.mode == 'react':
-            return await super().get_answer(timeout=timeout)
-        else:
-            return await super(ReactionConfirmation, self).get_answer(timeout=timeout)
+def AdaptiveConfirmation(ctx, *args, **kwargs):
+    """Return a Confirmation that works for the given context."""
+    perms = ctx.me.permissions_in(ctx.channel)
+    cls = ReactionConfirmation if perms.add_reactions else TextConfirmation
+    return cls(ctx, *args, **kwargs)

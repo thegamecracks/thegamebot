@@ -8,15 +8,6 @@ from bot import utils
 inflector = inflect.engine()
 
 
-def bot_owner_or_has_guild_permissions(**perms):
-    original = commands.has_guild_permissions(**perms).predicate
-    async def extended_check(ctx):
-        if ctx.guild is None:
-            return False
-        return await original(ctx) or await ctx.bot.is_owner(ctx.author)
-    return commands.check(extended_check)
-
-
 class Prefix(commands.Cog):
     """Commands for changing the bot's prefix."""
     qualified_name = 'Prefix'
@@ -78,7 +69,9 @@ class Prefix(commands.Cog):
 
 
     @commands.command(name='changeprefix')
-    @bot_owner_or_has_guild_permissions(manage_guild=True)
+    @commands.check_any(
+        commands.has_guild_permissions(manage_guild=True),
+        commands.is_owner())
     @commands.guild_only()
     @commands.cooldown(2, 30, commands.BucketType.guild)
     async def client_changeprefix(self, ctx, prefix):

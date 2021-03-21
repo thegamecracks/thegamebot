@@ -5,7 +5,6 @@ from discord.ext import commands
 import inflect
 
 from bot.classes.confirmation import AdaptiveConfirmation
-from bot import checks
 from bot import utils
 
 inflector = inflect.engine()
@@ -177,7 +176,7 @@ class IrishSquad(commands.Cog):
         embed = None
         if description:
             embed = discord.Embed(
-                color=utils.get_bot_color(),
+                color=utils.get_bot_color(ctx.bot),
                 description='\n'.join(description)
             )
 
@@ -196,13 +195,13 @@ class IrishSquad(commands.Cog):
     @client_charges.command(name='reset')
     @commands.check_any(
         commands.has_guild_permissions(manage_guild=True),
-        checks.is_bot_owner()
+        commands.is_owner()
     )
     @commands.cooldown(1, 60)
     async def client_charges_reset(self, ctx):
         """Reset the number of charges everyone has.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset Irish Squad's number of charges?")
@@ -221,7 +220,7 @@ This requires a confirmation."""
 
 
     @client_charges.command(name='vacuum', aliases=('cleanup',))
-    @checks.is_bot_owner()
+    @commands.is_owner()
     @commands.cooldown(1, 60)
     async def client_irish_vacuum(self, ctx):
         """Clean up the database."""
@@ -229,7 +228,7 @@ This requires a confirmation."""
             return await ctx.send('This is currently disabled as the bot '
                                   'cannot fetch member data at this time.')
 
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to vacuum the database?")
@@ -242,7 +241,7 @@ This requires a confirmation."""
 
         invalid_users = []
 
-        async with db.connect() as conn:
+        async with db.connect(writing=True) as conn:
             async with await conn.execute('SELECT id FROM Users') as c:
                 # Remove all IDs from the Users table if they are
                 # not in the guild

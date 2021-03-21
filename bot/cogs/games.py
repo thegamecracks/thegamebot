@@ -400,7 +400,7 @@ size: (optional) The size of the deck to use in the session.
 
         description = '\n'.join(description)
         embed = discord.Embed(
-            color=utils.get_user_color(ctx.author),
+            color=utils.get_user_color(ctx.bot, ctx.author),
             description=description
         ).set_author(
             name=ctx.author.display_name,
@@ -417,7 +417,7 @@ size: (optional) The size of the deck to use in the session.
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def client_blackjack_stats_reset(self, ctx):
         """Reset your blackjack stats."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to reset your blackjack stats?')
@@ -520,7 +520,7 @@ Spirit Box"""
             g = ghosts[0]
             embed = discord.Embed(
                 description='[{}]({})'.format(g.name, g.url),
-                color=utils.get_bot_color()
+                color=utils.get_bot_color(ctx.bot)
             )
         else:
             title = '{} ghosts match the given evidence{}:'.format(
@@ -535,7 +535,7 @@ Spirit Box"""
                         g.name, g.url, ', '.join(g.evidences))
                     for g in ghosts
                 ]),
-                color=utils.get_bot_color()
+                color=utils.get_bot_color(ctx.bot)
             )
 
         await ctx.send(title, embed=embed)
@@ -581,8 +581,7 @@ Spirit Box"""
         )
 
 
-    @staticmethod
-    def unturned_multiple_matches(results, *, threshold=5):
+    def unturned_multiple_matches(self, results, *, threshold=5):
         """Create a message and embed showing multiple matches.
 
         Args:
@@ -602,7 +601,7 @@ Spirit Box"""
         description = '\n'.join(description)
 
         embed = discord.Embed(
-            color=utils.get_bot_color(),
+            color=utils.get_bot_color(self.bot),
             description=description
         )
 
@@ -961,7 +960,7 @@ Note: There are only a few items with recipe data since I have to manually enter
         if amount <= 0:
             return await ctx.send(
                 embed=discord.Embed(
-                    color=utils.get_bot_color(),
+                    color=utils.get_bot_color(ctx.bot),
                     description=(
                         f'{result.name}\n'
                         f'ID: {result.id}\n'
@@ -1039,8 +1038,8 @@ Note: There are only a few items with recipe data since I have to manually enter
 
 
     @client_unturned.command(name='reload')
-    @checks.is_bot_admin()
     @commands.cooldown(1, 20, commands.BucketType.default)
+    @commands.is_owner()
     async def client_unturned_reload_db(self, ctx):
         """Reload the item database."""
         await self.unturneddb.reload_items_nonblocking()

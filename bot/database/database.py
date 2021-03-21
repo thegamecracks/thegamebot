@@ -1,4 +1,6 @@
-from typing import Tuple, Iterable
+import asyncio
+import os.path
+from typing import Tuple
 
 import aiosqlite
 
@@ -6,27 +8,53 @@ import aiosqlite
 class AsyncConnection:
     """An outer context manager for an aiosqlite Connection.
 
-    This does NOT support nested with-statements.
+    This does NOT support using nested with-statements with the same object.
+
+    When using connection locks with `writing=True`, be careful not
+    to attempt making several connections to the same database in the
+    same task without unlocking, which would otherwise result in a deadlock:
+        >>> async with AsyncConnection('db', writing=True) as conn1:
+        ...     async with AsyncConnection('db', writing=True) as conn2:
+        ...         pass  # deadlock
 
     Args:
         path (str): The path to the database.
-        statements (Iterable[str]): An iterable of statements
-            to execute upon entering the connection.
-            If an exception occurs during these statements,
-            they will be propagated.
+        script (str): A script to execute upon entering the connection.
+            Exceptions that occur will be propagated.
+        writing (bool): If True, uses a lock for connections
+            with the same path so that only one writing connection
+            can be running at once. This prevents the error
+            `sqlite3.OperationalError: database is locked`
+            from occurring when a writing connection is blocked
+            for over 5 seconds.
 
     """
-    __slots__ = ('conn', 'path', 'statements')
+    __slots__ = ('conn', 'path', 'script', 'writing')
 
-    def __init__(self, path, statements: Iterable[str]):
+    _write_locks = {}  # path: Lock
+    # NOTE: this can grow indefinitely
+
+    def __init__(self, path, script, *, writing=False):
         self.path = path
-        self.statements = statements
+        self.script = script
+        self.writing = writing
         self.conn = None
 
     def __repr__(self):
         return '{0.__class__.__name__}({0.path})'
 
+    def _get_write_lock(self):
+        path = os.path.abspath(self.path)
+        lock = self._write_locks.get(path)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._write_locks[path] = lock
+        return lock
+
     async def __aenter__(self):
+        if self.writing:
+            await self._get_write_lock().acquire()
+
         self.conn = aiosqlite.connect(self.path)
         conn = self.conn
 
@@ -35,8 +63,7 @@ class AsyncConnection:
         conn.row_factory = aiosqlite.Row
 
         try:
-            for s in self.statements:
-                await conn.execute(s)
+            await conn.executescript(self.script)
         except Exception as e:
             await self.__aexit__(type(e), e, e.__traceback__)
             raise
@@ -46,6 +73,8 @@ class AsyncConnection:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.conn.__aexit__(exc_type, exc_val, exc_tb)
         self.conn = None
+        if self.writing:
+            self._get_write_lock().release()
 
 
 class Database:
@@ -64,7 +93,7 @@ class Database:
     """
     __slots__ = ('bot', 'path')
 
-    PRAGMAS = ('PRAGMA foreign_keys = 1',)
+    PRAGMAS = 'PRAGMA foreign_keys = 1;'
     TABLE_SETUP = ''
 
     def __init__(self, bot, path):
@@ -74,16 +103,12 @@ class Database:
     def __repr__(self):
         return '{}({!r})'.format(self.__class__.__name__, self.path)
 
-    def connect(self):
+    def connect(self, *, writing=False):
         """Create an AsyncConnection context manager."""
-        return AsyncConnection(self.path, self.PRAGMAS)
+        return AsyncConnection(self.path, self.PRAGMAS, writing=writing)
 
     async def setup_table(self, conn):
-        if isinstance(self.TABLE_SETUP, str):
-            await conn.execute(self.TABLE_SETUP)
-        else:
-            for statement in self.TABLE_SETUP:
-                await conn.execute(statement)
+        await conn.executescript(self.TABLE_SETUP)
 
     async def add_row(self, table: str, row: dict):
         """Add a row to a table.
@@ -98,7 +123,7 @@ class Database:
 
         """
         keys, placeholders, values = self.placeholder_insert(row)
-        async with self.connect() as conn:
+        async with self.connect(writing=True) as conn:
             c = await conn.cursor()
             await c.execute(
                 f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
@@ -125,7 +150,7 @@ class Database:
         """
         keys, values = self.escape_row(where, ' AND ')
         rows = None
-        async with self.connect() as conn:
+        async with self.connect(writing=True) as conn:
             if pop:
                 async with conn.execute(
                         f'SELECT * FROM {table} WHERE {keys}',
@@ -221,7 +246,7 @@ class Database:
         where_keys, where_values = self.escape_row(where, ' AND ')
         rows = None
 
-        async with self.connect() as conn:
+        async with self.connect(writing=True) as conn:
             if pop:
                 async with conn.execute(
                         f'SELECT * FROM {table} WHERE {where_keys}',
