@@ -12,9 +12,7 @@ class UserDatabase(db.Database):
     TABLE_NAME = 'Users'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        id INTEGER UNIQUE
-                 NOT NULL
-                 PRIMARY KEY
+        id INTEGER PRIMARY KEY NOT NULL
     );
     """
 
@@ -29,7 +27,7 @@ class UserDatabase(db.Database):
         """Delete a user from the database."""
         user_id = int(user_id)
 
-        # async with self.connect() as conn:
+        # async with self.connect(writing=True) as conn:
         #     await conn.execute(
         #         f'DELETE FROM {self.TABLE_NAME} WHERE id=?', (user_id,))
         #     await conn.commit()

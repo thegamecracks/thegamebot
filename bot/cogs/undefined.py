@@ -114,6 +114,42 @@ class Undefined(commands.Cog):
 
 
 
+    @commands.command(name='polltest')
+    @commands.is_owner()
+    async def client_poll(self, ctx):
+        yes = '\N{WHITE HEAVY CHECK MARK}'
+        no = '\N{CROSS MARK}'
+        choices = [yes, no]
+        m = await ctx.send('Poll test')
+
+        for e in choices:
+            await m.add_reaction(e)
+        await m.add_reaction('\N{OCTAGONAL SIGN}')
+
+        def check(r, u):
+            return (u == ctx.author and r.message == m
+                    and r.emoji == '\N{OCTAGONAL SIGN}')
+
+        try:
+            await ctx.bot.wait_for('reaction_add', check=check, timeout=30)
+        except asyncio.TimeoutError:
+            pass
+
+        m = await m.channel.fetch_message(m.id)
+
+        d = {}
+        for e in choices:
+            r = discord.utils.get(m.reactions, emoji=e)
+            d[e] = r.count - 1
+
+        result = '\n'.join([f'{k}: {v}' for k, v in d.items()])
+
+        await ctx.send(result)
+
+
+
+
+
     @commands.command(
         name='detectenglish',
         aliases=('isenglish', 'english'))
@@ -221,7 +257,7 @@ https://stackoverflow.com/q/64080277/"""
 
 This will remove data about your server but not any associated user
 information such as notes or game scores."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm('Are you sure you want me to leave?')
 

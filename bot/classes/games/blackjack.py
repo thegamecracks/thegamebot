@@ -11,7 +11,6 @@ from discord.ext import commands
 import inflect
 
 from bot.classes.get_reaction import get_reaction
-from bot import settings
 
 
 inflector = inflect.engine()

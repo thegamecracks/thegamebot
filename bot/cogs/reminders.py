@@ -2,14 +2,15 @@
 Note: This requires members intent to be enabled in order to send reminders."""
 import asyncio
 import datetime
-import textwrap
+import re
 
+import dateparser
 import discord
 from discord.ext import commands, tasks
+import pytz
 import inflect
 
 from bot import utils
-from bot.classes.timeobj import parse_timedelta
 from bot.other import discordlogger
 
 inflector = inflect.engine()
@@ -20,6 +21,12 @@ class Reminders(commands.Cog):
     qualified_name = 'Reminders'
 
     MINIMUM_REMINDER_TIME = 30
+
+    DATEPARSER_SETTINGS = {
+        'PREFER_DATES_FROM': 'future',
+        'RETURN_AS_TIMEZONE_AWARE': False,
+        'TIMEZONE': 'UTC',
+    }
 
     send_reminders_near_due = datetime.timedelta(minutes=11)
     # NOTE: should be just a bit longer than task loop
@@ -97,17 +104,38 @@ class Reminders(commands.Cog):
 
 
 
+    def parse_datetime(self, date_string):
+        # Determine timezone
+        date_string, tz = dateparser.timezone_parser.pop_tz_offset_from_string(date_string)
+
+        if tz is not None:
+            # Make times relative to the given timezone instead of UTC
+            settings = self.DATEPARSER_SETTINGS.copy()
+            settings['RELATIVE_BASE'] = pytz.UTC.localize(
+                datetime.datetime.utcnow()).astimezone(tz)
+        else:
+            settings = self.DATEPARSER_SETTINGS
+
+        dt = dateparser.parse(date_string, settings=settings)
+
+        if tz is not None:
+            # Offset back to UTC and make it timezone-naive
+            dt = dt.astimezone(pytz.UTC).replace(tzinfo=None)
+
+        return dt
+
+
     @commands.command(
         name='addreminder',
         aliases=['remindme'])
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_addreminder(self, ctx, *, time_and_reminder):
         """Add a reminder.
-
 Usage:
-    <command> at 10pm <x> (time in UTC)
-    <command> in 10 sec/min/h/days <x>
-    <command> on wednesday <x> (checks the current day in UTC)
+
+    <command> at 10pm EST to <x>
+    <command> in 30 sec/min/h/days to <x>
+    <command> on wednesday to <x> (checks the current day in UTC)
 
 Reminders will appear in your DMs.
 Time is rounded down to the minute if seconds are not specified.
@@ -120,8 +148,11 @@ You can have a maximum of 5 reminders."""
             # Get current time in UTC without microseconds
             utcnow = datetime.datetime.utcnow().replace(microsecond=0)
             try:
-                td, content = parse_timedelta(time_and_reminder, utcnow)
-            except ValueError:
+                # Separate time and reminder,
+                # also making sure that content is provided
+                when, content = re.split(' to ', time_and_reminder, flags=re.IGNORECASE)
+                when = self.parse_datetime(when)
+            except (ValueError, AttributeError):
                 return await self.send_with_disclaimer(
                     ctx,
                     'Could not understand your reminder request. Check this '
@@ -129,7 +160,15 @@ You can have a maximum of 5 reminders."""
                     delete_after=10
                 )
 
-            if td.total_seconds() < self.MINIMUM_REMINDER_TIME:
+            td = when - utcnow
+            seconds_until = td.total_seconds()
+
+            if seconds_until < 0:
+                return await self.send_with_disclaimer(
+                    ctx, 'You cannot create a reminder for the past.',
+                    delete_after=10
+                )
+            elif seconds_until < self.MINIMUM_REMINDER_TIME:
                 return await self.send_with_disclaimer(
                     ctx, 'You must set a reminder lasting for at '
                     f'least {self.MINIMUM_REMINDER_TIME} seconds.',
@@ -154,7 +193,7 @@ You can have a maximum of 5 reminders."""
                     inflector.ordinal(total_reminders + 1)
                 ),
                 embed=discord.Embed(
-                    color=utils.get_user_color(ctx.author),
+                    color=utils.get_user_color(ctx.bot, ctx.author),
                     timestamp=utcdue
                 )
             )
@@ -264,7 +303,7 @@ To remove only one reminder, use the removereminder command."""
             embed = discord.Embed(
                 title=f'Reminder #{index:,}',
                 description=reminder['content'],
-                color=utils.get_user_color(ctx.author),
+                color=utils.get_user_color(ctx.bot, ctx.author),
                 timestamp=utcdue
             ).add_field(
                 name='Due in',
@@ -300,7 +339,7 @@ To remove only one reminder, use the removereminder command."""
             utils.truncate_message(reminder['content'], 140, max_lines=5)
             for reminder in reminder_list
         ]
-        color = utils.get_user_color(ctx.author)
+        color = utils.get_user_color(ctx.bot, ctx.author)
 
         embed = discord.Embed(
             title=f"{ctx.author.display_name}'s Reminders",
@@ -409,7 +448,7 @@ To remove only one reminder, use the removereminder command."""
         embed = discord.Embed(
             title=title,
             description=content,
-            color=utils.get_user_color(user),
+            color=utils.get_user_color(self.bot, user),
             timestamp=datetime.datetime.now().astimezone()
         )
 

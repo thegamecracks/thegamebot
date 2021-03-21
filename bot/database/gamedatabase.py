@@ -12,7 +12,7 @@ class BlackjackDatabase(db.Database):
     TABLE_NAME = 'Blackjack'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        user_id INTEGER NOT NULL,
+        user_id INTEGER PRIMARY KEY NOT NULL,
         played INTEGER NOT NULL DEFAULT 0,
         wins INTEGER NOT NULL DEFAULT 0,
         losses INTEGER NOT NULL DEFAULT 0,
@@ -43,7 +43,7 @@ class BlackjackDatabase(db.Database):
 
         new = row[column] + number
 
-        # async with self.connect() as conn:
+        # async with self.connect(writing=True) as conn:
         #     await conn.execute(
         #         f'UPDATE {self.TABLE_NAME} SET {column}=? WHERE user_id=?',
         #         (new, user_id)
@@ -57,7 +57,7 @@ class BlackjackDatabase(db.Database):
         """Delete a user's blackjack data."""
         user_id = int(user_id)
 
-        # async with self.connect() as conn:
+        # async with self.connect(writing=True) as conn:
         #     await conn.execute(
         #         f'DELETE FROM {self.TABLE_NAME} WHERE user_id=?',
         #         (user_id,)
@@ -95,9 +95,9 @@ class GameDatabase(db.Database):
 
     @property
     def TABLE_SETUP(self):
-        return (
+        return '\n'.join([
             self.blackjack.TABLE_SETUP,
-        )
+        ])
 
     async def delete_data(self, user_id: int):
         """Delete a user's data for all games."""

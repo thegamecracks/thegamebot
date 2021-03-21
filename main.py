@@ -14,14 +14,12 @@ import matplotlib.style as mplstyle
 
 from bot import checks
 from bot.database import BotDatabaseMixin
-from bot import eventhandlers
-from bot.commands import helpcommand
-from bot import settings
-from bot import utils
+from bot import errors, eventhandlers, utils
 from bot.other import discordlogger
 
 cogs = [
-    f'bot.commands.{c}' for c in (
+    f'bot.cogs.{c}' for c in (
+        'settings',  # dependency of a lot of things
         'administrative',
         'background',
         'ciphers',
@@ -30,8 +28,10 @@ cogs = [
         'graphing',
         'guildirish',
         'images',
-        'info',
+        'messagetracker',  # dependency of info
+        'info',  # dependency of helpcommand
         'invites',
+        'helpcommand',
         'mathematics',
         'notes',
         'prefix',
@@ -49,14 +49,33 @@ disabled_intents = [
 ]
 
 
-
-class Bot(BotDatabaseMixin, commands.Bot):
+class TheGameBot(BotDatabaseMixin, commands.Bot):
     """A custom version of Bot that allows case-insensitive references
     to cogs. See "?tag case insensitive cogs" on the discord.py server.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(super().get_prefix, *args, **kwargs)
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
+
+    def get_cog(self, name):
+        cog = super().get_cog(name)
+        if cog is None and name == 'Settings':
+            raise errors.SettingsNotFound()
+        return cog
+
+    async def is_owner(self, user):
+        return (await super().is_owner(user)
+                or user.id in self.get_cog('Settings').get('owner_ids'))
+
+    async def restart(self):
+        """Create a file named RESTART and logout.
+
+        The batch file running the script loop should detect
+        and recognize to rerun the bot again.
+
+        """
+        open('RESTART', 'w').close()
+        return await self.logout()
 
 
 async def main():
@@ -80,7 +99,6 @@ async def main():
 
     # Set up client
     logger = discordlogger.get_logger()
-    settings.setup()
 
     intents = discord.Intents.default()
     intents.members = args.members
@@ -88,10 +106,7 @@ async def main():
     for attr in disabled_intents:
         setattr(intents, attr, False)
 
-    bot = Bot(
-        help_command=helpcommand.HelpCommand(),
-        intents=intents
-    )
+    bot = TheGameBot(intents=intents)
 
     with utils.update_text('Setting up databases',
                            'Set up databases'):
@@ -117,7 +132,7 @@ async def main():
     # Setup slash command system
     with utils.update_text('Adding slash command extension',
                            'Added slash command extension'):
-        bot.slash = dslash.SlashCommand(bot, sync_commands=True, sync_on_cog_reload=True)
+        bot.slash = dslash.SlashCommand(bot)
 
     # Load extensions
     for i, name in enumerate(cogs, start=1):

@@ -12,7 +12,7 @@ class GuildDatabase(db.Database):
     TABLE_NAME = 'Guilds'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-        id INTEGER NOT NULL PRIMARY KEY
+        id INTEGER PRIMARY KEY NOT NULL
     );
     """
 
@@ -27,7 +27,7 @@ class GuildDatabase(db.Database):
         """Delete a guild from the database."""
         guild_id = int(guild_id)
 
-        # async with self.connect() as conn:
+        # async with self.connect(writing=True) as conn:
         #     await conn.execute(
         #         f'DELETE FROM {self.TABLE_NAME} WHERE id=?',
         #         (guild_id,)

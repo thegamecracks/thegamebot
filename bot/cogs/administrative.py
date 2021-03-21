@@ -16,17 +16,11 @@ import numpy as np
 
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot.other import discordlogger
-from bot import checks, converters, settings, utils
+from bot import converters, utils
 
 
 def get_user_for_log(ctx):
     return f'{ctx.author} ({ctx.author.id})'
-
-
-def send_restart_signal():
-    """Create a file named RESTART that the batch file running the script
-    loop should detect and recognize to rerun the bot again."""
-    open('RESTART', 'w').close()
 
 
 class BucketTypeConverter(commands.Converter):
@@ -50,12 +44,14 @@ class Administrative(commands.Cog):
         self.bot = bot
         self._last_result = None  # Used in execute command
 
+    async def cog_check(self, ctx):
+        return await ctx.bot.is_owner(ctx.author)
+
 
 
 
 
     @commands.command(name='block')
-    @checks.is_bot_owner()
     async def client_block(self, ctx, x: int = 20):
         """Block the operation of the bot."""
         message = await ctx.send(f'Blocking for {x} seconds.')
@@ -67,7 +63,6 @@ class Administrative(commands.Cog):
 
 
     @commands.group(name='cooldown', invoke_without_command=True)
-    @checks.is_bot_admin()
     async def client_cooldown(self, ctx):
         """Modify a command's cooldown."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
@@ -162,7 +157,6 @@ command: The name of the command to reset."""
 
 
     @commands.group(name='concurrency', invoke_without_command=True)
-    @checks.is_bot_admin()
     async def client_concurrency(self, ctx):
         """Modify a command's max concurrency."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
@@ -242,9 +236,7 @@ command: The name of the command to reset."""
 
 
     @commands.command(name='execute')
-    @checks.is_bot_owner()
-    async def client_execute(
-            self, ctx, sendIOtoDM: Optional[bool] = False, *, x: str):
+    async def client_execute(self, ctx, sendIOtoDM: Optional[bool] = False, *, x: str):
         """Run python code in an async condition.
 Graphs can be generated if a Figure is returned.
 
@@ -324,19 +316,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
 
 
 
-    @commands.command(name='clearsettingscache')
-    @checks.is_bot_owner()
-    async def client_clearsettingscache(self, ctx):
-        """Clear the settings cache."""
-        settings.clear_cache()
-        await ctx.send('Cleared cache.', delete_after=10)
-
-
-
-
-
     @commands.group(name='presence', invoke_without_command=True)
-    @checks.is_bot_admin()
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
@@ -368,8 +348,7 @@ title: The title to show."""
                 await ctx.send('Unknown status given.', delete_after=8)
 
 
-    @client_presence.command(
-        name='playing')
+    @client_presence.command(name='playing')
     async def client_playing(self, ctx,
             status: utils.parse_status = 'online', *, title=None):
         """Sets the playing message.
@@ -392,8 +371,7 @@ title: The title to show."""
                 await ctx.send('Unknown status given.', delete_after=8)
 
 
-    @client_presence.command(
-        name='streaming')
+    @client_presence.command(name='streaming')
     async def client_streaming(self, ctx,
         status: utils.parse_status = 'online',
         title=None,
@@ -444,8 +422,7 @@ title: The title to show."""
                 await ctx.send('Unknown status given.', delete_after=8)
 
 
-    @client_presence.command(
-        name='watching')
+    @client_presence.command(name='watching')
     async def client_watching(self, ctx,
             status: utils.parse_status = 'online', *, title=None):
         """Sets the watching message.
@@ -469,9 +446,7 @@ title: The title to show."""
                 await ctx.send('Unknown status given.', delete_after=8)
 
 
-    @client_presence.command(
-        name='status',
-        aliases=('state',))
+    @client_presence.command(name='status')
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_status(self, ctx, status: utils.parse_status = 'online'):
         """Sets the current status.
@@ -495,9 +470,7 @@ This removes any activity the bot currently has."""
 
 
 
-    @commands.command(
-        name='reload')
-    @checks.is_bot_owner()
+    @commands.command(name='reload')
     @commands.cooldown(2, 10, commands.BucketType.user)
     async def client_ext_reload(self, ctx, extension):
         """Reload an extension.
@@ -551,9 +524,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
 
 
 
-    @commands.command(
-        name='send')
-    @checks.is_bot_admin()
+    @commands.command(name='send')
     @commands.cooldown(2, 10, commands.BucketType.user)
     async def client_sendmessage(self, ctx, channelID, *, message):
         """Sends a message to a given channel. Restricted to admins.
@@ -642,19 +613,17 @@ BUG (2020/06/21): An uneven amount of colons will prevent
 
 
     @commands.command(name='restart')
-    @checks.is_bot_owner()
     async def client_restart(self, ctx):
         """Restarts the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to RESTART the bot?')
 
         if confirmed:
             await prompt.update('Restarting.', prompt.emoji_yes.color)
-            send_restart_signal()
             print(f'Initiating restart by {get_user_for_log(ctx)}')
-            await self.bot.logout()
+            await self.bot.restart()
         else:
             await prompt.update('Cancelled restart.', prompt.emoji_no.color)
 
@@ -665,10 +634,9 @@ BUG (2020/06/21): An uneven amount of colons will prevent
     @commands.command(
         name='shutdown',
         aliases=('close', 'exit', 'quit', 'stop'))
-    @checks.is_bot_owner()
     async def client_shutdown(self, ctx):
         """Shutdown the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to SHUTDOWN the bot?')
@@ -679,6 +647,19 @@ BUG (2020/06/21): An uneven amount of colons will prevent
             await self.bot.logout()
         else:
             await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
+
+
+
+
+
+    @commands.command(name='syncslash')
+    @commands.cooldown(1, 15)
+    async def client_sync_slash(self, ctx):
+        """Synchronize slash commands."""
+        async with ctx.typing():
+            await self.bot.slash.sync_all_commands()
+
+        await ctx.send('Synced slash commands.')
 
 
 

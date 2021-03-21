@@ -4,7 +4,6 @@ Table dependencies:
     Users
 """
 from . import database as db
-from bot import settings
 
 
 class PrefixDatabase(db.Database):
@@ -16,7 +15,7 @@ class PrefixDatabase(db.Database):
     TABLE_NAME = 'Prefixes'
     TABLE_SETUP = """
     CREATE TABLE IF NOT EXISTS Prefixes (
-        guild_id INTEGER NOT NULL,
+        guild_id INTEGER PRIMARY KEY NOT NULL,
         prefix TEXT NOT NULL,
         FOREIGN KEY(guild_id) REFERENCES Guilds(id)
             ON DELETE CASCADE
@@ -34,14 +33,10 @@ class PrefixDatabase(db.Database):
 
         Args:
             guild_id (int)
-            prefix (Optional[str]): The prefix to set the guild with.
-                If no prefix is provided, uses default_prefix in settings.
+            prefix (str): The prefix to set the guild with.
 
         """
         guild_id = int(guild_id)
-
-        if prefix is None:
-            prefix = settings.get_setting('default_prefix')
 
         if len(prefix) > self.PREFIX_SIZE_LIMIT:
             raise ValueError(

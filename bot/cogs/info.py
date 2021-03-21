@@ -1,3 +1,4 @@
+import collections
 import datetime
 import sys
 import random
@@ -14,7 +15,7 @@ import humanize
 import psutil
 import pytz
 
-from bot import converters, settings, utils
+from bot import converters, utils
 
 
 class Informative(commands.Cog):
@@ -26,6 +27,10 @@ class Informative(commands.Cog):
     # Note that this has no effect when the members intent is disabled.
 
     DATETIME_DIFFERENCE_PRECISION = {'minutes': False, 'seconds': False}
+
+    CHANNELINFO_TYPE_NAMES = {
+        discord.ChannelType.news: 'announcement'
+    }
 
     COMMANDINFO_BUCKETTYPE_DESCRIPTIONS = {
         commands.BucketType.default:  'globally',
@@ -40,6 +45,14 @@ class Informative(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.process = psutil.Process()
+
+        if self.bot.help_command is not None:
+            self.bot.help_command.cog = self
+
+    def cog_unload(self):
+        help_command = self.bot.help_command
+        if help_command is not None:
+            help_command.cog = None
 
 
 
@@ -57,7 +70,7 @@ Optional settings:
             title='About',
             description=('I do random stuff, whatever <@153551102443257856> '
                          'adds to me'),
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
             url=self.bot.user.avatar_url
         ).set_footer(
@@ -130,6 +143,44 @@ Optional settings:
 
 
 
+    @commands.command(name='channelinfo')
+    @commands.cooldown(3, 15, commands.BucketType.channel)
+    @commands.guild_only()
+    async def client_channelinfo(self, ctx):
+        """Count the different types of channels in the server.
+
+This only counts channels that both you and the bot can see."""
+        def visible_channels():
+            for c in ctx.guild.channels:
+                perms_author = c.permissions_for(ctx.author)
+                perms_me = c.permissions_for(ctx.me)
+                if perms_author.view_channel and perms_me.view_channel:
+                    yield c
+
+        counter = collections.Counter(c.type for c in visible_channels())
+
+        s = ['```yaml']
+        count_length = max(len(str(v)) for v in counter.values())
+        for c, count in counter.most_common():
+            name = self.CHANNELINFO_TYPE_NAMES.get(c, str(c)).capitalize()
+            s.append(f'{count:>{count_length}} : {name}')
+        s.append('```')
+        s = '\n'.join(s)
+
+        embed = discord.Embed(
+            description=s,
+            color=utils.get_bot_color(ctx.bot)
+        ).set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
     @commands.command(name='commandinfo', aliases=('cinfo',))
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_commandinfo(self, ctx, *, command):
@@ -153,7 +204,7 @@ Optional settings:
         # Create a response
         embed = discord.Embed(
             title=command.qualified_name,
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
@@ -238,6 +289,43 @@ Optional settings:
 
 
 
+    @commands.command(name='messagecount')
+    @commands.guild_only()
+    @commands.cooldown(2, 10, commands.BucketType.channel)
+    async def client_messagecount(self, ctx):
+        """Get the number of messages sent in the server within one day.
+
+This command only records the server ID and timestamps of messages,
+and purges outdated messages daily. No user info or message content is stored."""
+        yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+
+        cog = self.bot.get_cog('MessageTracker')
+        if cog is None:
+            return await ctx.send('Unfortunately the bot is not tracking '
+                                  'message frequency at this time.')
+
+        async with cog.connect() as conn:
+            async with conn.execute(
+                    'SELECT COUNT(*) AS total FROM Messages '
+                    'WHERE guild_id = ? AND created_at > ?',
+                    (ctx.guild.id, yesterday,)) as c:
+                count = (await c.fetchone())['total']
+
+        embed = discord.Embed(
+            title='Server Message Count',
+            description=f'{count:,} messages have been sent in the last 24 hours.',
+            colour=utils.get_bot_color(ctx.bot)
+        ).set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
     def get_invite_link(self, perms: Optional[discord.Permissions] = None,
                         slash_commands=True):
         if perms is None:
@@ -268,7 +356,7 @@ Optional settings:
         """Get the bot's invite link."""
         link = self.get_invite_link()
         embed = discord.Embed(
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_author(
             name=f'—> Invitation link <—',
             url=link
@@ -292,16 +380,56 @@ Optional settings:
 
 
 
-    @commands.command(
-        name='ping')
+    @commands.command(name='ping')
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_ping(self, ctx):
         """Get the bot's latency."""
+        def round_ms(n):
+            return round(n * 100_000) / 1000
+
+        # Bot response time
+        now = time.time()
+        created_at = pytz.utc.localize(
+            ctx.message.created_at
+        ).astimezone().timestamp()
+        latency_response_ms = round_ms(now - created_at)
+
+        # Heartbeat
+        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+
+        embed = discord.Embed(
+            title='Pong!',
+            color=utils.get_bot_color(ctx.bot)
+        )
+
+        # API typing time
         start = time.perf_counter()
-        message = await ctx.send('pong!')
-        latency = time.perf_counter() - start
-        latency_ms = round(latency * 100000) / 1000
-        await message.edit(content=f'pong! {latency_ms:g}ms')
+        await ctx.trigger_typing()
+        latency_typing_ms = round_ms(time.perf_counter() - start)
+
+        # API message time
+        start = time.perf_counter()
+        message = await ctx.send(embed=embed)
+        latency_message_ms = round_ms(time.perf_counter() - start)
+
+        # Format embed
+        stats = []
+        if latency_response_ms >= 0:
+            stats.append(f'\N{EYES} Bot: {latency_response_ms:g}ms')
+        stats.extend((
+            f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
+            f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
+            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms'
+        ))
+        stats = '\n'.join(stats)
+        embed.description = stats
+
+        embed.set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await message.edit(embed=embed)
 
 
 
@@ -335,7 +463,7 @@ Format referenced from the Ayana bot."""
         roles = guild.roles
 
         embed = discord.Embed(
-            color=utils.get_user_color(ctx.author),
+            color=utils.get_user_color(ctx.bot, ctx.author),
             timestamp=datetime.datetime.utcnow()
         )
 
@@ -432,7 +560,7 @@ This command uses the IANA timezone database."""
         await ctx.send(embed=discord.Embed(
             title='Uptime',
             description=f'{diff_string}\n({date_string})',
-            color=int(settings.get_setting('bot_color'), 16)
+            color=utils.get_bot_color(ctx.bot)
         ))
 
 
@@ -541,7 +669,7 @@ Format referenced from the Ayana bot."""
         )
 
         embed = discord.Embed(
-            color=utils.get_user_color(user),
+            color=utils.get_user_color(ctx.bot, user),
             description=description,
             timestamp=datetime.datetime.utcnow()
         )
