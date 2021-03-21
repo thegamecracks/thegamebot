@@ -259,7 +259,7 @@ or the last message that was sent."""
                 along with it.
 
         """
-        bot_color = '#' + hex(utils.get_bot_color())[2:]
+        bot_color = '#' + hex(utils.get_bot_color(ctx.bot))[2:]
 
         terms, data = self.interest_simple_compound(p, r, t, n)
 
@@ -387,7 +387,7 @@ periods: The number of compounding periods in each term."""
             BytesIO
 
         """
-        bot_color = '#' + hex(utils.get_bot_color())[2:]
+        bot_color = '#' + hex(utils.get_bot_color(ctx.bot))[2:]
 
         text = text.lower()
 
@@ -492,7 +492,7 @@ To see the different methods you can use to provide text, check the help message
             BytesIO
 
         """
-        bot_color = '#' + hex(utils.get_bot_color())[2:]
+        bot_color = '#' + hex(utils.get_bot_color(ctx.bot))[2:]
 
         text = text.lower()
 
@@ -627,7 +627,7 @@ To see the different methods you can use to provide text, check the help message
             Tuple[Figure, Axes]
 
         """
-        bot_color = '#' + hex(utils.get_bot_color())[2:]
+        bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -768,7 +768,7 @@ To see the different methods you can use to provide text, check the help message
     @commands.command(name='test3dgraphanimation')
     @commands.cooldown(1, 30, commands.BucketType.default)
     @commands.max_concurrency(1, wait=True)
-    @checks.is_bot_owner()
+    @commands.is_owner()
     async def client_test3dgraphanimation(
             self, ctx, frames: int = 30, duration: int = 3):
         """Generate an animating graph with some random data."""

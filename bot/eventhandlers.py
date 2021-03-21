@@ -6,9 +6,7 @@ import discord
 from discord.ext import commands
 import inflect
 
-from bot import checks
-from bot import settings
-from bot import utils
+from bot import checks, errors, utils
 
 handlers = [
     'on_command_error',
@@ -184,8 +182,8 @@ def convert_perms_to_english(perms):
     return new_perms
 
 
-def get_denied_message():
-    return random.choice(settings.get_setting('deniedmessages'))
+def get_denied_message(ctx):
+    return random.choice(ctx.bot.get_cog('Settings').get('deniedmessages'))
 
 
 # Events
@@ -368,7 +366,7 @@ async def on_command_error(ctx, error):
                        f'{error.argument.mention}.', delete_after=8)
     elif isinstance(error, commands.CommandOnCooldown):
         embed = discord.Embed(
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=inflector.inflect(
                 'You can retry in {0} plural("second", {0}).'.format(
@@ -394,7 +392,7 @@ async def on_command_error(ctx, error):
                        delete_after=10)
     elif isinstance(error, commands.MaxConcurrencyReached):
         embed = discord.Embed(
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=get_concurrency_description(ctx, error),
             icon_url=ctx.author.avatar_url
@@ -429,10 +427,8 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.NoPrivateMessage):
         await ctx.send('You must be in a server to use this command.',
                        delete_after=10)
-    elif isinstance(error, (
-            commands.NotOwner, checks.InvalidBotOwner,
-            checks.InvalidBotAdmin)):
-        await ctx.send(get_denied_message(), delete_after=6)
+    elif isinstance(error, commands.NotOwner):
+        await ctx.send(get_denied_message(ctx), delete_after=6)
     elif isinstance(error, commands.NSFWChannelRequired):
         await ctx.send('The channel must be marked as NSFW.', delete_after=10)
     elif isinstance(error, commands.PrivateMessageOnly):
@@ -451,7 +447,7 @@ async def on_command_error(ctx, error):
     elif isinstance(error, checks.UserOnCooldown):
         # User has invoked too many commands
         embed = discord.Embed(
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=inflector.inflect(
                 'You are using commands too frequently. '
@@ -467,6 +463,8 @@ async def on_command_error(ctx, error):
         # Cannot send messages to this user
         await ctx.send('I tried DMing you but you have your DMs '
                        'disabled for this server.', delete_after=10)
+    elif isinstance(error_unpacked, errors.SettingsNotFound):
+        await ctx.send('Fatal error: settings could not be loaded.')
     elif not isinstance(error, COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER):
         raise error
 

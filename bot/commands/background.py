@@ -5,9 +5,7 @@ import time
 import discord
 from discord.ext import commands, tasks
 
-from bot import checks
-from bot import settings
-from bot import utils
+from bot import checks, utils
 
 
 # Since the settings file is used as an argument to decorators which are
@@ -19,8 +17,13 @@ class Tasks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+        settings = self.bot.get_cog('Settings')
+
+        self.list_guilds.change_interval(
+            seconds=settings.get('bgtask_ListGuildsDelay'))
         self.list_guilds.start()
-        if settings.get_setting('bgtask_RandomPresenceOnStartup'):
+
+        if settings.get('bgtask_RandomPresenceOnStartup'):
             self.random_presence.start()
 
     def cog_unload(self):
@@ -39,7 +42,7 @@ class Tasks(commands.Cog):
 
 
 
-    @tasks.loop(seconds=settings.get_setting('bgtask_ListGuildsDelay'))
+    @tasks.loop()
     async def list_guilds(self):
         """Periodically lists all guilds the bot is in."""
         print(self.timestamp())
@@ -56,7 +59,7 @@ class Tasks(commands.Cog):
 
 
 
-    @tasks.loop()
+    @tasks.loop(minutes=5)
     async def random_presence(self):
         """Periodically change current presence.
 
@@ -99,58 +102,49 @@ class Tasks(commands.Cog):
 
             print(''.join(message))
 
-        while not self.bot.is_closed():
-            try:
-                pres = random.choice(
-                    settings.get_setting('bgtask_RandomPresences')
-                )
-            except IndexError:
-                print('No random presences in settings; '
-                      'ending random presence task')
-                return
+        settings = self.bot.get_cog('Settings')
 
-            # Parse status, otherwise use online/randomly pick one
-            status = pres.get('status')
-            if status is not None:
-                status = utils.parse_status(status)
-            elif random.randint(1, 100) <= settings.get_setting(
-                    'bgtask_RandomPresenceRandomStatusChance'):
-                status = random.choice(
-                    (discord.Status.idle, discord.Status.dnd)
-                )
-            else:
-                status = discord.Status.online
+        pres = random.choice(settings.get('bgtask_RandomPresences'))
 
-            # Parse activity
-            activity = pres.get('activity')
-            if activity == 'listening':
-                activity = discord.Activity(
-                    name=pres['title'], type=discord.ActivityType.listening)
-            elif activity == 'playing':
-                activity = discord.Game(name=pres['title'])
-            elif activity == 'streaming':
-                if 'url' not in pres:
-                    url = settings.get_setting('default_StreamingURL')
-                activity = discord.Streaming(
-                    name=pres['title'], url=url)
-            elif activity == 'watching':
-                activity = discord.Activity(
-                    name=pres['title'], type=discord.ActivityType.watching)
-            elif activity == 'competing':
-                activity = discord.Activity(
-                    name=pres['title'], type=discord.ActivityType.competing)
+        # Parse status, otherwise use online/randomly pick one
+        status = pres.get('status')
+        if status is not None:
+            status = utils.parse_status(status)
+        elif random.randint(1, 100) <= settings.get(
+                'bgtask_RandomPresenceRandomStatusChance'):
+            status = random.choice(
+                (discord.Status.idle, discord.Status.dnd)
+            )
+        else:
+            status = discord.Status.online
 
-            # Change presence
-            print(self.timestamp())
-            print_presence(pres)
-            await self.bot.change_presence(
-                activity=activity, status=status)
+        # Parse activity
+        activity = pres.get('activity')
+        if activity == 'listening':
+            activity = discord.Activity(
+                name=pres['title'], type=discord.ActivityType.listening)
+        elif activity == 'playing':
+            activity = discord.Game(name=pres['title'])
+        elif activity == 'streaming':
+            url = pres.get('url') or settings.get('default_StreamingURL')
+            activity = discord.Streaming(name=pres['title'], url=url)
+        elif activity == 'watching':
+            activity = discord.Activity(
+                name=pres['title'], type=discord.ActivityType.watching)
+        elif activity == 'competing':
+            activity = discord.Activity(
+                name=pres['title'], type=discord.ActivityType.competing)
 
-            # Sleep
-            min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
-            max_delay = settings.get_setting('bgtask_RandomPresenceMaxDelay')
-            await asyncio.sleep(random.randint(
-                min_delay, max_delay))
+        # Change presence
+        print(self.timestamp())
+        print_presence(pres)
+        await self.bot.change_presence(activity=activity, status=status)
+
+        # Sleep
+        min_delay = settings.get('bgtask_RandomPresenceMinDelay')
+        max_delay = settings.get('bgtask_RandomPresenceMaxDelay')
+        self.random_presence.change_interval(
+            seconds=random.randint(min_delay, max_delay))
 
     @random_presence.before_loop
     async def before_random_presence(self):
@@ -160,17 +154,19 @@ class Tasks(commands.Cog):
         name='randompresence',
         brief='Toggles random presence changes.',
         aliases=('randpres', 'randpresence'))
-    @checks.is_bot_admin()
+    @commands.is_owner()
     async def random_presence_toggle(self, ctx, toggle: bool):
         if toggle:
-            if not self.random_precense.is_running():
+            if not self.random_presence.is_running():
                 self.random_presence.start()
             else:
                 return await ctx.send(
                     'The task is already running.', delete_after=6)
 
-            min_delay = settings.get_setting('bgtask_RandomPresenceMinDelay')
-            max_delay = settings.get_setting('bgtask_RandomPresenceMaxDelay')
+            settings = ctx.bot.get_cog('Settings')
+
+            min_delay = settings.get('bgtask_RandomPresenceMinDelay')
+            max_delay = settings.get('bgtask_RandomPresenceMaxDelay')
             print('Enabled random presence')
             await ctx.send(
                 'Now randomly changing presence '
@@ -179,7 +175,7 @@ class Tasks(commands.Cog):
                     max_delay
                 )
             )
-        elif self.random_precense.is_running():
+        elif self.random_presence.is_running():
             self.random_presence.cancel()
             print('Disabled random presence')
             await ctx.send('Turned off random presence changes.')

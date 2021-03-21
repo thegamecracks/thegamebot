@@ -37,7 +37,7 @@ async def query_thatapiguy(url, key):
 
 def embed_thatapiguy(ctx, response: dict):
     return discord.Embed(
-        color=utils.get_user_color(ctx.author)
+        color=utils.get_user_color(ctx.bot, ctx.author)
     ).set_footer(
         text=f'Requested by {ctx.author.name}',
         icon_url=ctx.author.avatar_url

@@ -8,78 +8,148 @@
     "bgtask_RandomPresenceOnStartup": true,
     "bgtask_RandomPresenceRandomStatusChance": 30,
     "bgtask_RandomPresences": [
-        {"activity": "watching",
-         "title": "my existential crisis"},
-        {"activity": "playing",
-         "title": "nothing"},
-        {"activity": "watching",
-         "status": "away",
-         "title": "something"},
-        {"activity": "playing",
-         "status": "dnd",
-         "title": "against a hacker"},
-        {"activity": "listening",
-         "title": "ASMR"},
-        {"activity": "watching",
-         "title": "you"},
-        {"activity": "watching",
-         "title": "YouTube"},
-        {"activity": "watching",
-         "title": "humanity"},
-        {"activity": "playing",
-         "title": "foobar2000"},
-        {"activity": "watching",
-         "title": "Jon Rick"},
-        {"activity": "listening",
-         "title": "a lecture"},
-        {"activity": "listening",
-         "title": "Audibill"},
-        {"activity": "watching",
-         "title": "Mitchell Keeves"},
-        {"activity": "listening",
-         "title": "spiderdan's pizza"},
-        {"activity": "playing",
-         "title": "with a plane"},
-        {"activity": "watching",
-         "title": "animated toys"},
-        {"activity": "playing",
-         "title": "poker"},
-        {"activity": "watching",
-         "title": "Skillzhare"},
-        {"activity": "listening",
-         "title": "beep bop behop"},
-        {"activity": "listening",
-         "title": "The Real Folk Blues"},
-        {"activity": "playing",
-         "title": "as a car"},
-        {"activity": "watching",
-         "title": "my creator"},
-        {"activity": "playing",
-         "title": "with a rocket"},
-        {"activity": "playing",
-         "title": "on a computer"},
-        {"activity": "playing",
-         "title": "dueturn.py"},
-        {"activity": "playing",
-         "title": "with an arm"},
-        {"activity": "watching",
-         "title": "Copper Man"},
-        {"activity": "listening",
-         "title": "paint drying"},
-        {"activity": "playing",
-         "title": "cavejohnsonremaster.py"},
-        {"activity": "watching",
-         "title": "Wick and Warty"},
-        {"activity": "competing",
-         "title": "a battle royale"},
-        {"activity": "competing",
-         "title": "YouTube comments section"},
-        {"activity": "competing",
-         "title": "a deathmatch"},
-        {"activity": "competing",
-         "title": "the arcade"},
-        {"activity": "competing",
-         "title": "the FBI's firewall"}
+        {
+            "activity": "watching",
+            "title": "my existential crisis"
+        },
+        {
+            "activity": "playing",
+            "title": "nothing"
+        },
+        {
+            "activity": "watching",
+            "status": "away",
+            "title": "something"
+        },
+        {
+            "activity": "playing",
+            "status": "dnd",
+            "title": "against a hacker"
+        },
+        {
+            "activity": "listening",
+            "title": "ASMR"
+        },
+        {
+            "activity": "watching",
+            "title": "you"
+        },
+        {
+            "activity": "watching",
+            "title": "YouTube"
+        },
+        {
+            "activity": "watching",
+            "title": "humanity"
+        },
+        {
+            "activity": "playing",
+            "title": "foobar2000"
+        },
+        {
+            "activity": "watching",
+            "title": "Jon Rick"
+        },
+        {
+            "activity": "listening",
+            "title": "a lecture"
+        },
+        {
+            "activity": "listening",
+            "title": "Audibill"
+        },
+        {
+            "activity": "watching",
+            "title": "Mitchell Keeves"
+        },
+        {
+            "activity": "listening",
+            "title": "spiderdan's pizza"
+        },
+        {
+            "activity": "playing",
+            "title": "with a plane"
+        },
+        {
+            "activity": "watching",
+            "title": "animated toys"
+        },
+        {
+            "activity": "playing",
+            "title": "poker"
+        },
+        {
+            "activity": "watching",
+            "title": "Skillzhare"
+        },
+        {
+            "activity": "listening",
+            "title": "beep bop behop"
+        },
+        {
+            "activity": "listening",
+            "title": "The Real Folk Blues"
+        },
+        {
+            "activity": "playing",
+            "title": "as a car"
+        },
+        {
+            "activity": "watching",
+            "title": "my creator"
+        },
+        {
+            "activity": "playing",
+            "title": "with a rocket"
+        },
+        {
+            "activity": "playing",
+            "title": "on a computer"
+        },
+        {
+            "activity": "playing",
+            "title": "dueturn.py"
+        },
+        {
+            "activity": "playing",
+            "title": "with an arm"
+        },
+        {
+            "activity": "watching",
+            "title": "Copper Man"
+        },
+        {
+            "activity": "listening",
+            "title": "paint drying"
+        },
+        {
+            "activity": "playing",
+            "title": "cavejohnsonremaster.py"
+        },
+        {
+            "activity": "watching",
+            "title": "Wick and Warty"
+        },
+        {
+            "activity": "competing",
+            "title": "a battle royale"
+        },
+        {
+            "activity": "competing",
+            "title": "YouTube comments section"
+        },
+        {
+            "activity": "competing",
+            "title": "a deathmatch"
+        },
+        {
+            "activity": "competing",
+            "title": "the arcade"
+        },
+        {
+            "activity": "competing",
+            "title": "the FBI's firewall"
+        }
     ],
     "bgtask_TimestampDelay": 300,
     "bot_color": "0xFF8002",

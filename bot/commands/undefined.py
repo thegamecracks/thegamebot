@@ -221,7 +221,7 @@ https://stackoverflow.com/q/64080277/"""
 
 This will remove data about your server but not any associated user
 information such as notes or game scores."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color())
+        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm('Are you sure you want me to leave?')
 
