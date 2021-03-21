@@ -1,3 +1,4 @@
+import collections
 import datetime
 import sys
 import random
@@ -14,7 +15,7 @@ import humanize
 import psutil
 import pytz
 
-from bot import converters, settings, utils
+from bot import converters, utils
 
 
 class Informative(commands.Cog):
@@ -26,6 +27,10 @@ class Informative(commands.Cog):
     # Note that this has no effect when the members intent is disabled.
 
     DATETIME_DIFFERENCE_PRECISION = {'minutes': False, 'seconds': False}
+
+    CHANNELINFO_TYPE_NAMES = {
+        discord.ChannelType.news: 'announcement'
+    }
 
     COMMANDINFO_BUCKETTYPE_DESCRIPTIONS = {
         commands.BucketType.default:  'globally',
@@ -65,7 +70,7 @@ Optional settings:
             title='About',
             description=('I do random stuff, whatever <@153551102443257856> '
                          'adds to me'),
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
             url=self.bot.user.avatar_url
         ).set_footer(
@@ -138,6 +143,44 @@ Optional settings:
 
 
 
+    @commands.command(name='channelinfo')
+    @commands.cooldown(3, 15, commands.BucketType.channel)
+    @commands.guild_only()
+    async def client_channelinfo(self, ctx):
+        """Count the different types of channels in the server.
+
+This only counts channels that both you and the bot can see."""
+        def visible_channels():
+            for c in ctx.guild.channels:
+                perms_author = c.permissions_for(ctx.author)
+                perms_me = c.permissions_for(ctx.me)
+                if perms_author.view_channel and perms_me.view_channel:
+                    yield c
+
+        counter = collections.Counter(c.type for c in visible_channels())
+
+        s = ['```yaml']
+        count_length = max(len(str(v)) for v in counter.values())
+        for c, count in counter.most_common():
+            name = self.CHANNELINFO_TYPE_NAMES.get(c, str(c)).capitalize()
+            s.append(f'{count:>{count_length}} : {name}')
+        s.append('```')
+        s = '\n'.join(s)
+
+        embed = discord.Embed(
+            description=s,
+            color=utils.get_bot_color(ctx.bot)
+        ).set_footer(
+            text=f'Requested by {ctx.author.display_name}',
+            icon_url=ctx.author.avatar_url
+        )
+
+        await ctx.send(embed=embed)
+
+
+
+
+
     @commands.command(name='commandinfo', aliases=('cinfo',))
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def client_commandinfo(self, ctx, *, command):
@@ -161,7 +204,7 @@ Optional settings:
         # Create a response
         embed = discord.Embed(
             title=command.qualified_name,
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
@@ -271,7 +314,7 @@ and purges outdated messages daily. No user info or message content is stored.""
         embed = discord.Embed(
             title='Server Message Count',
             description=f'{count:,} messages have been sent in the last 24 hours.',
-            colour=utils.get_bot_color()
+            colour=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',
             icon_url=ctx.author.avatar_url
@@ -313,7 +356,7 @@ and purges outdated messages daily. No user info or message content is stored.""
         """Get the bot's invite link."""
         link = self.get_invite_link()
         embed = discord.Embed(
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         ).set_author(
             name=f'—> Invitation link <—',
             url=link
@@ -356,7 +399,7 @@ and purges outdated messages daily. No user info or message content is stored.""
 
         embed = discord.Embed(
             title='Pong!',
-            color=utils.get_bot_color()
+            color=utils.get_bot_color(ctx.bot)
         )
 
         # API typing time
@@ -420,7 +463,7 @@ Format referenced from the Ayana bot."""
         roles = guild.roles
 
         embed = discord.Embed(
-            color=utils.get_user_color(ctx.author),
+            color=utils.get_user_color(ctx.bot, ctx.author),
             timestamp=datetime.datetime.utcnow()
         )
 
@@ -517,7 +560,7 @@ This command uses the IANA timezone database."""
         await ctx.send(embed=discord.Embed(
             title='Uptime',
             description=f'{diff_string}\n({date_string})',
-            color=int(settings.get_setting('bot_color'), 16)
+            color=utils.get_bot_color(ctx.bot)
         ))
 
 
@@ -626,7 +669,7 @@ Format referenced from the Ayana bot."""
         )
 
         embed = discord.Embed(
-            color=utils.get_user_color(user),
+            color=utils.get_user_color(ctx.bot, user),
             description=description,
             timestamp=datetime.datetime.utcnow()
         )

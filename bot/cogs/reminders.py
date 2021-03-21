@@ -193,7 +193,7 @@ You can have a maximum of 5 reminders."""
                     inflector.ordinal(total_reminders + 1)
                 ),
                 embed=discord.Embed(
-                    color=utils.get_user_color(ctx.author),
+                    color=utils.get_user_color(ctx.bot, ctx.author),
                     timestamp=utcdue
                 )
             )
@@ -303,7 +303,7 @@ To remove only one reminder, use the removereminder command."""
             embed = discord.Embed(
                 title=f'Reminder #{index:,}',
                 description=reminder['content'],
-                color=utils.get_user_color(ctx.author),
+                color=utils.get_user_color(ctx.bot, ctx.author),
                 timestamp=utcdue
             ).add_field(
                 name='Due in',
@@ -339,7 +339,7 @@ To remove only one reminder, use the removereminder command."""
             utils.truncate_message(reminder['content'], 140, max_lines=5)
             for reminder in reminder_list
         ]
-        color = utils.get_user_color(ctx.author)
+        color = utils.get_user_color(ctx.bot, ctx.author)
 
         embed = discord.Embed(
             title=f"{ctx.author.display_name}'s Reminders",
@@ -448,7 +448,7 @@ To remove only one reminder, use the removereminder command."""
         embed = discord.Embed(
             title=title,
             description=content,
-            color=utils.get_user_color(user),
+            color=utils.get_user_color(self.bot, user),
             timestamp=datetime.datetime.now().astimezone()
         )
 

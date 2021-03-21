@@ -1,8 +1,8 @@
 import contextlib
-import datetime
 import decimal
 import itertools  # rawincount()
 import math
+import os
 import pathlib    # exception_message()
 import sys        # exception_message()
 import traceback  # exception_message()
@@ -10,11 +10,11 @@ from typing import List, Iterable, Union, Optional
 
 from dateutil.relativedelta import relativedelta
 import discord
+from discord.ext import commands
 from discord.ext.commands.view import StringView
 import inflect
 import prettify_exceptions
 
-from bot import settings
 from bot.other import discordlogger
 
 inflector = inflect.engine()
@@ -323,18 +323,17 @@ def gcd(a, b='high'):
     return a
 
 
-def get_bot_color():
+def get_bot_color(bot: commands.Bot):
     """Return the bot's color from settings."""
-    return int(settings.get_setting('bot_color'), 16)
+    return int(bot.get_cog('Settings').get('bot_color'), 16)
 
 
-def get_user_color(
-        user, default_color=None):
-    """Return a user's role color if they are in a guild, else default_color."""
+def get_user_color(bot, user, default_color=None):
+    """Return a user's role color if they are in a guild."""
     return (
         user.color if isinstance(user, discord.Member)
         else default_color if default_color is not None
-        else get_bot_color()
+        else get_bot_color(bot)
     )
 
 
@@ -418,12 +417,57 @@ def rawincount(filename):
         return sum( buf.count(b'\n') for buf in bufgen ) + 1
 
 
+def rename_enumerate(src, dst, **kwargs):
+    """Rename a file and automatically enumerate the filename
+    if a current file exists with that name:
+    foo.bar.bak
+    foo1.bar.bak
+    foo2.bar.bak
+    ...
+
+    Note that this will also skip names used by directories even when
+    given a file, and vice versa.
+
+    """
+    if not os.path.exists(dst):
+        return os.rename(src, dst, **kwargs)
+
+    root, exts = splitext_all(dst)
+    ext = ''.join(exts)
+
+    n = 1
+    while os.path.exists(dst_new := f'{root}{n}{ext}'):
+        n += 1
+
+    return os.rename(src, dst_new, **kwargs)
+
+
 def safe_eval(x):
     """Filters a string before evaluating.
 Uses SAFE_EVAL_WHITELIST as the filter."""
     return num(eval(
         ''.join([char for char in x if char in SAFE_EVAL_WHITELIST])
     ))
+
+
+def splitext_all(path):
+    """Like os.path.splitext except this returns all extensions
+    instead of just one.
+
+    Returns:
+        Tuple[str, List[str]]:
+            root + ''.join(exts) == path
+
+    """
+    root, ext = os.path.splitext(path)
+
+    extensions = [ext]
+    root_new, ext = os.path.splitext(root)
+    while ext:
+        extensions.append(ext)
+        root = root_new
+        root_new, ext = os.path.splitext(root)
+    return root, extensions[::-1]
 
 
 def truncate_message(
@@ -555,24 +599,6 @@ def truncate_message(
 
     return (f'{final}{placeholder_prefix}{placeholder}'
             f"{'```' * in_code_block}")
-
-
-# Decorators
-def print_error(func):
-    """Decorate error handlers to print the error to console
-    before running the handler function."""
-    async def wrapper(*args, **kwargs):
-        logger.exception(f'In {func.__name__}, this error was raised:')
-        mode = settings.get_setting('print_error_mode')
-        if mode == 'raise':
-            print(f'In {func.__name__}, this error was raised:')
-            await func(*args, **kwargs)
-            raise
-        elif mode == 'print':
-            print(f'In {func.__name__}, this error was raised:')
-            print('\t' + repr(args[2]))
-            await func(*args, **kwargs)
-    return wrapper
 
 
 # Context managers

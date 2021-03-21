@@ -1,11 +1,10 @@
-"Reference: https://gist.github.com/Gobot1234/45cad24df63fc144e85a7f8c85812567"
+"""Reference: https://gist.github.com/Gobot1234/45cad24df63fc144e85a7f8c85812567"""
 import collections
 import math
 
 import discord
 from discord.ext import commands
 
-from bot import settings
 from bot import utils
 
 cooldown_message_length = commands.CooldownMapping.from_cooldown(
@@ -112,7 +111,7 @@ class HelpCommand(commands.HelpCommand):
             await destination.send(content, embed=embed, *args, **kwargs)
 
     async def create_help_category_page(self, *, page_num):
-        "Create an embed showing a page of categories."
+        """Create an embed showing a page of categories."""
         categories: list = await self.get_commands()
 
         total_pages = math.ceil(
@@ -127,7 +126,7 @@ class HelpCommand(commands.HelpCommand):
 
         embed = discord.Embed(
             title=f'Page {page_num}/{total_pages}',
-            color=utils.get_bot_color(),
+            color=utils.get_bot_color(self.context.bot),
             description=(
                 'Type {0}help [command] for more info on a command.\n'
                 'You can also type {0}help [category] for '
@@ -140,7 +139,7 @@ class HelpCommand(commands.HelpCommand):
         fields = []
         skip_to = self.help_categories_per_page * (page_num - 1)
         categories_to_add = self.help_categories_per_page
-        for category, commands in categories:
+        for category, cmds in categories:
             if skip_to:
                 skip_to -= 1
                 continue
@@ -149,8 +148,8 @@ class HelpCommand(commands.HelpCommand):
 
             # Create string listing commands
             field_text = []
-            for i, com in enumerate(commands, 1):
-                if i == self.help_commands_per_category and len(commands) != i:
+            for i, com in enumerate(cmds, 1):
+                if i == self.help_commands_per_category and len(cmds) != i:
                     # Too many commands to show
                     field_text.append('...')
                     break
@@ -168,21 +167,19 @@ class HelpCommand(commands.HelpCommand):
         return embed
 
     async def create_help_cog_page(self, cog, *, page_num):
-        "Create an embed showing a page of commands in a cog."
-        commands = await self.filter_commands(cog.get_commands(), sort=True)
+        """Create an embed showing a page of commands in a cog."""
+        cmds = await self.filter_commands(cog.get_commands(), sort=True)
 
-        total_pages = math.ceil(
-            len(commands) / self.help_cog_commands_per_page)
+        total_pages = math.ceil(len(cmds) / self.help_cog_commands_per_page)
 
         # Check if page num is valid
         if page_num not in range(1, total_pages + 1):
             if total_pages == 1:
                 raise ValueError('Page number must be 1.')
             elif total_pages == 0:
-                # All commands in this cog are hidden
                 return discord.Embed(
                     title='Category help unavailable',
-                    color=utils.get_bot_color(),
+                    color=utils.get_bot_color(self.context.bot),
                     description=(
                         'This category exists, but you cannot access any '
                         'of its commands here.'
@@ -192,9 +189,8 @@ class HelpCommand(commands.HelpCommand):
                 f'Page number must be between 1 and {total_pages}.')
 
         embed = discord.Embed(
-            title=f'{self.get_category_name(cog)} - '
-                  f'Page {page_num}/{total_pages}',
-            color=utils.get_bot_color(),
+            title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
+            color=utils.get_bot_color(self.context.bot),
             description=(
                 f'{cog.description}\nType {self.clean_prefix}help [command] '
                 'for more info on a command.'
@@ -205,7 +201,7 @@ class HelpCommand(commands.HelpCommand):
         fields = []
         skip_to = self.help_cog_commands_per_page * (page_num - 1)
         categories_to_add = self.help_cog_commands_per_page
-        for com in commands:
+        for com in cmds:
             if skip_to:
                 skip_to -= 1
                 continue
@@ -302,13 +298,21 @@ class HelpCommand(commands.HelpCommand):
                 await self.send(embed=embed)
 
     async def send_bot_help(self, mapping):
-        "Sends help when no arguments are given."
+        """Sends help when no arguments are given."""
         embed = await self.create_help_category_page(page_num=1)
 
         await self.send(embed=embed)
 
     async def send_cog_help(self, cog):
-        "Sends help for a specific cog."
+        """Sends help for a specific cog."""
+        if all(c.hidden for c in cog.get_commands()):
+            # Cog has no visible commands; pretend it doesn't exist
+            ctx = self.context
+            content = self.context.message.content.replace(
+                ctx.prefix + ctx.invoked_with, '').strip()
+            return await self.send_error_message(
+                self.command_not_found(content))
+
         embed = await self.create_help_cog_page(cog, page_num=1)
 
         await self.send(embed=embed)
@@ -321,7 +325,7 @@ class HelpCommand(commands.HelpCommand):
         """
         embed = discord.Embed(
             title=self.get_command_signature(group),
-            color=utils.get_bot_color(),
+            color=utils.get_bot_color(self.context.bot),
             description=group.help or group.short_doc
         )
 
@@ -335,7 +339,7 @@ class HelpCommand(commands.HelpCommand):
         await self.send(embed=embed)
 
     async def send_command_help(self, command):
-        "Sends help for an individual command."
+        """Sends help for an individual command."""
         description = [f'`{self.get_command_signature(command)}`\n']
 
         if command.help:
@@ -347,7 +351,7 @@ class HelpCommand(commands.HelpCommand):
 
         embed = discord.Embed(
             title=command.qualified_name,
-            color=utils.get_bot_color(),
+            color=utils.get_bot_color(self.context.bot),
             description=''.join(description)
         )
         if command.cog is not None:

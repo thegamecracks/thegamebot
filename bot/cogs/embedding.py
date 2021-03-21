@@ -227,7 +227,7 @@ You will be DM'd for your parameters."""
         embed = discord.Embed(
             title=f'{ctx.author.display_name}',
             description=f'[{text}]({link})',
-            color=utils.get_user_color(ctx.author),
+            color=utils.get_user_color(ctx.bot, ctx.author),
             timestamp=datetime.datetime.now().astimezone()
         )
 
@@ -272,7 +272,7 @@ You will be DM'd for your parameters."""
         embed = discord.Embed(
             title=f'{ctx.author.display_name}',
             description=message.content,
-            color=utils.get_user_color(ctx.author),
+            color=utils.get_user_color(ctx.bot, ctx.author),
             timestamp=datetime.datetime.now().astimezone()
         )
 
