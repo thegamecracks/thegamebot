@@ -23,6 +23,7 @@ cogs = [
         'administrative',
         'background',
         'ciphers',
+        'economy',
         'embedding',
         'games',
         'graphing',

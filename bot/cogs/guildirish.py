@@ -192,7 +192,7 @@ class IrishSquad(commands.Cog):
 
 
 
-    @client_charges.command(name='reset')
+    @client_charges.command(name='reset', aliases=('wipe',))
     @commands.check_any(
         commands.has_guild_permissions(manage_guild=True),
         commands.is_owner()
@@ -207,7 +207,10 @@ This requires a confirmation."""
             "Are you sure you want to reset Irish Squad's number of charges?")
 
         if confirmed:
-            await self.bot.dbirish.charges.delete_rows('Charges', where='1')
+            db = ctx.bot.dbirish.charges
+            async with db.connect(writing=True) as conn:
+                await conn.execute(f'DELETE FROM {db.TABLE_NAME}')
+                await conn.commit()
 
             await prompt.update('Completed charge wipe!',
                                 prompt.emoji_yes.color)
