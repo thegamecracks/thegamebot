@@ -18,7 +18,7 @@ from bot import errors, eventhandlers, utils
 from bot.other import discordlogger
 
 cogs = [
-    f'bot.commands.{c}' for c in (
+    f'bot.cogs.{c}' for c in (
         'settings',  # dependency of a lot of things
         'administrative',
         'background',
