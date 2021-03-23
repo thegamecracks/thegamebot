@@ -17,6 +17,8 @@ class Economy(commands.Cog):
     """Manage your economics."""
     qualified_name = 'Economy'
 
+    LEADERBOARD_MAX_DISPLAYED = 10
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -77,6 +79,9 @@ class Economy(commands.Cog):
         await ctx.send(embed=embed)
 
 
+
+
+
     @client_money.command(name='adjust')
     @commands.check_any(
         commands.has_guild_permissions(manage_guild=True),
@@ -107,6 +112,48 @@ class Economy(commands.Cog):
             ).format(self.format_dollars(dollars))
 
         await ctx.send(embed=embed)
+
+
+
+
+
+    @client_money.command(
+        name='leaderboard',
+        aliases=('leaderboards', 'scoreboard',))
+    async def client_money_leaderboard(self, ctx):
+        """Show the most wealthy members in the economy."""
+
+        db = ctx.bot.dbcurrency
+
+        async with db.connect() as conn:
+            async with await conn.execute(
+                    f'SELECT SUM(cents) AS total FROM {db.TABLE_NAME} '
+                    'WHERE guild_id = ?', (ctx.guild.id,)) as c:
+                total = (await c.fetchone())['total']
+
+            async with await conn.execute(
+                    f'SELECT user_id, cents FROM {db.TABLE_NAME} '
+                    'WHERE guild_id = ? AND cents != 0 ORDER BY cents DESC '
+                    f'LIMIT {self.LEADERBOARD_MAX_DISPLAYED:d}',
+                    (ctx.guild.id,)) as c:
+                description = []
+                i = 1
+                async for row in c:
+                    mention = f"<@{row['user_id']}>"
+                    dollars = self.format_cents(row['cents'])
+                    description.append(f'{mention}: {dollars}')
+
+        embed = None
+        if description:
+            embed = discord.Embed(
+                color=utils.get_bot_color(ctx.bot),
+                description='\n'.join(description)
+            )
+
+        await ctx.send(
+            f'The server has {self.format_cents(total)} in the economy.',
+            embed=embed
+        )
 
 
 
