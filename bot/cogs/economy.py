@@ -1,4 +1,5 @@
 import decimal
+import random
 from typing import Optional
 
 import discord
@@ -21,6 +22,8 @@ class Economy(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.chat_cooldown = commands.CooldownMapping.from_cooldown(
+            1, 60, commands.BucketType.member)
 
     @classmethod
     def format_cents(cls, cents: int):
@@ -56,6 +59,20 @@ class Economy(commands.Cog):
         return decimal.Decimal(d).quantize(cent, rounding=decimal.ROUND_HALF_UP)
 
 
+    @commands.Cog.listener('on_message')
+    async def chat_reward(self, message):
+        """Reward money for chatting."""
+        if message.author.bot:
+            return
+        elif message.guild is None:
+            return
+        elif not self.chat_cooldown.update_rate_limit(message):
+            cents = random.randint(1, 12) * 100 + random.randint(-10, 10)
+            cents = max(0, cents)  # future proofing
+            await self.bot.dbcurrency.change_cents(
+                message.guild.id, message.author.id, cents)
+
+
 
 
 
@@ -83,10 +100,10 @@ class Economy(commands.Cog):
 
 
     @client_money.command(name='adjust')
-##    @commands.check_any(
-##        commands.has_guild_permissions(manage_guild=True),
-##        commands.is_owner()
-##    )
+    @commands.check_any(
+        commands.has_guild_permissions(manage_guild=True),
+        commands.is_owner()
+    )
     async def client_money_adjust(self, ctx, user: Optional[discord.Member],
                                   dollars: DollarConverter):
         """Add or take away money from a user."""
@@ -129,7 +146,7 @@ class Economy(commands.Cog):
             async with await conn.execute(
                     f'SELECT SUM(cents) AS total FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ?', (ctx.guild.id,)) as c:
-                total = (await c.fetchone())['total']
+                total = (await c.fetchone())['total'] or 0
 
             async with await conn.execute(
                     f'SELECT user_id, cents FROM {db.TABLE_NAME} '
@@ -160,10 +177,10 @@ class Economy(commands.Cog):
 
 
     @client_money.command(name='reset')
-##    @commands.check_any(
-##        commands.has_guild_permissions(manage_guild=True),
-##        commands.is_owner()
-##    )
+    @commands.check_any(
+        commands.has_guild_permissions(manage_guild=True),
+        commands.is_owner()
+    )
     @commands.cooldown(1, 60)
     async def client_money_reset(self, ctx):
         """Reset the economy for the server.
