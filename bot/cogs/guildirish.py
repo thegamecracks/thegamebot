@@ -2,12 +2,9 @@ from typing import Optional
 
 import discord
 from discord.ext import commands
-import inflect
 
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot import utils
-
-inflector = inflect.engine()
 
 
 class IrishSquad(commands.Cog):
@@ -71,7 +68,7 @@ class IrishSquad(commands.Cog):
         new_charges = await db.get_charges(ctx.author.id)
 
         await ctx.send(
-            inflector.inflect(
+            ctx.bot.inflector.inflect(
                 "Added {0:,} plural('charge', {0})! "
                 "You now have {1:,} plural('charge', {1}).".format(
                     number, new_charges
@@ -99,7 +96,7 @@ class IrishSquad(commands.Cog):
         new_charges = charges - number
 
         if new_charges < 0:
-            return await ctx.send(inflector.inflect(
+            return await ctx.send(ctx.bot.inflector.inflect(
                 "Cannot remove {0:,} plural('charge', {0}); "
                 "you only have {1:,} plural('charge', {1}).".format(
                     number, charges)
@@ -107,7 +104,7 @@ class IrishSquad(commands.Cog):
 
         await db.change_charges(ctx.author.id, -number)
         await ctx.send(
-            inflector.inflect(
+            ctx.bot.inflector.inflect(
                 "Removed {0:,} plural('charge', {0})! "
                 "You now have {1:,} plural('charge', {1}).".format(
                     number, new_charges
@@ -137,11 +134,11 @@ class IrishSquad(commands.Cog):
             raise commands.UserNotFound(user) from e
 
         if user == ctx.author:
-            await ctx.send(inflector.inflect(
+            await ctx.send(ctx.bot.inflector.inflect(
                 "You have {0:,} plural('charge', {0}).".format(charges)
             ))
         else:
-            await ctx.send(inflector.inflect(
+            await ctx.send(ctx.bot.inflector.inflect(
                 "{0} has {1:,} plural('charge', {1}).".format(
                     user.display_name, charges)
             ))
@@ -181,7 +178,7 @@ class IrishSquad(commands.Cog):
             )
 
         await ctx.send(
-            inflector.inflect(
+            ctx.bot.inflector.inflect(
                 "The squad has a total of {0:,} plural('charge', {0}).".format(
                     total)
             ),
@@ -269,7 +266,7 @@ This requires a confirmation."""
         # Execute vacuum
         await db.vacuum()
 
-        message = inflector.inflect(
+        message = ctx.bot.inflector.inflect(
             "Completed clean up!\n{0:,} plural('user', {0}) "
             "vacuumed.".format(len(invalid_users))
         )

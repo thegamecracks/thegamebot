@@ -9,7 +9,6 @@ from typing import Optional
 import aiohttp
 import discord
 from discord.ext import commands
-import inflect
 from PIL import Image, ImageDraw, ImageFont
 
 from bot import utils
@@ -18,8 +17,6 @@ CAT_API_URL = 'https://api.thecatapi.com/'
 CAT_API_KEY = os.getenv('PyDiscordBotAPICatKey')
 DOG_API_URL = 'https://api.thedogapi.com/'
 DOG_API_KEY = os.getenv('PyDiscordBotAPIDogKey')
-
-inflector = inflect.engine()
 
 
 async def query_thatapiguy(url, key):
@@ -196,12 +193,12 @@ Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
         if (length := len(text.replace(' ', ''))) == 0:
             return await ctx.send('Only alphabetic characters are allowed.')
         elif (size := length - 140) > 0:
-            return await ctx.send(inflector.inflect(
+            return await ctx.send(ctx.bot.inflector.inflect(
                 "Your text is {s} plural('character', {s}) too long.".format(
                     s=size)
             ))
         elif (size := text.count('\n') - 9) > 0:
-            return await ctx.send(inflector.inflect(
+            return await ctx.send(ctx.bot.inflector.inflect(
                 "Your text is {s} plural('line', {s}) too long.".format(
                     s=size)
             ))

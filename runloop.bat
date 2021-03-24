@@ -1,5 +1,7 @@
 @echo off
 
+TITLE thegamebot
+
 :: Argument parsing
 :: https://stackoverflow.com/a/3981086
 SET args=

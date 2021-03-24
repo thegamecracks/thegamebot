@@ -9,15 +9,11 @@ from typing import Optional, List, Union
 
 import discord
 from discord.ext import commands
-import inflect
 
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot.classes.games import blackjack, multimath
 from bot.classes.get_reaction import get_reaction
-from bot.classes import paginator
-from bot import checks, utils
-
-inflector = inflect.engine()
+from bot import utils
 
 
 # phasmophobia commands
@@ -524,7 +520,7 @@ Spirit Box"""
             )
         else:
             title = '{} ghosts match the given evidence{}:'.format(
-                inflector.number_to_words(
+                ctx.bot.inflector.number_to_words(
                     len(ghosts), threshold=10).capitalize(),
                 show_evidence(evidences, corrected_evidence)
             )
@@ -606,7 +602,7 @@ Spirit Box"""
         )
 
         content = '{} items were matched:'.format(
-            inflector.number_to_words(amount, threshold=10).capitalize()
+            self.bot.inflector.number_to_words(amount, threshold=10).capitalize()
         )
 
         return content, embed
@@ -664,7 +660,7 @@ Up to date as of 3.20.15.0."""
 
                     if items_required:
                         rec_str.append('> (Uses {})\n'.format(
-                            inflector.join(items_required)
+                            ctx.bot.inflector.join(items_required)
                         ))
 
                     requires = skills.copy()
@@ -674,7 +670,7 @@ Up to date as of 3.20.15.0."""
                         requires.append('Heat')
 
                     if requires:
-                        rec_str.append(f'> (Requires {inflector.join(requires)})')
+                        rec_str.append(f'> (Requires {ctx.bot.inflector.join(requires)})')
 
                     recipes_str.append(''.join(rec_str))
 
@@ -982,7 +978,7 @@ Note: There are only a few items with recipe data since I have to manually enter
         is_name_capitalized = result.name[0].isupper()
         plural_name = result.name
         plural_name = plural_name[0].lower() + plural_name[1:]
-        plural_name = inflector.plural(plural_name, amount)
+        plural_name = ctx.bot.inflector.plural(plural_name, amount)
         if is_name_capitalized:
             plural_name = plural_name[0].upper() + plural_name[1:]
 
@@ -1025,7 +1021,7 @@ Note: There are only a few items with recipe data since I have to manually enter
         requires.extend(humanize_other(requirements['other']))
 
         if requires:
-            description.append(f'Requires {inflector.join(requires)}')
+            description.append(f'Requires {ctx.bot.inflector.join(requires)}')
 
         embed = discord.Embed(
             color=self.unturned_get_rarity_color(result.rarity),

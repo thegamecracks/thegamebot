@@ -83,10 +83,10 @@ class Economy(commands.Cog):
 
 
     @client_money.command(name='adjust')
-    @commands.check_any(
-        commands.has_guild_permissions(manage_guild=True),
-        commands.is_owner()
-    )
+##    @commands.check_any(
+##        commands.has_guild_permissions(manage_guild=True),
+##        commands.is_owner()
+##    )
     async def client_money_adjust(self, ctx, user: Optional[discord.Member],
                                   dollars: DollarConverter):
         """Add or take away money from a user."""
@@ -160,10 +160,10 @@ class Economy(commands.Cog):
 
 
     @client_money.command(name='reset')
-    @commands.check_any(
-        commands.has_guild_permissions(manage_guild=True),
-        commands.is_owner()
-    )
+##    @commands.check_any(
+##        commands.has_guild_permissions(manage_guild=True),
+##        commands.is_owner()
+##    )
     @commands.cooldown(1, 60)
     async def client_money_reset(self, ctx):
         """Reset the economy for the server.

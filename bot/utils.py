@@ -17,8 +17,6 @@ import prettify_exceptions
 
 from bot.other import discordlogger
 
-inflector = inflect.engine()
-
 logger = discordlogger.get_logger()
 
 # Whitelist Digits, Decimal Point, Main Arithmetic,
@@ -168,7 +166,8 @@ def parse_var_positional(s):
 def timedelta_string(
         diff,
         years=True, months=True, weeks=True, days=True,
-        hours=True, minutes=True, seconds=True):
+        hours=True, minutes=True, seconds=True,
+        inflector=None):
     """Return a string representation of a timedelta.
 
     Can show years, months, weeks, day, hours, and minutes.
@@ -176,6 +175,8 @@ def timedelta_string(
     """
     def s(n):
         return 's' if n != 1 else ''
+
+    inflector = inflector or inflect.engine()
 
     message = []
     if diff.years and years:

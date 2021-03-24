@@ -7,11 +7,8 @@ from discord_slash.utils import manage_commands
 from discord_slash import cog_ext as dslash_cog
 from discord_slash import SlashContext
 import discord_slash as dslash
-import inflect
 
 from bot import utils
-
-inflector = inflect.engine()
 
 
 class Notes(commands.Cog):
@@ -78,7 +75,7 @@ class Notes(commands.Cog):
 
             await ctx.send(
                 'Your {} note has been added!'.format(
-                    inflector.ordinal(total_notes + 1)
+                    ctx.bot.inflector.ordinal(total_notes + 1)
                 )
             )
         else:
@@ -117,7 +114,7 @@ class Notes(commands.Cog):
 
             await ctx.send(
                 'Your {} note has been added!'.format(
-                    inflector.ordinal(total_notes + 1)
+                    ctx.bot.inflector.ordinal(total_notes + 1)
                 ), hidden=True
             )
         else:

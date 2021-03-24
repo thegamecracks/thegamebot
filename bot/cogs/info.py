@@ -453,7 +453,8 @@ Format referenced from the Ayana bot."""
                     datetime.datetime.utcnow(),
                     guild.created_at
                 ),
-                **self.DATETIME_DIFFERENCE_PRECISION
+                **self.DATETIME_DIFFERENCE_PRECISION,
+                inflector=ctx.bot.inflector
             ),
             guild.created_at.strftime('%Y/%m/%d %a %X UTC')
         )
@@ -552,7 +553,7 @@ This command uses the IANA timezone database."""
             datetime.datetime.now().astimezone(),
             self.bot.uptime_last_connect_adjusted
         )
-        diff_string = utils.timedelta_string(diff)
+        diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
         utc = self.bot.uptime_last_connect.astimezone(datetime.timezone.utc)
         date_string = utc.strftime('%Y/%m/%d %a %X UTC')
@@ -624,7 +625,8 @@ Format referenced from the Ayana bot."""
                         datetime.datetime.utcnow(),
                         user.created_at
                     ),
-                    **self.DATETIME_DIFFERENCE_PRECISION
+                    **self.DATETIME_DIFFERENCE_PRECISION,
+                    inflector=ctx.bot.inflector
                 ),
                 user.joined_at.strftime('%Y/%m/%d %a %X UTC')
             )
@@ -663,7 +665,8 @@ Format referenced from the Ayana bot."""
                     datetime.datetime.utcnow(),
                     user.created_at
                 ),
-                **self.DATETIME_DIFFERENCE_PRECISION
+                **self.DATETIME_DIFFERENCE_PRECISION,
+                inflector=ctx.bot.inflector
             ),
             user.created_at.strftime('%Y/%m/%d %a %X UTC')
         )

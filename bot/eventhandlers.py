@@ -4,7 +4,6 @@ import time
 
 import discord
 from discord.ext import commands
-import inflect
 
 from bot import checks, errors, utils
 
@@ -24,8 +23,6 @@ COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
 COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
 # specified by the callback name of the command ('client_execute', etc.)
-
-inflector = inflect.engine()
 
 COOLDOWN_DESCRIPTIONS = {
     commands.BucketType.default: 'Too many people have used this command '
@@ -282,7 +279,7 @@ async def on_command_error(ctx, error):
 
         return description.format(
             here=get_cooldown_here(ctx, error.per),
-            times=inflector.inflect(
+            times=ctx.bot.inflector.inflect(
                 '{0} plural("time", {0})'.format(
                     error.number
                 )
@@ -305,7 +302,7 @@ async def on_command_error(ctx, error):
 
         return description.format(
             here=get_cooldown_here(ctx, error.cooldown.type),
-            times=inflector.inflect(
+            times=ctx.bot.inflector.inflect(
                 '{0} plural("time", {0}) '
                 'every {1} plural("second", {1})'.format(
                     error.cooldown.rate,
@@ -329,7 +326,7 @@ async def on_command_error(ctx, error):
                     'to run this command.')
 
         return 'missing {:,} {} to run this command: {}'.format(
-            count, inflector.plural(x), inflector.join(missing_perms)
+            count, ctx.bot.inflector.plural(x), ctx.bot.inflector.join(missing_perms)
         )
 
     # Send an error message
@@ -368,7 +365,7 @@ async def on_command_error(ctx, error):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
-            text=inflector.inflect(
+            text=ctx.bot.inflector.inflect(
                 'You can retry in {0} plural("second", {0}).'.format(
                     round(error.retry_after * 10) / 10
                 )
@@ -449,7 +446,7 @@ async def on_command_error(ctx, error):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
-            text=inflector.inflect(
+            text=ctx.bot.inflector.inflect(
                 'You are using commands too frequently. '
                 'You can retry in {0} plural("second", {0}).'.format(
                     round(error.retry_after * 10) / 10)

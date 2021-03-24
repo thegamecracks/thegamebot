@@ -8,12 +8,9 @@ import dateparser
 import discord
 from discord.ext import commands, tasks
 import pytz
-import inflect
 
 from bot import utils
 from bot.other import discordlogger
-
-inflector = inflect.engine()
 
 
 class Reminders(commands.Cog):
@@ -190,7 +187,7 @@ You can have a maximum of 5 reminders."""
 
             await self.send_with_disclaimer(
                 ctx, 'Your {} reminder has been added!'.format(
-                    inflector.ordinal(total_reminders + 1)
+                    ctx.bot.inflector.ordinal(total_reminders + 1)
                 ),
                 embed=discord.Embed(
                     color=utils.get_user_color(ctx.bot, ctx.author),
@@ -311,7 +308,8 @@ To remove only one reminder, use the removereminder command."""
                     utils.datetime_difference(
                         utcdue,
                         datetime.datetime.utcnow()
-                    )
+                    ),
+                    inflector=ctx.bot.inflector
                 )
             ).set_footer(text='Due date')
             await self.send_with_disclaimer(ctx, embed=embed)

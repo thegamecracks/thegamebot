@@ -8,6 +8,7 @@ import os
 import discord
 from discord.ext import commands
 import discord_slash as dslash
+import inflect
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
@@ -121,6 +122,7 @@ async def main():
     # Add botvars
     with utils.update_text('Adding botvars',
                            'Added botvars'):
+        bot.inflector = inflect.engine()
         bot.info_bootup_time = 0
         bot.info_processed_commands = collections.defaultdict(int)
         bot.uptime_last_connect = datetime.datetime.now().astimezone()

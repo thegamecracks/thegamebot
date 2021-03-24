@@ -1,11 +1,6 @@
 # TODO: remove guild from database when removed
 import discord
 from discord.ext import commands
-import inflect
-
-from bot import utils
-
-inflector = inflect.engine()
 
 
 class Prefix(commands.Cog):
@@ -61,7 +56,7 @@ class Prefix(commands.Cog):
             await message.channel.send(f'My prefix here is "{prefix[0]}".')
         else:
             await message.channel.send('My prefixes here are {}.'.format(
-                inflector.join([f'"{p}"' for p in prefix]))
+                self.bot.inflector.join([f'"{p}"' for p in prefix]))
             )
 
 

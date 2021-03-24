@@ -12,10 +12,6 @@ import inflect
 
 from bot.classes.get_reaction import get_reaction
 
-
-inflector = inflect.engine()
-
-
 RANKS = tuple(str(n) for n in range(2, 11)) + ('JACK', 'QUEEN', 'KING', 'ACE')
 SUITS = ('SPADE', 'HEART', 'DIAMOND', 'CLUB')
 
@@ -61,6 +57,7 @@ class Card:
 @dataclass
 class Hand:
     cards: List[Card] = field(default_factory=list)
+    inflector: inflect.engine = field(default_factory=inflect.engine)
 
     def __post_init__(self):
         self._cache_values = None
@@ -85,7 +82,7 @@ class Hand:
         self.cards[index] = item
 
     def __str__(self):
-        return inflector.join(self)
+        return self.inflector.join(self)
 
     def append(self, card: Card):
         """Add a card to the hand."""
@@ -249,8 +246,8 @@ class BotBlackjackGame:
             random.shuffle(deck)
 
         self.deck = deck
-        self.player = Hand([deck.pop(), deck.pop()])
-        self.dealer = Hand([deck.pop(), deck.pop().replace(facedown=True)])
+        self.player = Hand([deck.pop(), deck.pop()], ctx.bot.inflector)
+        self.dealer = Hand([deck.pop(), deck.pop().replace(facedown=True)], ctx.bot.inflector)
 
         self.win = None
 
