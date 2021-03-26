@@ -338,15 +338,11 @@ term: The number of terms.
 periods: The number of compounding periods in each term."""
         if not 0 < rate <= 100:
             return await ctx.send(
-                'The interest rate must be between 0% and 100,000%.',
-                delete_after=10
-            )
+                'The interest rate must be between 0% and 100,000%.')
         elif term * periods > min(36500, 36500000 / principal):
             # This tries keeping the numbers within a reasonable amount
             return await ctx.send(
-                'The principal/term/periods are too large to calculate.',
-                delete_after=10
-            )
+                'The principal/term/periods are too large to calculate.')
 
         await ctx.trigger_typing()
 
@@ -367,9 +363,7 @@ periods: The number of compounding periods in each term."""
 
         if isinstance(error, decimal.InvalidOperation):
             return await ctx.send(
-                'The calculations were too large to handle.',
-                delete_after=10
-            )
+                'The calculations were too large to handle.')
 
 
 
@@ -775,11 +769,9 @@ To see the different methods you can use to provide text, check the help message
         loop = asyncio.get_running_loop()
 
         if duration < 1:
-            return await ctx.send(
-                'Duration must be at least 1 second.', delete_after=6)
+            return await ctx.send('Duration must be at least 1 second.')
         if frames < 1:
-            return await ctx.send(
-                'There must be at least 1 frame.', delete_after=6)
+            return await ctx.send('There must be at least 1 frame.')
 
         func = functools.partial(
             self.test_bar_graphs_3d_gif,
@@ -795,9 +787,7 @@ To see the different methods you can use to provide text, check the help message
         filesize = Path(fp).stat().st_size
         if filesize > filesize_limit:
             return await ctx.send(
-                'Unfortunately the file is too large to upload.',
-                delete_after=10
-            )
+                'Unfortunately the file is too large to upload.')
 
         with open(fp, 'rb') as f:
             await ctx.send(file=discord.File(f, '3D Graph Animation Test.gif'))

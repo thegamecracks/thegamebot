@@ -1,8 +1,6 @@
 import asyncio
-import json
 import io
 import os
-import random
 import textwrap
 from typing import Optional
 
@@ -68,9 +66,7 @@ class Images(commands.Cog):
         """\N{CAT FACE}"""
         if CAT_API_KEY is None:
             await ctx.send(
-                'Sorry, but the bot currently cannot query for a cat image.',
-                delete_after=10
-            )
+                'Sorry, but the bot currently cannot query for a cat image.')
             return await asyncio.sleep(10)
 
         await ctx.trigger_typing()
@@ -79,9 +75,7 @@ class Images(commands.Cog):
             cat = await query_thatapiguy(CAT_API_URL, CAT_API_KEY)
         except ValueError as e:
             return await ctx.send(
-                f'Could not get a cat image; status code {e.args[1]}',
-                delete_after=8
-            )
+                f'Could not get a cat image; status code {e.args[1]}')
 
         await ctx.send(embed=embed_thatapiguy(ctx, cat))
 
@@ -96,9 +90,7 @@ class Images(commands.Cog):
         """\N{DOG FACE}"""
         if DOG_API_KEY is None:
             await ctx.send(
-                'Sorry, but the bot currently cannot query for a dog image.',
-                delete_after=10
-            )
+                'Sorry, but the bot currently cannot query for a dog image.')
             return await asyncio.sleep(10)
 
         await ctx.trigger_typing()
@@ -107,9 +99,7 @@ class Images(commands.Cog):
             dog = await query_thatapiguy(DOG_API_URL, DOG_API_KEY)
         except ValueError as e:
             return await ctx.send(
-                f'Failed to query a dog image; status code {e.args[1]}',
-                delete_after=8
-            )
+                f'Failed to query a dog image; status code {e.args[1]}')
 
         await ctx.send(embed=embed_thatapiguy(ctx, dog))
 

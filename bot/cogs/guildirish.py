@@ -48,8 +48,7 @@ class IrishSquad(commands.Cog):
                     invoke_without_command=True)
     async def client_charges(self, ctx):
         """Commands for tracking the amount of charges in the squad."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
-                       delete_after=6)
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
     @client_charges.command(name='add')
@@ -57,8 +56,7 @@ class IrishSquad(commands.Cog):
     async def client_addcharges(self, ctx, *, number: int):
         """Add to the number of charges you have."""
         if number < 1:
-            return await ctx.send('You must add at least one charge.',
-                                  delete_after=6)
+            return await ctx.send('You must add at least one charge.')
 
         db = self.bot.dbirish.charges
 
@@ -85,8 +83,7 @@ class IrishSquad(commands.Cog):
     async def client_removecharges(self, ctx, number: int):
         """Subtract from the number of charges you have."""
         if number < 1:
-            return await ctx.send('You must remove at least one charge.',
-                                  delete_after=6)
+            return await ctx.send('You must remove at least one charge.')
 
         db = self.bot.dbirish.charges
 

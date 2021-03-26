@@ -160,8 +160,7 @@ class Tasks(commands.Cog):
             if not self.random_presence.is_running():
                 self.random_presence.start()
             else:
-                return await ctx.send(
-                    'The task is already running.', delete_after=6)
+                return await ctx.send('The task is already running.')
 
             settings = ctx.bot.get_cog('Settings')
 
@@ -180,7 +179,7 @@ class Tasks(commands.Cog):
             print('Disabled random presence')
             await ctx.send('Turned off random presence changes.')
         else:
-            await ctx.send('The task is not running.', delete_after=6)
+            await ctx.send('The task is not running.')
 
 
 

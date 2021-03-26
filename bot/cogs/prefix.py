@@ -79,8 +79,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
 
         if not prefix:
             ctx.command.reset_cooldown(ctx)
-            return await ctx.send(
-                'An empty prefix is not allowed.', delete_after=6)
+            return await ctx.send('An empty prefix is not allowed.')
 
         await ctx.trigger_typing()
 
@@ -89,8 +88,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
         )
 
         if prefix == current_prefix:
-            await ctx.send('That is already the current prefix.',
-                           delete_after=6)
+            await ctx.send('That is already the current prefix.')
         else:
             # Escape escape characters before printing
             clean_prefix = prefix.replace('\\', r'\\')

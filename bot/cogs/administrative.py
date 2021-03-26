@@ -65,8 +65,7 @@ class Administrative(commands.Cog):
     @commands.group(name='cooldown', invoke_without_command=True)
     async def client_cooldown(self, ctx):
         """Modify a command's cooldown."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
-                       delete_after=6)
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
     @client_cooldown.command(name='update')
@@ -94,18 +93,14 @@ class Administrative(commands.Cog):
         # Check arguments
         if rate is None:
             return await ctx.send(
-                'There is no cooldown; `rate` must be specified.',
-                delete_after=10
-            )
+                'There is no cooldown; `rate` must be specified.')
         elif rate < 1:
-            return await ctx.send('`rate` cannot be below 1.', delete_after=10)
+            return await ctx.send('`rate` cannot be below 1.')
         elif per is None:
             return await ctx.send(
-                'There is no cooldown; `per` must be specified.',
-                delete_after=10
-            )
+                'There is no cooldown; `per` must be specified.')
         elif per < 0:
-            return await ctx.send('`per` cannot be negative.', delete_after=10)
+            return await ctx.send('`per` cannot be negative.')
 
         buckets = commands.CooldownMapping(commands.Cooldown(rate, per, type))
         command._buckets = buckets
@@ -125,8 +120,7 @@ command: The name of the command to reset."""
         command: commands.Command
 
         if not command._buckets.valid:
-            return await ctx.send('This command does not have a cooldown.',
-                                  delete_after=10)
+            return await ctx.send('This command does not have a cooldown.')
 
         if everyone:
             buckets = command._buckets
@@ -144,8 +138,7 @@ command: The name of the command to reset."""
         command: commands.Command
 
         if not command._buckets.valid:
-            return await ctx.send('This command does not have a cooldown.',
-                                  delete_after=10)
+            return await ctx.send('This command does not have a cooldown.')
 
         buckets = commands.CooldownMapping(None)
         command._buckets = buckets
@@ -159,8 +152,7 @@ command: The name of the command to reset."""
     @commands.group(name='concurrency', invoke_without_command=True)
     async def client_concurrency(self, ctx):
         """Modify a command's max concurrency."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
-                       delete_after=6)
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
     @client_concurrency.command(name='update')
@@ -189,11 +181,9 @@ command: The name of the command to reset."""
         # Check arguments
         if number is None:
             return await ctx.send(
-                'There is no concurrency limit; `number` must be specified.',
-                delete_after=10
-            )
+                'There is no concurrency limit; `number` must be specified.')
         elif number < 1:
-            return await ctx.send('`number` cannot be below 1.', delete_after=10)
+            return await ctx.send('`number` cannot be below 1.')
 
         con = commands.MaxConcurrency(number, per=per, wait=wait)
         command._max_concurrency = con
@@ -211,9 +201,7 @@ command: The name of the command to reset."""
 
         if command._max_concurrency is None:
             return await ctx.send(
-                'This command does not have a max concurrency limit.',
-                delete_after=10
-            )
+                'This command does not have a max concurrency limit.')
 
         command._max_concurrency = None
         await ctx.send(f'Removed concurrency limits for {command.name}.')
@@ -320,8 +308,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
         """Commands to change the bot's presence. Restricted to admins."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
-                       delete_after=6)
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
     @client_presence.command(name='competing')
@@ -345,7 +332,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.', delete_after=8)
+                await ctx.send('Unknown status given.')
 
 
     @client_presence.command(name='playing')
@@ -368,7 +355,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.', delete_after=8)
+                await ctx.send('Unknown status given.')
 
 
     @client_presence.command(name='streaming')
@@ -395,7 +382,7 @@ https://www.twitch.tv/thegamecracks ."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.', delete_after=8)
+                await ctx.send('Unknown status given.')
 
 
     @client_presence.command(name='listening')
@@ -419,7 +406,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.', delete_after=8)
+                await ctx.send('Unknown status given.')
 
 
     @client_presence.command(name='watching')
@@ -443,7 +430,7 @@ title: The title to show."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.', delete_after=8)
+                await ctx.send('Unknown status given.')
 
 
     @client_presence.command(name='status')
@@ -464,7 +451,7 @@ This removes any activity the bot currently has."""
         error = getattr(error, 'original', error)
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
-                await ctx.send('Unknown status given.', delete_after=8)
+                await ctx.send('Unknown status given.')
 
 
 
@@ -604,9 +591,9 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         error = getattr(error, 'original', error)
         if isinstance(error, AttributeError):
             if "'NoneType' object has no attribute" in str(error):
-                await ctx.send('I cannot find the given channel.', delete_after=8)
+                await ctx.send('I cannot find the given channel.')
         elif isinstance(error, discord.Forbidden):
-            await ctx.send('I cannot access this given channel.', delete_after=8)
+            await ctx.send('I cannot access this given channel.')
 
 
 

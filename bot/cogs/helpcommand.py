@@ -275,8 +275,7 @@ class HelpCommand(commands.HelpCommand):
                 cog = self.context.bot.get_cog(string)
             except (IndexError, ValueError):
                 # Not a page number request
-                await self.send(error, delete_after=6)
-                return
+                return await self.send(error)
 
         if cog is None:
             # User requested a help page
@@ -284,7 +283,7 @@ class HelpCommand(commands.HelpCommand):
                 embed = await self.create_help_category_page(page_num=page_num)
             except ValueError as e:
                 # Invalid page number
-                await destination.send(str(e), delete_after=6)
+                await destination.send(str(e))
             else:
                 await self.send(embed=embed)
         else:
@@ -293,7 +292,7 @@ class HelpCommand(commands.HelpCommand):
                 embed = await self.create_help_cog_page(cog, page_num=page_num)
             except ValueError as e:
                 # Invalid page number
-                await destination.send(str(e), delete_after=6)
+                await destination.send(str(e))
             else:
                 await self.send(embed=embed)
 

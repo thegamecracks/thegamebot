@@ -294,20 +294,16 @@ size: (optional) The size of the deck to use in the session.
 
         if ctx.guild is None and not self.bot.intents.members:
             return await ctx.send(
-                'Unfortunately games will not work in DMs at this time.',
-                delete_after=10
-            )
+                'Unfortunately games will not work in DMs at this time.')
         elif size < 1:
-            return await ctx.send('The deck size must be at least one.',
-                                  delete_after=6)
+            return await ctx.send('The deck size must be at least one.')
         elif size > 10:
-            return await ctx.send('The deck size can only be ten at most.',
-                                  delete_after=6)
+            return await ctx.send('The deck size can only be ten at most.')
 
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
-            return await ctx.send(e, delete_after=8)
+            return await ctx.send(e)
 
         message = None
         d = create_deck(size)
@@ -446,14 +442,12 @@ Otherwise, only you can play:
 > multimath"""
         if ctx.guild is None and not self.bot.intents.members:
             return await ctx.send(
-                'Unfortunately games will not work in DMs at this time.',
-                delete_after=10
-            )
+                'Unfortunately games will not work in DMs at this time.')
 
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
-            return await ctx.send(e, delete_after=8)
+            return await ctx.send(e)
 
         game = multimath.BotMultimathGame(ctx)
 
