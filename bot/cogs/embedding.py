@@ -286,7 +286,6 @@ You will be DM'd for your parameters."""
     )
     async def client_slash_hyperlink(self, ctx: SlashContext, message):
         """Send a message with the ability to replace links with custom text."""
-        await ctx.respond(eat=True)
         if not self.hyperlink_regex.search(message):
             return await ctx.send(
                 'Your message should use a custom text hyperlink at least once.\n'

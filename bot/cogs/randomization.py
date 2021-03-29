@@ -191,7 +191,6 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     )
     async def client_slash_eightball(self, ctx: SlashContext, question=''):
         """Shake an eight-ball for a question."""
-        await ctx.respond()
         await ctx.send(random.choice(CLIENT_EIGHTBALL))
 
 
@@ -236,8 +235,6 @@ Ayana command used as reference."""
     async def client_slash_pick(self, ctx: SlashContext,
                                 choice1, choice2, extra=None):
         """Choose one of the given options."""
-        await ctx.respond()
-
         if extra is not None:
             choices = utils.parse_var_positional(extra)
         else:

@@ -372,7 +372,6 @@ and purges outdated messages daily. No user info or message content is stored.""
         """Get the invite link for the bot."""
         link = self.get_invite_link()
 
-        await ctx.respond(eat=True)
         await ctx.send(content=f'[Invitation link]({link})', hidden=True)
 
 

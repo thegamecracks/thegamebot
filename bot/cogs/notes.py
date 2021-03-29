@@ -98,8 +98,6 @@ class Notes(commands.Cog):
         )]
     )
     async def client_slash_addnote(self, ctx: SlashContext, note):
-        await ctx.respond(eat=True)
-
         max_length = 2000 - len(f'__Note #{self.max_notes_user:,}__\n')
         if len(note) > max_length:
             return await ctx.send('This note is too large.', hidden=True)
@@ -163,8 +161,6 @@ To remove several notes, use the removenotes command."""
     )
     async def client_slash_removenote(self, ctx: SlashContext, index: int):
         """Remove a note by index. To see the indices for your notes, use /notes show."""
-        await ctx.respond(eat=True)
-
         note_list = await self.get_notes(ctx.author.id)
 
         if len(note_list) == 0:
@@ -263,8 +259,6 @@ To remove only one note, use the removenote command."""
     )
     async def client_slash_shownote(self, ctx: SlashContext, index: int = None):
         """Show one or all of your notes."""
-        await ctx.respond(eat=True)
-
         note_list = await self.get_notes(ctx.author.id)
         notes_len = len(note_list)
 

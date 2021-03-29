@@ -115,6 +115,25 @@ class UnturnedDatabase:
     def __init__(self, items):
         self.items = items
 
+    @staticmethod
+    def _parse_recipes(recipes: dict, item_ids: csv.reader):
+        items = {}
+        header = next(item_ids)
+
+        for ID, name, rarity, url in item_ids:
+            rec = recipes.get(ID)
+            dimensions = rec['dimensions'] if rec else None
+            recipe_data = (
+                {'primitive': rec['primitive'],
+                 'recipes': rec['recipes']}
+                if rec else None
+            )
+            ID = int(ID)
+            items[ID] = UnturnedItem(
+                ID, name, rarity, url, dimensions, recipe_data)
+
+        return items
+
     @classmethod
     def _get_items_from_files(cls):
         with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
@@ -123,50 +142,23 @@ class UnturnedDatabase:
         items = {}
         with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
             reader = csv.reader(f)
-            header = next(reader)
-            for id_, name, rarity, url in reader:
-                rec = recipes.get(id_)
-                dimensions = rec['dimensions'] if rec else None
-                recipe_data = (
-                    {'primitive': rec['primitive'],
-                     'recipes': rec['recipes']}
-                    if rec else None
-                )
-                id_ = int(id_)
-                items[id_] = UnturnedItem(
-                    id_, name, rarity, url, dimensions, recipe_data)
-
-        return items
+            return cls._parse_recipes(recipes, reader)
 
     @classmethod
     async def _get_items_from_files_nonblocking(cls):
-        executor = ThreadPoolExecutor()
         loop = asyncio.get_running_loop()
 
         with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
-            recipes = json.loads(await loop.run_in_executor(executor, f.read))
+            recipes = json.loads(await loop.run_in_executor(None, f.read))
 
         with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
-            raw_lines = await loop.run_in_executor(executor, f.readlines)
+            raw_lines = await loop.run_in_executor(None, f.readlines)
 
         items = {}
         reader = csv.reader(raw_lines)
-        next(reader)  # skip header
 
-        for ID, name, rarity, url in reader:
-            rec = recipes.get(ID)
-            dimensions = rec['dimensions'] if rec else None
-            recipe_data = (
-                {'primitive': rec['primitive'],
-                 'recipes': rec['recipes']}
-                if rec else None
-            )
-
-            ID = int(ID)
-            items[ID] = UnturnedItem(ID, name, rarity, url,
-                                     dimensions, recipe_data)
-
-        return items
+        return await loop.run_in_executor(
+            None, cls._parse_recipes, recipes, reader)
 
     def reload_items(self):
         """Regenerate self.items from the data files."""

@@ -7,7 +7,7 @@ braceexpand==0.1.6
 chardet==3.0.4
 cycler==0.10.0
 dateparser==1.0.0
-discord-py-slash-command==1.0.9.5
+discord-py-slash-command==1.1.0
 discord.py==1.6.0
 disputils==0.1.3
 emoji==1.2.0
