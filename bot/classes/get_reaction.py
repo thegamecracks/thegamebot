@@ -4,7 +4,7 @@ import discord
 
 
 async def get_reaction(client, message, reactions=None,
-                       users=None, *, timeout=None):
+                       users=None, *, raw=False, timeout=None):
     """Return (reaction, user) whenever a reaction is added or removed.
 
     See https://stackoverflow.com/a/59433241 on awaiting multiple events.
@@ -18,11 +18,17 @@ async def get_reaction(client, message, reactions=None,
         users (Optional[List[discord.User]]): A list of users
             that are allowed to react to the message.
             If None, returns any user's reaction change.
+        raw (bool): If True, use raw_reaction_add/remove events
+            instead of reaction_add/remove. This will return
+            the RawReactionActionEvent given by the event
+            instead of (Reaction, User).
+
         timeout (Optional[float]): The timeout period.
             Raises TimeoutError.
 
     Returns:
         Tuple[discord.Reaction, discord.User]
+        discord.RawReactionActionEvent
 
     Raises:
         TimeoutError
@@ -38,11 +44,11 @@ async def get_reaction(client, message, reactions=None,
 
         return result
 
+    raw = 'raw_' if raw else ''
+    events = (f'{raw}reaction_add', f'{raw}reaction_remove')
+
     completed_tasks = ()
-    pending_tasks = [
-        client.wait_for('reaction_add', check=check),
-        client.wait_for('reaction_remove', check=check),
-    ]
+    pending_tasks = [client.wait_for(e, check=check) for e in events]
     try:
         completed_tasks, pending_tasks = await asyncio.wait(
             pending_tasks, return_when=asyncio.FIRST_COMPLETED,

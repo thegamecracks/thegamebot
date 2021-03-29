@@ -1,4 +1,6 @@
 # TODO: remove guild from database when removed
+import re
+
 import discord
 from discord.ext import commands
 
@@ -19,22 +21,16 @@ class Prefix(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """Send the bot's prefix if mentioned."""
-        def list_discard(seq, value):
-            try:
-                seq.remove(value)
-            except ValueError:
-                pass
-
         # Ignore messages that are from bot or didn't mention the bot
         if (self.bot.user not in message.mentions
                 or message.author == self.bot.user):
             return
 
-        bot_mentions = (f'<@{self.bot.user.id}>', f'<@!{self.bot.user.id}>')
+        bot_mention = re.compile(f'<@!?{self.bot.user.id}>')
 
         # Check if the message content ONLY consists of the mention
         # and return otherwise
-        if message.content not in bot_mentions:
+        if bot_mention.fullmatch(message.content):
             return
 
         # Check cooldown
@@ -48,8 +44,7 @@ class Prefix(commands.Cog):
             prefix = [prefix]
         else:
             # Remove bot mentions in the prefixes
-            for mention in bot_mentions:
-                list_discard(prefix, mention + ' ')
+            prefix = [p for p in prefix if not bot_mention.match(p)]
 
         # Send available prefix(es)
         if len(prefix) == 1:
