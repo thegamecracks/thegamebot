@@ -5,6 +5,7 @@ import random
 import time
 from typing import Optional
 
+from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
 from discord_slash.utils import manage_commands
@@ -447,7 +448,7 @@ Format referenced from the Ayana bot."""
 
         created = (
             utils.timedelta_string(
-                utils.datetime_difference(
+                relativedelta(
                     datetime.datetime.utcnow(),
                     guild.created_at
                 ),
@@ -547,7 +548,7 @@ This command uses the IANA timezone database."""
     async def client_uptime(self, ctx):
         """Get the uptime of the bot."""
         # Calculate time diff (subtracting downtime)
-        diff = utils.datetime_difference(
+        diff = relativedelta(
             datetime.datetime.now().astimezone(),
             self.bot.uptime_last_connect_adjusted
         )
@@ -615,7 +616,7 @@ Format referenced from the Ayana bot."""
             guild = user.guild
             joined = (
                 utils.timedelta_string(
-                    utils.datetime_difference(
+                    relativedelta(
                         datetime.datetime.utcnow(),
                         user.created_at
                     ),
@@ -655,7 +656,7 @@ Format referenced from the Ayana bot."""
                   else str(user))
         created = (
             utils.timedelta_string(
-                utils.datetime_difference(
+                relativedelta(
                     datetime.datetime.utcnow(),
                     user.created_at
                 ),

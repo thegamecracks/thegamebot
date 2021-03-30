@@ -5,6 +5,7 @@ import datetime
 import re
 
 import dateparser
+from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands, tasks
 import pytz
@@ -298,7 +299,7 @@ To remove only one reminder, use the removereminder command."""
             ).add_field(
                 name='Due in',
                 value=utils.timedelta_string(
-                    utils.datetime_difference(
+                    relativedelta(
                         utcdue,
                         datetime.datetime.utcnow()
                     ),

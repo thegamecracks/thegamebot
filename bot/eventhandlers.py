@@ -157,7 +157,7 @@ ERRORS_TO_LIMIT_COOLDOWN_MAPPING = {
     commands.NoPrivateMessage: None,
     commands.PrivateMessageOnly: None,
     commands.NotOwner: None,
-    commands.UserInputError: (5, 30, commands.BucketType.user),
+    commands.UserInputError: (1, 5, commands.BucketType.user),
     checks.UserOnCooldown: (1, 5, commands.BucketType.user),
     discord.Forbidden: (1, 5, commands.BucketType.user),
 }
@@ -223,28 +223,16 @@ async def on_command_error(ctx, error):
             return
 
     # Print error
-    if ctx.guild is not None:
-        # Command invoked in server
-        print(
-            'Command error ({}:{}:{}:"{}")\n  {}: {}'.format(
-                ctx.guild,
-                ctx.channel,
-                ctx.author,
-                ctx.invoked_with,
-                type(error).__name__,
-                error
-        ))
-    else:
-        # Command invoked in DMs
-        print(
-            'Command error (<DM>:{}:"{}")\n  {}: {}'.format(
-                ctx.author, ctx.invoked_with,
-                type(error).__name__, error
-        ))
+    print(
+        'Command error ({}:{}:"{}")\n  {}: {}'.format(
+            f'{ctx.guild}:{ctx.channel}' if ctx.guild else '<DM>',
+            ctx.author, ctx.invoked_with, type(error).__name__, error
+        )
+    )
 
     # Error message functions
     def convert_roles(missing_perms):
-        "Convert IDs in one or more roles into strings."
+        """Convert IDs in one or more roles into strings."""
         def convert(p):
             if isinstance(p, int):
                 r = ctx.bot.get_role(p)
@@ -254,7 +242,7 @@ async def on_command_error(ctx, error):
         if isinstance(missing_perms, list):
             return [convert(p) for p in missing_perms]
 
-        return (convert(missing_perms),)
+        return convert(missing_perms),
 
     def get_command_signature():
         prefix = ctx.prefix
@@ -263,7 +251,7 @@ async def on_command_error(ctx, error):
 
         return f'{prefix}{name_signature} {arguments}'
 
-    def get_concurrency_description(ctx, error):
+    def get_concurrency_description():
         if not ctx.guild and error.per == commands.BucketType.channel:
             # Use message for member bucket when in DMs
             description = MAX_CONCURRENCY_DESCRIPTIONS.get(
@@ -277,7 +265,7 @@ async def on_command_error(ctx, error):
             )
 
         return description.format(
-            here=get_cooldown_here(ctx, error.per),
+            here=get_cooldown_here(error.per),
             times=ctx.bot.inflector.inflect(
                 '{0} plural("time", {0})'.format(
                     error.number
@@ -285,11 +273,11 @@ async def on_command_error(ctx, error):
             )
         )
 
-    def get_cooldown_description(ctx, error):
-        if (    not ctx.guild
-                and error.cooldown.type in (
-                    commands.BucketType.channel,
-                    commands.BucketType.guild)):
+    def get_cooldown_description():
+        if (not ctx.guild
+            and error.cooldown.type in (
+                commands.BucketType.channel,
+                commands.BucketType.guild)):
             # in DMs; use member in place of channel/guild bucket
             description = COOLDOWN_DESCRIPTIONS.get(
                 commands.BucketType.member, 'This command is on cooldown.'
@@ -300,7 +288,7 @@ async def on_command_error(ctx, error):
             )
 
         return description.format(
-            here=get_cooldown_here(ctx, error.cooldown.type),
+            here=get_cooldown_here(error.cooldown.type),
             times=ctx.bot.inflector.inflect(
                 '{0} plural("time", {0}) '
                 'every {1} plural("second", {1})'.format(
@@ -310,7 +298,7 @@ async def on_command_error(ctx, error):
             )
         )
 
-    def get_cooldown_here(ctx, bucket):
+    def get_cooldown_here(bucket):
         if ctx.guild:
             if bucket == commands.BucketType.guild:
                 return 'on this server'
@@ -368,11 +356,13 @@ async def on_command_error(ctx, error):
             icon_url=ctx.author.avatar_url
         )
 
-        embed.description = get_cooldown_description(ctx, error)
+        embed.description = get_cooldown_description()
 
         await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
     elif isinstance(error, commands.DisabledCommand):
         await ctx.send('This command is currently disabled.')
+    elif isinstance(error, errors.DollarInputError):
+        await ctx.send(str(error))
     elif isinstance(error, commands.EmojiNotFound):
         await ctx.send(f'I cannot find the given emoji "{error.argument}"')
     elif isinstance(error, commands.ExpectedClosingQuoteError):
@@ -383,7 +373,7 @@ async def on_command_error(ctx, error):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
-            text=get_concurrency_description(ctx, error),
+            text=get_concurrency_description(),
             icon_url=ctx.author.avatar_url
         )
 

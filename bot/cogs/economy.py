@@ -6,12 +6,9 @@ import discord
 from discord.ext import commands
 
 from bot.classes.confirmation import AdaptiveConfirmation
+from bot.converters import DollarConverter
+from bot.utils import format_cents, format_dollars
 from bot import utils
-
-
-class DollarConverter(commands.Converter):
-    async def convert(self, ctx, argument):
-        return Economy.parse_dollars(argument)
 
 
 class Economy(commands.Cog):
@@ -24,40 +21,6 @@ class Economy(commands.Cog):
         self.bot = bot
         self.chat_cooldown = commands.CooldownMapping.from_cooldown(
             1, 60, commands.BucketType.member)
-
-    @classmethod
-    def format_cents(cls, cents: int):
-        return cls.format_dollars(cents / 100)
-
-    @classmethod
-    def format_dollars(cls, dollars):
-        dollars = cls.round_dollars(dollars)
-        sign = '-' if dollars < 0 else ''
-        dollar_part = abs(int(dollars))
-        cent_part = abs(int(dollars % 1 * 100))
-        return '{}${}.{:02d}'.format(sign, dollar_part, cent_part)
-
-    @classmethod
-    def parse_dollars(cls, s: str, round_to_cent=True) -> decimal.Decimal:
-        """Parse a string into a Decimal.
-
-        Raises:
-            ValueError: The string could not be parsed.
-
-        """
-        s = s.replace('$', '', 1)
-        try:
-            d = decimal.Decimal(s)
-        except decimal.InvalidOperation as e:
-            raise ValueError('Could not parse cents') from e
-        return cls.round_dollars(d) if round_to_cent else d
-
-    @staticmethod
-    def round_dollars(d) -> decimal.Decimal:
-        """Round a number-like object to the nearest cent."""
-        cent = decimal.Decimal('0.01')
-        return decimal.Decimal(d).quantize(cent, rounding=decimal.ROUND_HALF_UP)
-
 
     @commands.Cog.listener('on_message')
     async def chat_reward(self, message):
@@ -77,7 +40,7 @@ class Economy(commands.Cog):
 
 
     @commands.group(name='money', invoke_without_command=True)
-    @commands.cooldown(3, 15, commands.BucketType.user)
+    @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.guild_only()
     async def client_money(self, ctx, *, user: discord.Member = None):
         """Inspect you or someone else's money."""
@@ -86,7 +49,7 @@ class Economy(commands.Cog):
         cents = await ctx.bot.dbcurrency.get_cents(ctx.guild.id, user.id)
 
         embed = discord.Embed(
-            description=self.format_cents(cents),
+            description=format_cents(cents),
             color=utils.get_user_color(ctx.bot, user)
         ).set_author(
             name=user.display_name,
@@ -100,16 +63,15 @@ class Economy(commands.Cog):
 
 
     @client_money.command(name='adjust')
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.guild_only()
     @commands.check_any(
         commands.has_guild_permissions(manage_guild=True),
         commands.is_owner()
     )
     async def client_money_adjust(self, ctx, user: Optional[discord.Member],
-                                  dollars: DollarConverter):
+                                  dollars: DollarConverter(zero=False)):
         """Add or take away money from a user."""
-        if dollars == 0:
-            return await ctx.send('Please provide a non-zero quantity.')
-
         user = user or ctx.author
 
         cents = await ctx.bot.dbcurrency.change_cents(
@@ -121,12 +83,46 @@ class Economy(commands.Cog):
         verb = 'Added {} to' if dollars > 0 else 'Removed {} from'
         if user == ctx.author:
             embed.description = '{} your balance. You now have {}.'.format(
-                verb, self.format_cents(cents)
-            ).format(self.format_dollars(dollars))
+                verb, format_cents(cents)
+            ).format(format_dollars(dollars))
         else:
             embed.description = "{} {}'s balance. They now have {}.".format(
-                verb, user.mention, self.format_cents(cents)
-            ).format(self.format_dollars(dollars))
+                verb, user.mention, format_cents(cents)
+            ).format(format_dollars(dollars))
+
+        await ctx.send(embed=embed)
+
+
+
+
+
+    @client_money.command(name='give', aliases=('gift', 'send',))
+    @commands.cooldown(1, 5, commands.BucketType.member)
+    @commands.guild_only()
+    async def client_money_send(
+            self, ctx, dollars: DollarConverter(negative=False, zero=False),
+            user: discord.Member):
+        """Send money to another member."""
+        if user.bot:
+            return await ctx.send('You cannot send money to bots.')
+
+        db = ctx.bot.dbcurrency
+        cents_author = await db.get_cents(ctx.guild.id, ctx.author.id)
+        dollars_author = decimal.Decimal(cents_author) / 100
+
+        if dollars > dollars_author:
+            return await ctx.send(f'You only have {format_cents(cents_author)}.')
+        elif user != ctx.author:
+            # If the user tries giving themselves money, do not make a query
+            await db.send_cents(ctx.guild.id, ctx.author.id, user.id, dollars * 100)
+            dollars_author -= dollars
+
+        embed = discord.Embed(
+            description=f'{ctx.author.mention} has sent {user.mention} '
+                        f'{format_dollars(dollars)}!\n'
+                        f'You have {format_dollars(dollars_author)} left.',
+            color=utils.get_user_color(ctx.bot, ctx.author)
+        )
 
         await ctx.send(embed=embed)
 
@@ -137,6 +133,8 @@ class Economy(commands.Cog):
     @client_money.command(
         name='leaderboard',
         aliases=('leaderboards', 'scoreboard',))
+    @commands.cooldown(1, 10, commands.BucketType.member)
+    @commands.guild_only()
     async def client_money_leaderboard(self, ctx):
         """Show the most wealthy members in the economy."""
 
@@ -157,7 +155,7 @@ class Economy(commands.Cog):
                 i = 1
                 async for row in c:
                     mention = f"<@{row['user_id']}>"
-                    dollars = self.format_cents(row['cents'])
+                    dollars = format_cents(row['cents'])
                     description.append(f'{mention}: {dollars}')
 
         embed = None
@@ -168,7 +166,7 @@ class Economy(commands.Cog):
             )
 
         await ctx.send(
-            f'The server has {self.format_cents(total)} in the economy.',
+            f"The server's economy has a total of {format_cents(total)}.",
             embed=embed
         )
 
@@ -177,11 +175,12 @@ class Economy(commands.Cog):
 
 
     @client_money.command(name='reset')
+    @commands.cooldown(1, 60, commands.BucketType.guild)
+    @commands.guild_only()
     @commands.check_any(
         commands.has_guild_permissions(manage_guild=True),
         commands.is_owner()
     )
-    @commands.cooldown(1, 60)
     async def client_money_reset(self, ctx):
         """Reset the economy for the server.
 This requires a confirmation."""

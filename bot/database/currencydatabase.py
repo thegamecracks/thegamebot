@@ -78,7 +78,7 @@ class CurrencyDatabase(db.Database):
 
         return new_cents
 
-    async def exchange_cents(
+    async def send_cents(
             self, guild_id: int, user1: int, user2: int, cents: int):
         """Give some amount of money from the first user to the second user.
 

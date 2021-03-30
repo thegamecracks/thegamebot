@@ -4,7 +4,6 @@ import csv
 import json
 import math
 import random
-from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Optional, List, Union
 
 import discord
