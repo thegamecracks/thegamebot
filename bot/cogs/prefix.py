@@ -22,15 +22,15 @@ class Prefix(commands.Cog):
     async def on_message(self, message):
         """Send the bot's prefix if mentioned."""
         # Ignore messages that are from bot or didn't mention the bot
-        if (self.bot.user not in message.mentions
-                or message.author == self.bot.user):
+        if (message.author == self.bot.user
+                or self.bot.user not in message.mentions):
             return
 
         bot_mention = re.compile(f'<@!?{self.bot.user.id}>')
 
         # Check if the message content ONLY consists of the mention
         # and return otherwise
-        if bot_mention.fullmatch(message.content):
+        if not bot_mention.fullmatch(message.content):
             return
 
         # Check cooldown
