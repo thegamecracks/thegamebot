@@ -1,5 +1,7 @@
+import datetime
 import decimal
 import random
+import textwrap
 from typing import Optional
 
 import discord
@@ -137,7 +139,6 @@ class Economy(commands.Cog):
     @commands.guild_only()
     async def client_money_leaderboard(self, ctx):
         """Show the most wealthy members in the economy."""
-
         db = ctx.bot.dbcurrency
 
         async with db.connect() as conn:
@@ -151,24 +152,36 @@ class Economy(commands.Cog):
                     'WHERE guild_id = ? AND cents != 0 ORDER BY cents DESC '
                     f'LIMIT {self.LEADERBOARD_MAX_DISPLAYED:d}',
                     (ctx.guild.id,)) as c:
-                description = []
+                rows = []
                 i = 1
                 async for row in c:
-                    mention = f"<@{row['user_id']}>"
+                    id_ = row['user_id']
+                    member = ctx.guild.get_member(id_)
                     dollars = format_cents(row['cents'])
-                    description.append(f'{mention}: {dollars}')
+                    rows.append((i, id_, member, dollars))
+                    i += 1
 
-        embed = None
-        if description:
-            embed = discord.Embed(
-                color=utils.get_bot_color(ctx.bot),
-                description='\n'.join(description)
-            )
+        if any(r[2] is None for r in rows):
+            # Use mentions, not all members could be found
+            description = [f'{i}. <@{id_}> : {dollars}'
+                           for i, id_, member, dollars in rows]
+            description.append(f'Total: {format_cents(total)}')
+        else:
+            # All member names can be used
+            description = [
+                (i, utils.truncate_simple(member.display_name, 19, '...'), dollars)
+                for i, id_, member, dollars in rows
+            ]
+            description = utils.format_table(rows, divs=None)
+            description = f'```yml\n{description}\nTotal: {format_cents(total)}```'
 
-        await ctx.send(
-            f"The server's economy has a total of {format_cents(total)}.",
-            embed=embed
+        embed = discord.Embed(
+            color=utils.get_bot_color(ctx.bot),
+            description=description,
+            timestamp=datetime.datetime.utcnow()
         )
+
+        await ctx.send(embed=embed)
 
 
 

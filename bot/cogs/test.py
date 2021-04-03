@@ -1,10 +1,18 @@
 import collections
+import functools
 from typing import Union
 
 import discord
 from discord.ext import commands
 
-from bot import utils
+from bot import converters, utils
+
+
+def converter_partial(conv, *args, **kwargs):
+    class PartialConverter(conv):
+        def __init__(self):
+            super().__init__(*args, **kwargs)
+    return PartialConverter
 
 
 class Testing(commands.Cog, command_attrs={'hidden': True}):
@@ -50,6 +58,17 @@ class Testing(commands.Cog, command_attrs={'hidden': True}):
         result = '\n'.join([f'{k}: {v}' for k, v in d.items()])
 
         await ctx.send(result)
+
+
+
+
+
+    @commands.command(name='rolemoji')
+    async def client_role_emoji(
+            self, ctx, *args: Union[discord.Role,
+            converter_partial(converters.UnicodeEmojiConverter, partial_emoji=True)]):
+        names = ', '.join([x.name for x in args])
+        await ctx.send(names)
 
 
 

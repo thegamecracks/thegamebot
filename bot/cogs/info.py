@@ -313,7 +313,8 @@ and purges outdated messages daily. No user info or message content is stored.""
 
         embed = discord.Embed(
             title='Server Message Count',
-            description=f'{count:,} messages have been sent in the last 24 hours.',
+            description='{:,} {} have been sent in the last 24 hours.'.format(
+                count, ctx.bot.inflector.plural('message', count)),
             colour=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',

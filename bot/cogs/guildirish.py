@@ -29,8 +29,8 @@ class IrishSquad(commands.Cog):
 
 
     def cog_check(self, ctx):
-        if isinstance(ctx.author, discord.Member):
-            return ctx.author.guild.id == self.GUILD_ID
+        if ctx.guild is not None:
+            return ctx.guild.id == self.GUILD_ID
 
         # In DMs; check if user is part of the guild
         # NOTE: this requires members intent

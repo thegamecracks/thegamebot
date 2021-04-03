@@ -322,8 +322,8 @@ class BotBlackjackGame:
             elif win is False:
                 embed.color = 0xDD2E44
             self.win = win
-        else:
-            embed.set_footer(text=f'Remaining cards: {len(self.deck)}')
+
+        embed.set_footer(text=f'Remaining cards: {len(self.deck)}')
 
         embed.add_field(
             name='You',
