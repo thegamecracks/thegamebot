@@ -1,10 +1,12 @@
 import discord
 from discord.ext import commands
 import emoji
+import pytz
 
 from bot import errors, utils
 
-__all__ = ('CommandConverter', 'DollarConverter', 'UnicodeEmojiConverter')
+__all__ = ('CommandConverter', 'DollarConverter', 'TimezoneConverter',
+           'UnicodeEmojiConverter')
 
 
 class CommandConverter(commands.Converter):
@@ -86,14 +88,24 @@ class DollarConverter(commands.Converter):
 
         if not self.negative and dollars < 0:
             raise errors.DollarInputError(
-                'Negative dollar values are not allowed.')
+                'Negative dollar values are not allowed.', argument)
         if not self.zero and dollars == 0:
-            raise errors.DollarInputError('Zero dollars is not allowed.')
+            raise errors.DollarInputError(
+                'Zero dollars is not allowed.', argument)
         if not self.positive and dollars > 0:
             raise errors.DollarInputError(
-                'Positive dollar values are not allowed.')
+                'Positive dollar values are not allowed.', argument)
 
         return dollars
+
+
+class TimezoneConverter(commands.Converter):
+    """Converts to a timezone using pytz.timezone()."""
+    async def convert(self, ctx, argument):
+        try:
+            return pytz.timezone(argument)
+        except pytz.UnknownTimeZoneError as e:
+            raise errors.UnknownTimezoneError(argument) from e
 
 
 class UnicodeEmojiConverter(commands.Converter):

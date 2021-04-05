@@ -631,7 +631,7 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         if confirmed:
             await prompt.update('Shutting down.', prompt.emoji_yes.color)
             print(f'Initiating shutdown by {get_user_for_log(ctx)}')
-            await self.bot.logout()
+            await self.bot.close()
         else:
             await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
 

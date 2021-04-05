@@ -13,8 +13,8 @@ class PrefixDatabase(db.Database):
     PREFIX_SIZE_LIMIT = 20
 
     TABLE_NAME = 'Prefixes'
-    TABLE_SETUP = """
-    CREATE TABLE IF NOT EXISTS Prefixes (
+    TABLE_SETUP = f"""
+    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         guild_id INTEGER PRIMARY KEY NOT NULL,
         prefix TEXT NOT NULL,
         FOREIGN KEY(guild_id) REFERENCES Guilds(id)

@@ -1,4 +1,4 @@
-"""A database for storing user's notes.
+"""A database for storing users' notes.
 
 Table dependencies:
     Users
@@ -12,8 +12,8 @@ class NoteDatabase(db.Database):
     """Provide an interface to a UserDatabase with a Notes table."""
 
     TABLE_NAME = 'Notes'
-    TABLE_SETUP = """
-    CREATE TABLE IF NOT EXISTS Notes (
+    TABLE_SETUP = f"""
+    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         note_id INTEGER PRIMARY KEY NOT NULL,
         user_id INTEGER NOT NULL,
         time_of_entry TIMESTAMP,

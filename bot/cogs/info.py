@@ -387,13 +387,6 @@ and purges outdated messages daily. No user info or message content is stored.""
         def round_ms(n):
             return round(n * 100_000) / 1000
 
-        # Bot response time
-        now = time.time()
-        created_at = pytz.utc.localize(
-            ctx.message.created_at
-        ).astimezone().timestamp()
-        latency_response_ms = round_ms(now - created_at)
-
         # Heartbeat
         latency_heartbeat_ms = round_ms(ctx.bot.latency)
 
@@ -414,8 +407,6 @@ and purges outdated messages daily. No user info or message content is stored.""
 
         # Format embed
         stats = []
-        if latency_response_ms >= 0:
-            stats.append(f'\N{EYES} Bot: {latency_response_ms:g}ms')
         stats.extend((
             f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
             f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
@@ -517,27 +508,6 @@ Format referenced from the Ayana bot."""
     async def client_timeutc(self, ctx):
         """Get the current date and time in UTC."""
         await ctx.send(time.asctime(time.gmtime()) + ' (UTC)')
-
-
-
-
-
-    @commands.command(name='timezone', aliases=['tz'])
-    @commands.cooldown(2, 5, commands.BucketType.member)
-    async def client_timezone(self, ctx, *, timezone):
-        """Get the current date and time in a given timezone.
-
-This command uses the IANA timezone database."""
-        # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
-        try:
-            tz = pytz.timezone(timezone)
-        except pytz.UnknownTimeZoneError:
-            return await ctx.send('Unknown timezone.')
-
-        UTC = pytz.utc
-        utcnow = UTC.localize(datetime.datetime.utcnow())
-        tznow = utcnow.astimezone(tz)
-        await ctx.send(tznow.strftime('%c %Z (%z)'))
 
 
 

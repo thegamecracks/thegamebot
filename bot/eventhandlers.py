@@ -410,6 +410,14 @@ async def on_command_error(ctx, error):
         await ctx.send('You must be in DMs to use this command.')
     elif isinstance(error, commands.UnexpectedQuoteError):
         await ctx.send('Did not expect a quotation mark.')
+    elif isinstance(error, errors.UnknownTimezoneError):
+        embed = discord.Embed(
+            description='Unknown timezone given. See the [Time Zone Map]'
+                        '(https://kevinnovak.github.io/Time-Zone-Picker/) '
+                        'for the names of timezones supported.',
+            color=utils.get_bot_color(ctx.bot)
+        )
+        await ctx.send(embed=embed)
     elif isinstance(error, (commands.UserNotFound,
                             commands.MemberNotFound)):
         await ctx.send('I cannot find the given user.')

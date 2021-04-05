@@ -38,6 +38,7 @@ cogs = [
         'prefix',
         'randomization',
         'reminders',
+        'timezones',
         'undefined',
         'uptime',
     )
@@ -76,7 +77,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
         """
         open('RESTART', 'w').close()
-        return await self.logout()
+        return await self.close()
 
 
 async def main():
