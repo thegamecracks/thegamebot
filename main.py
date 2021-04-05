@@ -79,6 +79,9 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         open('RESTART', 'w').close()
         return await self.close()
 
+    async def try_user(self, id):
+        return self.get_user(id) or await self.fetch_user(id)
+
 
 async def main():
     start_time = time.perf_counter()
@@ -126,6 +129,7 @@ async def main():
         bot.inflector = inflect.engine()
         bot.info_bootup_time = 0
         bot.info_processed_commands = collections.defaultdict(int)
+        bot.timezones_users_inputting = set()
         bot.uptime_last_connect = datetime.datetime.now().astimezone()
         bot.uptime_last_connect_adjusted = bot.uptime_last_connect
         bot.uptime_last_disconnect = bot.uptime_last_connect
