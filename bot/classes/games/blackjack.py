@@ -157,7 +157,8 @@ class Hand:
 
     @property
     def values(self) -> FrozenSet[int]:
-        """Return a frozenset of possible values for the hand."""
+        """Return a frozenset of possible values for the hand.
+        This excludes cards that are facedown."""
         if self._cache_values is not None:
             return self._cache_values
 

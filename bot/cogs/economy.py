@@ -134,7 +134,7 @@ class Economy(commands.Cog):
 
     @client_money.command(
         name='leaderboard',
-        aliases=('leaderboards', 'scoreboard',))
+        aliases=('leaderboards', 'scoreboard', 'lb'))
     @commands.cooldown(1, 10, commands.BucketType.member)
     @commands.guild_only()
     async def client_money_leaderboard(self, ctx):
@@ -172,7 +172,7 @@ class Economy(commands.Cog):
                 (i, utils.truncate_simple(member.display_name, 19, '...'), dollars)
                 for i, id_, member, dollars in rows
             ]
-            description = utils.format_table(rows, divs=None)
+            description = utils.format_table(description, divs=None)
             description = f'```yml\n{description}\nTotal: {format_cents(total)}```'
 
         embed = discord.Embed(
