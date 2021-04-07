@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import datetime
 import re
 from typing import List, Tuple, Union
@@ -36,7 +37,7 @@ class Timezones(commands.Cog):
 
     # regex_twelve = re.compile(r'(?P<hour>\d{1,2})(:(?P<minute>\d{2}))?[ap]m', re.I)
     # regex_twenty = re.compile(r'(?P<hour>\d{2}):(?P<minute>\d{2})(?![ap]m)', re.I)
-    regex_12_24 = re.compile(r'(?P<hour>\d{1,2})(:(?P<minute>\d{2}))?(?P<noon>[ap]m)?', re.I)
+    regex_12_24 = re.compile(r'(?<!\w)(?P<hour>\d{1,2})(:(?P<minute>\d{2}))?(?P<noon>[ap]m)?(?!\w)', re.I)
 
     clock_emoji = 828494826155802624
 
@@ -84,19 +85,20 @@ class Timezones(commands.Cog):
         return matches
         # return [m[1] for m in dateparser.search.search_dates(s, languages=['en'])]
 
-    async def set_user_timezone(self, user_id: int, timezone: pytz.BaseTzInfo):
+    async def set_user_timezone(
+            self, user_id: int, timezone: pytz.BaseTzInfo = None):
         """Add a timezone for a user."""
-        user_id = int(user_id)
+        user_id, timezone = int(user_id), getattr(timezone, 'zone', timezone)
 
         # Try adding user entry
         db = self.bot.dbusers
-        rowid = await db.add_user(user_id, timezone=timezone.zone)
+        rowid = await db.add_user(user_id, timezone=timezone)
 
         if rowid is None:
             # Update user entry
             await db.update_rows(
                 db.TABLE_NAME,
-                {'timezone': timezone.zone},
+                {'timezone': timezone},
                 where={'id': user_id}
             )
 
@@ -152,16 +154,62 @@ class Timezones(commands.Cog):
         if not self.translate_timezone_cooldown.update_rate_limit(
                 MockMessage(user, channel=c, guild=c.guild)):
             # not rate limited; start translation
-            await self.translate_timezone(user, m, times, tz_out)
+            await self.translate_timezone(user, m, times, tz_in, tz_out)
 
     async def translate_timezone(
             self, user: discord.User, message: discord.Message,
             times: List[Tuple[str, datetime.datetime, str]],
-            tz_out: pytz.BaseTzInfo):
+            tz_in: pytz.BaseTzInfo, tz_out: pytz.BaseTzInfo):
         """Start translating a timezone for a user."""
+        async def send_backup(first, second=True, send_func=None, *args, **kwargs):
+            """Send a message to the first messageable,
+            and if it fails then use the second as a backup.
+
+            Once it tests a messageable, it memoizes it so it will not need
+            to catch exceptions for it again.
+
+            Returns the Messageable and Message that successfully worked,
+            or (None, None) if both first and second channels fail.
+
+            send_func is an optional callable that takes the messageable
+            and a variable amount of positional and keyword arguments.
+            This should do the actual message sending and return a Message.
+
+            """
+            async def default_send_func(c, *args, **kwargs):
+                return await c.send(*args, **kwargs)
+
+            if first is None:
+                raise ValueError('no channel passed')
+            elif first in failed_channels:
+                if second is None:
+                    return
+                return await send_backup(second, None, send_func, *args, **kwargs)
+
+            send_func = send_func or default_send_func
+
+            try:
+                return first, await send_func(first, *args, **kwargs)
+            except discord.HTTPException:
+                failed_channels.append(first)
+                if second is True:  # Pick an alternative
+                    second = user if first != user else message.channel
+                elif second is None:
+                    return
+                return await send_backup(second, None, send_func, *args, **kwargs)
+
+        async def send_func_reference(c, *args, embed, **kwargs):
+            if c == message.channel:
+                return await c.send(
+                    *args, embed=embed, reference=message,
+                    mention_author=False, **kwargs
+                )
+            jump_embed = embed.copy()
+            jump_embed.description += jump_to
+            return await c.send(*args, embed=jump_embed, **kwargs)
+
         async def input_timezone():
             nonlocal channel
-
             # Decide whether to get input in DMs or same channel
             form = (
                 'I do not know what timezone you are in! '
@@ -171,16 +219,11 @@ class Timezones(commands.Cog):
                 'https://kevinnovak.github.io/Time-Zone-Picker/\n'
                 'You have **3 minutes** to complete this form.'
             )
-            try:
-                await user.send(form)
-            except discord.HTTPException:
-                await channel.send(form)
-            else:
-                channel = user.dm_channel
+            channel, m = await send_backup(user, channel, None, form)
 
             # Wait for response
             def check(m):
-                return m.channel == channel and m.author == user
+                return m.author == user and m.channel in (channel, user.dm_channel)
 
             due = datetime.datetime.utcnow() + datetime.timedelta(minutes=3)
             self.bot.timezones_users_inputting.add(user.id)
@@ -203,13 +246,19 @@ class Timezones(commands.Cog):
             else:
                 # Timeout
                 self.bot.timezones_users_inputting.remove(user.id)
-                return await channel.send(
-                    'You have ran out of time to input your timezone.')
+                await send_backup(
+                    channel, None, None,
+                    'You have ran out of time to input your timezone.'
+                )
+                return
 
         channel: Union[discord.TextChannel, discord.User] = message.channel
+        failed_channels = []
 
-        tz_in = times[0][1].tzinfo
-        tz_out = tz_out or await input_timezone()
+        # Determine and timezones
+        asked_timezone = tz_out is None
+        if asked_timezone:
+            tz_out = await input_timezone()
         if tz_out is None:
             return
 
@@ -218,31 +267,34 @@ class Timezones(commands.Cog):
         ).set_author(
             name=f'Requested by {user.display_name}',
             icon_url=user.avatar_url
-        ).set_footer(
+        )
+        jump_to = f'\n[Jump to message]({message.jump_url})'
+        if tz_in == tz_out:
+            embed.description = f'You are both in the same timezone!'
+            c, m = await send_backup(
+                user, message.channel, send_func_reference,
+                embed=embed
+            )
+            if c != user:
+                await m.delete(delay=10)
+            return
+
+        embed.set_footer(
             text='Feature inspired by the Friend Time Bot'
         )
 
-        if tz_in == tz_out:
-            embed.description = 'You are both in the same timezone!'
-            return await channel.send(embed=embed)
-
+        # Convert times
         description = [
             f'{message.author.mention} in {message.channel.mention} sent these times:',
             f'{tz_in} -> **{tz_out}**'
         ]
-
         for s, dt, form in times:
-            dt_out = dt.astimezone(tz_out).strftime(form)
+            dt_out = dt.astimezone(tz_out).strftime(form).lstrip('0')
             description.append(f'{s} -> **{dt_out}**')
 
+        # Send message with reference/jump url
         embed.description = '\n'.join(description)
-        kwargs = {'embed': embed, 'reference': message, 'mention_author': False}
-
-        try:
-            await channel.send(**kwargs)
-        except discord.HTTPException:
-            if channel != user:
-                await user.send(**kwargs)
+        await send_backup(channel, True, send_func_reference, embed=embed)
 
 
 
@@ -271,18 +323,26 @@ You can find the timezone names using this [Time Zone Map](https://kevinnovak.gi
 
     @client_timezone.command(name='set')
     @commands.cooldown(2, 60, commands.BucketType.user)
-    async def client_timezone_set(self, ctx, *, timezone: TimezoneConverter):
+    async def client_timezone_set(self, ctx, *, timezone: TimezoneConverter = None):
         """Set your timezone.
-You can find the timezone names using this [Time Zone Map](https://kevinnovak.github.io/Time-Zone-Picker/)."""
-        timezone: pytz.BaseTzInfo
+You can find the timezone names using this [Time Zone Map](https://kevinnovak.github.io/Time-Zone-Picker/).
+If you want to remove your timezone, use this command with no arguments."""
+        timezone: Optional[pytz.BaseTzInfo]
 
         if ctx.author.id in ctx.bot.timezones_users_inputting:
             return await ctx.send('You are already being asked to input a timezone.')
 
+        curr_timezone = await ctx.bot.dbusers.get_timezone(ctx.author.id)
+        if not (timezone or curr_timezone):
+            return await ctx.send('You already have no timezone set.')
+
         await self.set_user_timezone(ctx.author.id, timezone)
 
+        description = 'Removed your timezone!'
+        if timezone:
+            description = f'Updated your timezone to {timezone.zone}!'
         embed = discord.Embed(
-            description=f'Updated your timezone to {timezone.zone}.',
+            description=description,
             color=utils.get_bot_color(ctx.bot)
         )
         await ctx.send(embed=embed)

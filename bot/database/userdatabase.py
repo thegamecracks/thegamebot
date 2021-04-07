@@ -21,7 +21,7 @@ class UserDatabase(db.Database):
     );
     """
 
-    async def add_user(self, user_id: int, *, timezone: str = ''):
+    async def add_user(self, user_id: int, *, timezone: pytz.BaseTzInfo = None):
         """Add a user to the database if the user does not exist.
 
         Returns:
@@ -29,7 +29,7 @@ class UserDatabase(db.Database):
             None: the row already exists.
 
         """
-        user_id, timezone = int(user_id), str(timezone)
+        user_id, timezone = int(user_id), getattr(timezone, 'zone', timezone)
 
         if await self.get_user(user_id) is None:
             return await self.add_row(
@@ -56,8 +56,8 @@ class UserDatabase(db.Database):
         In the case that an invalid timezone is inserted into the database,
         this will nullify it before propagating the exception.
 
-        If the user entry does not exist, this will not add the entry and
-        return None.
+        If the user entry does not exist, this will return None
+        without adding a new row.
 
         """
         user_id = int(user_id)
