@@ -109,7 +109,7 @@ class Timezones(commands.Cog):
             return
 
         perms = m.channel.permissions_for(m.guild.me)
-        if not (perms.add_reactions and perms.send_messages):
+        if not perms.add_reactions:
             return
 
         tz = await self.bot.dbusers.get_timezone(m.author.id)
@@ -161,6 +161,11 @@ class Timezones(commands.Cog):
             times: List[Tuple[str, datetime.datetime, str]],
             tz_in: pytz.BaseTzInfo, tz_out: pytz.BaseTzInfo):
         """Start translating a timezone for a user."""
+        def get_bot_permissions(c):
+            if isinstance(c, (discord.User, discord.DMChannel)):
+                return discord.Permissions.text()
+            return c.permissions_for(c.guild.me)
+
         async def send_backup(first, second=True, send_func=None, *args, **kwargs):
             """Send a message to the first messageable,
             and if it fails then use the second as a backup.
@@ -188,9 +193,14 @@ class Timezones(commands.Cog):
 
             send_func = send_func or default_send_func
 
-            try:
-                return first, await send_func(first, *args, **kwargs)
-            except discord.HTTPException:
+            can_send = get_bot_permissions(first).send_messages
+            if can_send:
+                try:
+                    return first, await send_func(first, *args, **kwargs)
+                except discord.HTTPException:
+                    can_send = False
+
+            if not can_send:
                 failed_channels.append(first)
                 if second is True:  # Pick an alternative
                     second = user if first != user else message.channel
