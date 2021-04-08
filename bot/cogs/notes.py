@@ -32,7 +32,7 @@ class Notes(commands.Cog):
         """Adds a note and invalidates the user's cache."""
         await self.bot.dbusers.add_user(user_id)
         await self.bot.dbnotes.add_note(user_id, *args, **kwargs)
-        del self.cache[user_id]
+        self.cache.pop(user_id, None)
 
     async def delete_note_by_note_id(self, note_id, pop=False):
         """Remove a note by note_id and update the cache."""
@@ -41,7 +41,7 @@ class Notes(commands.Cog):
         updated_ids = frozenset(note['user_id'] for note in deleted)
 
         for user_id in updated_ids:
-            del self.cache[user_id]
+            self.cache.pop(user_id, None)
 
         return deleted if pop else None
 
