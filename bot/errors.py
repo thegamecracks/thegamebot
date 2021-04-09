@@ -8,6 +8,10 @@ class DollarInputError(commands.UserInputError):
         self.argument = argument
 
 
+class IndexOutOfBoundsError(commands.UserInputError):
+    """An index given by the user was out of bounds."""
+
+
 class UnknownTimezoneError(commands.UserInputError):
     """An invalid input was given while converting to a timezone."""
     def __init__(self, argument):
