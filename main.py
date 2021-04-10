@@ -8,6 +8,7 @@ import os
 import discord
 from discord.ext import commands
 import discord_slash as dslash
+import inflect
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
@@ -23,6 +24,7 @@ cogs = [
         'administrative',
         'background',
         'ciphers',
+        'economy',
         'embedding',
         'games',
         'graphing',
@@ -36,6 +38,7 @@ cogs = [
         'prefix',
         'randomization',
         'reminders',
+        'timezones',
         'undefined',
         'uptime',
     )
@@ -74,7 +77,10 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
         """
         open('RESTART', 'w').close()
-        return await self.logout()
+        return await self.close()
+
+    async def try_user(self, id):
+        return self.get_user(id) or await self.fetch_user(id)
 
 
 async def main():
@@ -120,8 +126,10 @@ async def main():
     # Add botvars
     with utils.update_text('Adding botvars',
                            'Added botvars'):
+        bot.inflector = inflect.engine()
         bot.info_bootup_time = 0
         bot.info_processed_commands = collections.defaultdict(int)
+        bot.timezones_users_inputting = set()
         bot.uptime_last_connect = datetime.datetime.now().astimezone()
         bot.uptime_last_connect_adjusted = bot.uptime_last_connect
         bot.uptime_last_disconnect = bot.uptime_last_connect

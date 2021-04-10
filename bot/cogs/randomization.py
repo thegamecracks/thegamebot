@@ -40,6 +40,20 @@ CLIENT_PICK_DIALOGUE = (
 )
 
 
+class DiceConverter(commands.Converter):
+    """Convert a dice into a tuple of (number, sides)."""
+    async def convert(self, ctx, argument):
+        if 'd' in argument:
+            number, sides = argument.split('d')
+            number = int(number) if number else 1
+            sides = int(sides) if sides else 6
+        else:
+            # implied sides
+            number, sides = int(argument), 6
+
+        return number, sides
+
+
 class Randomization(commands.Cog):
     """Commands with randomized interactions."""
     qualified_name = 'Randomization'
@@ -112,22 +126,11 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         def roll():
             return random.randint(1, sides)
 
-        try:
-            if 'd' in dice:
-                amount, sides = dice.split('d')
-                amount = int(amount) if amount else 1
-                sides = int(sides) if sides else 6
-            else:
-                # implied sides
-                amount, sides = int(dice), 6
-        except ValueError:
-            # excepts "2d6d6" (dice.split) and failed integer conversions
-            return await ctx.send('Failed to parse parameter "dice".',
-                                  delete_after=6)
+        number, sides = dice
 
         skip_delay = False
 
-        if amount <= 0:
+        if number <= 0:
             result = 'Cannot roll less than zero dice.'
             skip_delay = True
         elif sides <= 0:
@@ -136,19 +139,19 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
         elif sides > 20:
             result = 'Cannot roll with over 20 sides.'
             skip_delay = True
-        elif amount == 1:
+        elif number == 1:
             result = f'Rolled a __{roll()}__.'
-        elif amount <= 20:
+        elif number <= 20:
             if '-s' in args:
                 result = ['Results: ```']
-                i_padding = len(str(amount))
+                i_padding = len(str(number))
                 r_padding = len(str(sides))
-                for i in range(1, amount + 1):
+                for i in range(1, number + 1):
                     result.append(f'{i:>{i_padding}}: {roll():>{r_padding}}')
                 result.append('```')
                 result = '\n'.join(result)
             else:
-                dice = random.randint(amount, amount * sides)
+                dice = random.randint(number, number * sides)
                 result = f'Rolled a total of __{dice}__.'
         else:
             result = 'Cannot roll over 20 dice.'
@@ -188,7 +191,6 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
     )
     async def client_slash_eightball(self, ctx: SlashContext, question=''):
         """Shake an eight-ball for a question."""
-        await ctx.respond()
         await ctx.send(random.choice(CLIENT_EIGHTBALL))
 
 
@@ -233,8 +235,6 @@ Ayana command used as reference."""
     async def client_slash_pick(self, ctx: SlashContext,
                                 choice1, choice2, extra=None):
         """Choose one of the given options."""
-        await ctx.respond()
-
         if extra is not None:
             choices = utils.parse_var_positional(extra)
         else:

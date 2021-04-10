@@ -2,12 +2,9 @@ from typing import Optional
 
 import discord
 from discord.ext import commands
-import inflect
 
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot import utils
-
-inflector = inflect.engine()
 
 
 class IrishSquad(commands.Cog):
@@ -32,8 +29,8 @@ class IrishSquad(commands.Cog):
 
 
     def cog_check(self, ctx):
-        if isinstance(ctx.author, discord.Member):
-            return ctx.author.guild.id == self.GUILD_ID
+        if ctx.guild is not None:
+            return ctx.guild.id == self.GUILD_ID
 
         # In DMs; check if user is part of the guild
         # NOTE: this requires members intent
@@ -51,8 +48,7 @@ class IrishSquad(commands.Cog):
                     invoke_without_command=True)
     async def client_charges(self, ctx):
         """Commands for tracking the amount of charges in the squad."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
-                       delete_after=6)
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
     @client_charges.command(name='add')
@@ -60,8 +56,7 @@ class IrishSquad(commands.Cog):
     async def client_addcharges(self, ctx, *, number: int):
         """Add to the number of charges you have."""
         if number < 1:
-            return await ctx.send('You must add at least one charge.',
-                                  delete_after=6)
+            return await ctx.send('You must add at least one charge.')
 
         db = self.bot.dbirish.charges
 
@@ -71,7 +66,7 @@ class IrishSquad(commands.Cog):
         new_charges = await db.get_charges(ctx.author.id)
 
         await ctx.send(
-            inflector.inflect(
+            ctx.bot.inflector.inflect(
                 "Added {0:,} plural('charge', {0})! "
                 "You now have {1:,} plural('charge', {1}).".format(
                     number, new_charges
@@ -88,8 +83,7 @@ class IrishSquad(commands.Cog):
     async def client_removecharges(self, ctx, number: int):
         """Subtract from the number of charges you have."""
         if number < 1:
-            return await ctx.send('You must remove at least one charge.',
-                                  delete_after=6)
+            return await ctx.send('You must remove at least one charge.')
 
         db = self.bot.dbirish.charges
 
@@ -99,7 +93,7 @@ class IrishSquad(commands.Cog):
         new_charges = charges - number
 
         if new_charges < 0:
-            return await ctx.send(inflector.inflect(
+            return await ctx.send(ctx.bot.inflector.inflect(
                 "Cannot remove {0:,} plural('charge', {0}); "
                 "you only have {1:,} plural('charge', {1}).".format(
                     number, charges)
@@ -107,7 +101,7 @@ class IrishSquad(commands.Cog):
 
         await db.change_charges(ctx.author.id, -number)
         await ctx.send(
-            inflector.inflect(
+            ctx.bot.inflector.inflect(
                 "Removed {0:,} plural('charge', {0})! "
                 "You now have {1:,} plural('charge', {1}).".format(
                     number, new_charges
@@ -137,11 +131,11 @@ class IrishSquad(commands.Cog):
             raise commands.UserNotFound(user) from e
 
         if user == ctx.author:
-            await ctx.send(inflector.inflect(
+            await ctx.send(ctx.bot.inflector.inflect(
                 "You have {0:,} plural('charge', {0}).".format(charges)
             ))
         else:
-            await ctx.send(inflector.inflect(
+            await ctx.send(ctx.bot.inflector.inflect(
                 "{0} has {1:,} plural('charge', {1}).".format(
                     user.display_name, charges)
             ))
@@ -181,7 +175,7 @@ class IrishSquad(commands.Cog):
             )
 
         await ctx.send(
-            inflector.inflect(
+            ctx.bot.inflector.inflect(
                 "The squad has a total of {0:,} plural('charge', {0}).".format(
                     total)
             ),
@@ -192,7 +186,7 @@ class IrishSquad(commands.Cog):
 
 
 
-    @client_charges.command(name='reset')
+    @client_charges.command(name='reset', aliases=('wipe',))
     @commands.check_any(
         commands.has_guild_permissions(manage_guild=True),
         commands.is_owner()
@@ -207,7 +201,10 @@ This requires a confirmation."""
             "Are you sure you want to reset Irish Squad's number of charges?")
 
         if confirmed:
-            await self.bot.dbirish.charges.delete_rows('Charges', where='1')
+            db = ctx.bot.dbirish.charges
+            async with db.connect(writing=True) as conn:
+                await conn.execute(f'DELETE FROM {db.TABLE_NAME}')
+                await conn.commit()
 
             await prompt.update('Completed charge wipe!',
                                 prompt.emoji_yes.color)
@@ -266,7 +263,7 @@ This requires a confirmation."""
         # Execute vacuum
         await db.vacuum()
 
-        message = inflector.inflect(
+        message = ctx.bot.inflector.inflect(
             "Completed clean up!\n{0:,} plural('user', {0}) "
             "vacuumed.".format(len(invalid_users))
         )

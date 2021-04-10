@@ -1,4 +1,4 @@
-"""A database for storing user's reminders.
+"""A database for storing users' reminders.
 
 Table dependencies:
     Users
@@ -10,8 +10,8 @@ class ReminderDatabase(db.Database):
     """Provide an interface to a UserDatabase with a Reminders table."""
 
     TABLE_NAME = 'Reminders'
-    TABLE_SETUP = """
-    CREATE TABLE IF NOT EXISTS Reminders (
+    TABLE_SETUP = f"""
+    CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         reminder_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         user_id INTEGER NOT NULL,
         due TIMESTAMP,

@@ -1,4 +1,5 @@
 from .mixin import BotDatabaseMixin
+from . import currencydatabase
 from . import database
 from . import gamedatabase
 from . import guilddatabase

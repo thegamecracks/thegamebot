@@ -4,7 +4,6 @@ import time
 
 import discord
 from discord.ext import commands
-import inflect
 
 from bot import checks, errors, utils
 
@@ -24,8 +23,6 @@ COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
 COMMAND_ERROR_CALLBACK_BLACKLIST = frozenset()
 # Prevents errors from being processed in this set of commands,
 # specified by the callback name of the command ('client_execute', etc.)
-
-inflector = inflect.engine()
 
 COOLDOWN_DESCRIPTIONS = {
     commands.BucketType.default: 'Too many people have used this command '
@@ -160,7 +157,7 @@ ERRORS_TO_LIMIT_COOLDOWN_MAPPING = {
     commands.NoPrivateMessage: None,
     commands.PrivateMessageOnly: None,
     commands.NotOwner: None,
-    commands.UserInputError: (5, 30, commands.BucketType.user),
+    commands.UserInputError: (1, 5, commands.BucketType.user),
     checks.UserOnCooldown: (1, 5, commands.BucketType.user),
     discord.Forbidden: (1, 5, commands.BucketType.user),
 }
@@ -219,7 +216,6 @@ async def on_command_error(ctx, error):
     if isinstance(error, COMMAND_ERROR_IGNORE_EXCEPTIONS):
         return
     elif ctx.command.callback.__name__ in COMMAND_ERROR_CALLBACK_BLACKLIST:
-        # command is to be ignored
         return
     elif isinstance(error_unpacked, ERRORS_TO_LIMIT):
         if command_error_limiter.check_user(ctx, error_unpacked):
@@ -227,28 +223,16 @@ async def on_command_error(ctx, error):
             return
 
     # Print error
-    if ctx.guild is not None:
-        # Command invoked in server
-        print(
-            'Command error ({}:{}:{}:"{}")\n  {}: {}'.format(
-                ctx.guild,
-                ctx.channel,
-                ctx.author,
-                ctx.invoked_with,
-                type(error).__name__,
-                error
-        ))
-    else:
-        # Command invoked in DMs
-        print(
-            'Command error (<DM>:{}:"{}")\n  {}: {}'.format(
-                ctx.author, ctx.invoked_with,
-                type(error).__name__, error
-        ))
+    print(
+        'Command error ({}:{}:"{}")\n  {}: {}'.format(
+            f'{ctx.guild}:{ctx.channel}' if ctx.guild else '<DM>',
+            ctx.author, ctx.invoked_with, type(error).__name__, error
+        )
+    )
 
     # Error message functions
     def convert_roles(missing_perms):
-        "Convert IDs in one or more roles into strings."
+        """Convert IDs in one or more roles into strings."""
         def convert(p):
             if isinstance(p, int):
                 r = ctx.bot.get_role(p)
@@ -258,7 +242,7 @@ async def on_command_error(ctx, error):
         if isinstance(missing_perms, list):
             return [convert(p) for p in missing_perms]
 
-        return (convert(missing_perms),)
+        return convert(missing_perms),
 
     def get_command_signature():
         prefix = ctx.prefix
@@ -267,7 +251,7 @@ async def on_command_error(ctx, error):
 
         return f'{prefix}{name_signature} {arguments}'
 
-    def get_concurrency_description(ctx, error):
+    def get_concurrency_description():
         if not ctx.guild and error.per == commands.BucketType.channel:
             # Use message for member bucket when in DMs
             description = MAX_CONCURRENCY_DESCRIPTIONS.get(
@@ -281,19 +265,19 @@ async def on_command_error(ctx, error):
             )
 
         return description.format(
-            here=get_cooldown_here(ctx, error.per),
-            times=inflector.inflect(
+            here=get_cooldown_here(error.per),
+            times=ctx.bot.inflector.inflect(
                 '{0} plural("time", {0})'.format(
                     error.number
                 )
             )
         )
 
-    def get_cooldown_description(ctx, error):
-        if (    not ctx.guild
-                and error.cooldown.type in (
-                    commands.BucketType.channel,
-                    commands.BucketType.guild)):
+    def get_cooldown_description():
+        if (not ctx.guild
+            and error.cooldown.type in (
+                commands.BucketType.channel,
+                commands.BucketType.guild)):
             # in DMs; use member in place of channel/guild bucket
             description = COOLDOWN_DESCRIPTIONS.get(
                 commands.BucketType.member, 'This command is on cooldown.'
@@ -304,8 +288,8 @@ async def on_command_error(ctx, error):
             )
 
         return description.format(
-            here=get_cooldown_here(ctx, error.cooldown.type),
-            times=inflector.inflect(
+            here=get_cooldown_here(error.cooldown.type),
+            times=ctx.bot.inflector.inflect(
                 '{0} plural("time", {0}) '
                 'every {1} plural("second", {1})'.format(
                     error.cooldown.rate,
@@ -314,7 +298,7 @@ async def on_command_error(ctx, error):
             )
         )
 
-    def get_cooldown_here(ctx, bucket):
+    def get_cooldown_here(bucket):
         if ctx.guild:
             if bucket == commands.BucketType.guild:
                 return 'on this server'
@@ -329,7 +313,7 @@ async def on_command_error(ctx, error):
                     'to run this command.')
 
         return 'missing {:,} {} to run this command: {}'.format(
-            count, inflector.plural(x), inflector.join(missing_perms)
+            count, ctx.bot.inflector.plural(x), ctx.bot.inflector.join(missing_perms)
         )
 
     # Send an error message
@@ -337,8 +321,7 @@ async def on_command_error(ctx, error):
         # error.param is instance of inspect.Parameter
         await ctx.send('Expected a boolean answer for parameter '
                        f'"{error.param.name}".\n'
-                       f'Usage: `{get_command_signature()}`',
-                       delete_after=10)
+                       f'Usage: `{get_command_signature()}`')
     elif isinstance(error, commands.BotMissingPermissions):
         await ctx.send(
             'I am {}'.format(
@@ -346,8 +329,7 @@ async def on_command_error(ctx, error):
                     'permission',
                     convert_perms_to_english(error.missing_perms)
                 )
-            ),
-            delete_after=10
+            )
         )
     elif isinstance(error, (
             commands.BotMissingRole,
@@ -355,20 +337,18 @@ async def on_command_error(ctx, error):
         await ctx.send(
             'I am {}'.format(
                 missing_x_to_run('role', convert_roles(error.missing_roles))
-            ),
-            delete_after=10
+            )
         )
     elif isinstance(error, commands.ChannelNotFound):
-        await ctx.send('I cannot find the given channel '
-                       f'"{error.argument}".', delete_after=8)
+        await ctx.send(f'I cannot find the given channel "{error.argument}".')
     elif isinstance(error, commands.ChannelNotReadable):
         await ctx.send('I cannot read messages in the channel '
-                       f'{error.argument.mention}.', delete_after=8)
+                       f'{error.argument.mention}.')
     elif isinstance(error, commands.CommandOnCooldown):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
-            text=inflector.inflect(
+            text=ctx.bot.inflector.inflect(
                 'You can retry in {0} plural("second", {0}).'.format(
                     round(error.retry_after * 10) / 10
                 )
@@ -376,36 +356,36 @@ async def on_command_error(ctx, error):
             icon_url=ctx.author.avatar_url
         )
 
-        embed.description = get_cooldown_description(ctx, error)
+        embed.description = get_cooldown_description()
 
         await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
     elif isinstance(error, commands.DisabledCommand):
-        await ctx.send('This command is currently disabled.', delete_after=10)
+        await ctx.send('This command is currently disabled.')
+    elif isinstance(error, errors.DollarInputError):
+        await ctx.send(str(error))
     elif isinstance(error, commands.EmojiNotFound):
-        await ctx.send(f'I cannot find the given emoji "{error.argument}"',
-                       delete_after=10)
+        await ctx.send(f'I cannot find the given emoji "{error.argument}"')
     elif isinstance(error, commands.ExpectedClosingQuoteError):
-        await ctx.send('Expected a closing quotation mark.',
-                       delete_after=10)
+        await ctx.send('Expected a closing quotation mark.')
+    elif isinstance(error, errors.IndexOutOfBoundsError):
+        await ctx.send(str(error))
     elif isinstance(error, commands.InvalidEndOfQuotedStringError):
-        await ctx.send('Expected a space after a closing quotation mark.',
-                       delete_after=10)
+        await ctx.send('Expected a space after a closing quotation mark.')
     elif isinstance(error, commands.MaxConcurrencyReached):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
-            text=get_concurrency_description(ctx, error),
+            text=get_concurrency_description(),
             icon_url=ctx.author.avatar_url
         )
 
         await ctx.send(embed=embed)
     elif isinstance(error, commands.MessageNotFound):
-        await ctx.send('I cannot find the given message.', delete_after=10)
+        await ctx.send('I cannot find the given message.')
     elif isinstance(error, commands.MissingRequiredArgument):
         # error.param is instance of inspect.Parameter
         await ctx.send(f'Missing argument "{error.param.name}"\n'
-                       f'Usage: `{get_command_signature()}`',
-                       delete_after=10)
+                       f'Usage: `{get_command_signature()}`')
     elif isinstance(error, commands.MissingPermissions):
         await ctx.send(
             'You are {}'.format(
@@ -413,43 +393,46 @@ async def on_command_error(ctx, error):
                     'permission',
                     convert_perms_to_english(error.missing_perms)
                 )
-            ),
-            delete_after=10
+            )
         )
     elif isinstance(error, (commands.MissingRole,
                             commands.MissingAnyRole)):
         await ctx.send(
             'You are {}'.format(
                 missing_x_to_run('role', convert_roles(error.missing_roles))
-            ),
-            delete_after=10
+            )
         )
     elif isinstance(error, commands.NoPrivateMessage):
-        await ctx.send('You must be in a server to use this command.',
-                       delete_after=10)
+        await ctx.send('You must be in a server to use this command.')
     elif isinstance(error, commands.NotOwner):
         await ctx.send(get_denied_message(ctx), delete_after=6)
     elif isinstance(error, commands.NSFWChannelRequired):
-        await ctx.send('The channel must be marked as NSFW.', delete_after=10)
+        await ctx.send('The channel must be NSFW.')
     elif isinstance(error, commands.PrivateMessageOnly):
-        await ctx.send('You must be in DMs to use this command.',
-                       delete_after=10)
+        await ctx.send('You must be in DMs to use this command.')
     elif isinstance(error, commands.UnexpectedQuoteError):
-        await ctx.send('Did not expect a quotation mark.', delete_after=10)
+        await ctx.send('Did not expect a quotation mark.')
+    elif isinstance(error, errors.UnknownTimezoneError):
+        embed = discord.Embed(
+            description='Unknown timezone given. See the [Time Zone Map]'
+                        '(https://kevinnovak.github.io/Time-Zone-Picker/) '
+                        'for the names of timezones supported.',
+            color=utils.get_bot_color(ctx.bot)
+        )
+        await ctx.send(embed=embed)
     elif isinstance(error, (commands.UserNotFound,
                             commands.MemberNotFound)):
-        await ctx.send('I cannot find the given user.', delete_after=10)
+        await ctx.send('I cannot find the given user.')
     elif isinstance(error, commands.UserInputError):
         # NOTE: This is a superclass of several other errors
         await ctx.send('Failed to parse your parameters.\n'
-                       f'Usage: `{get_command_signature()}`',
-                       delete_after=10)
+                       f'Usage: `{get_command_signature()}`')
     elif isinstance(error, checks.UserOnCooldown):
         # User has invoked too many commands
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
-            text=inflector.inflect(
+            text=ctx.bot.inflector.inflect(
                 'You are using commands too frequently. '
                 'You can retry in {0} plural("second", {0}).'.format(
                     round(error.retry_after * 10) / 10)
@@ -462,7 +445,7 @@ async def on_command_error(ctx, error):
           and error_unpacked.code == 50007):
         # Cannot send messages to this user
         await ctx.send('I tried DMing you but you have your DMs '
-                       'disabled for this server.', delete_after=10)
+                       'disabled for this server.')
     elif isinstance(error_unpacked, errors.SettingsNotFound):
         await ctx.send('Fatal error: settings could not be loaded.')
     elif not isinstance(error, COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER):

@@ -5,6 +5,7 @@ import random
 import time
 from typing import Optional
 
+from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
 from discord_slash.utils import manage_commands
@@ -198,8 +199,7 @@ This only counts channels that both you and the bot can see."""
         try:
             command = await converters.CommandConverter().convert(ctx, command)
         except commands.BadArgument:
-            return await ctx.send("That command doesn't exist.",
-                                  delete_after=6)
+            return await ctx.send("That command doesn't exist.")
 
         # Create a response
         embed = discord.Embed(
@@ -313,7 +313,8 @@ and purges outdated messages daily. No user info or message content is stored.""
 
         embed = discord.Embed(
             title='Server Message Count',
-            description=f'{count:,} messages have been sent in the last 24 hours.',
+            description='{:,} {} have been sent in the last 24 hours.'.format(
+                count, ctx.bot.inflector.plural('message', count)),
             colour=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',
@@ -373,7 +374,6 @@ and purges outdated messages daily. No user info or message content is stored.""
         """Get the invite link for the bot."""
         link = self.get_invite_link()
 
-        await ctx.respond(eat=True)
         await ctx.send(content=f'[Invitation link]({link})', hidden=True)
 
 
@@ -386,13 +386,6 @@ and purges outdated messages daily. No user info or message content is stored.""
         """Get the bot's latency."""
         def round_ms(n):
             return round(n * 100_000) / 1000
-
-        # Bot response time
-        now = time.time()
-        created_at = pytz.utc.localize(
-            ctx.message.created_at
-        ).astimezone().timestamp()
-        latency_response_ms = round_ms(now - created_at)
 
         # Heartbeat
         latency_heartbeat_ms = round_ms(ctx.bot.latency)
@@ -414,8 +407,6 @@ and purges outdated messages daily. No user info or message content is stored.""
 
         # Format embed
         stats = []
-        if latency_response_ms >= 0:
-            stats.append(f'\N{EYES} Bot: {latency_response_ms:g}ms')
         stats.extend((
             f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
             f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
@@ -449,11 +440,12 @@ Format referenced from the Ayana bot."""
 
         created = (
             utils.timedelta_string(
-                utils.datetime_difference(
+                relativedelta(
                     datetime.datetime.utcnow(),
                     guild.created_at
                 ),
-                **self.DATETIME_DIFFERENCE_PRECISION
+                **self.DATETIME_DIFFERENCE_PRECISION,
+                inflector=ctx.bot.inflector
             ),
             guild.created_at.strftime('%Y/%m/%d %a %X UTC')
         )
@@ -521,38 +513,17 @@ Format referenced from the Ayana bot."""
 
 
 
-    @commands.command(name='timezone', aliases=['tz'])
-    @commands.cooldown(2, 5, commands.BucketType.member)
-    async def client_timezone(self, ctx, *, timezone):
-        """Get the current date and time in a given timezone.
-
-This command uses the IANA timezone database."""
-        # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
-        try:
-            tz = pytz.timezone(timezone)
-        except pytz.UnknownTimeZoneError:
-            return await ctx.send('Unknown timezone.', delete_after=6)
-
-        UTC = pytz.utc
-        utcnow = UTC.localize(datetime.datetime.utcnow())
-        tznow = utcnow.astimezone(tz)
-        await ctx.send(tznow.strftime('%c %Z (%z)'))
-
-
-
-
-
     @commands.command(
         name='uptime')
     @commands.cooldown(2, 20, commands.BucketType.user)
     async def client_uptime(self, ctx):
         """Get the uptime of the bot."""
         # Calculate time diff (subtracting downtime)
-        diff = utils.datetime_difference(
+        diff = relativedelta(
             datetime.datetime.now().astimezone(),
             self.bot.uptime_last_connect_adjusted
         )
-        diff_string = utils.timedelta_string(diff)
+        diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
         utc = self.bot.uptime_last_connect.astimezone(datetime.timezone.utc)
         date_string = utc.strftime('%Y/%m/%d %a %X UTC')
@@ -590,8 +561,7 @@ Format referenced from the Ayana bot."""
             except commands.MemberNotFound as e:
                 if (not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS
                         and ctx.guild is None):
-                    return await ctx.send(
-                        'Cannot search for members in DMs.', delete_after=8)
+                    return await ctx.send('Cannot search for members in DMs.')
                 # Else allow error handler to deal with it
                 raise e
             else:
@@ -606,10 +576,7 @@ Format referenced from the Ayana bot."""
                             user = self.bot.get_user(user.id)
                         elif not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS:
                             # Disallowed showing guild members in DMs
-                            return await ctx.send(
-                                'Cannot search for members in DMs.',
-                                delete_after=8
-                            )
+                            return await ctx.send('Cannot search for members in DMs.')
 
         # Extract attributes based on whether its a Member or User
         if isinstance(user, discord.Member):
@@ -620,11 +587,12 @@ Format referenced from the Ayana bot."""
             guild = user.guild
             joined = (
                 utils.timedelta_string(
-                    utils.datetime_difference(
+                    relativedelta(
                         datetime.datetime.utcnow(),
                         user.created_at
                     ),
-                    **self.DATETIME_DIFFERENCE_PRECISION
+                    **self.DATETIME_DIFFERENCE_PRECISION,
+                    inflector=ctx.bot.inflector
                 ),
                 user.joined_at.strftime('%Y/%m/%d %a %X UTC')
             )
@@ -659,11 +627,12 @@ Format referenced from the Ayana bot."""
                   else str(user))
         created = (
             utils.timedelta_string(
-                utils.datetime_difference(
+                relativedelta(
                     datetime.datetime.utcnow(),
                     user.created_at
                 ),
-                **self.DATETIME_DIFFERENCE_PRECISION
+                **self.DATETIME_DIFFERENCE_PRECISION,
+                inflector=ctx.bot.inflector
             ),
             user.created_at.strftime('%Y/%m/%d %a %X UTC')
         )

@@ -124,13 +124,12 @@ class Database:
         """
         keys, placeholders, values = self.placeholder_insert(row)
         async with self.connect(writing=True) as conn:
-            c = await conn.cursor()
-            await c.execute(
+            rowid = await conn.execute_insert(
                 f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
                 values
             )
             await conn.commit()
-            return c.lastrowid
+        return rowid
 
     async def delete_rows(self, table: str, where: dict, *, pop=False):
         """Delete rows matching a dictionary of values.
@@ -153,8 +152,7 @@ class Database:
         async with self.connect(writing=True) as conn:
             if pop:
                 async with conn.execute(
-                        f'SELECT * FROM {table} WHERE {keys}',
-                        values) as c:
+                        f'SELECT * FROM {table} WHERE {keys}', values) as c:
                     rows = await c.fetchall()
 
             await conn.execute(
@@ -181,10 +179,10 @@ class Database:
         query, values = self._get_rows_query(table, *columns, where=where)
 
         async with self.connect() as conn:
-            async with conn.execute(query, values) as c:
-                if one:
+            if one:
+                async with conn.execute(query, values) as c:
                     return await c.fetchone()
-                return await c.fetchall()
+            return await conn.execute_fetchall(query, values)
 
     async def get_rows(self, table: str, *columns: str, where: dict = None):
         """Get rows from a table.

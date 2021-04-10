@@ -306,7 +306,7 @@ move to the next column to the right. Skip any shaded boxes.
 This will be the ciphertext."""
         # Test if key is in valid range
         if key < 2 or key > len(string) // 2:
-            return await ctx.send('Key is out of range.', delete_after=8)
+            return await ctx.send('Key is out of range.')
 
         await ctx.send(self.ciphercolumnar(key, string))
 
@@ -368,7 +368,7 @@ key: The one time key to use."""
         elif mode in ('decode', 'de'):
             mode = True
         else:
-            return await ctx.send('Unknown mode "{mode}"', delete_after=6)
+            return await ctx.send(f'Unknown mode "{mode}"')
 
         await ctx.send(self.cipherotp(text, key, mode))
 
@@ -511,7 +511,7 @@ string: The text or morse code to encrypt/decrypt."""
         elif mode in ('decode', 'de'):
             decoding = True
         else:
-            return await ctx.send(f'Unknown mode "{mode}"', delete_after=6)
+            return await ctx.send(f'Unknown mode "{mode}"')
 
         if spacing in ('space', 'spaces'):
             character_gap = ' '
@@ -520,8 +520,7 @@ string: The text or morse code to encrypt/decrypt."""
             character_gap = '|'
             space_char = '||'
         else:
-            return await ctx.send(
-                f'Unknown spacing "{spacing}"', delete_after=6)
+            return await ctx.send(f'Unknown spacing "{spacing}"')
 
         message = self.morsecode(
             decoding, string,
@@ -592,7 +591,7 @@ text: The text to encrypt/decrypt."""
         elif mode in ('decrypt', 'de'):
             decrypting = True
         else:
-            return await ctx.send(f'Unknown mode "{mode}"', delete_after=6)
+            return await ctx.send(f'Unknown mode "{mode}"')
 
         await ctx.send(
             '```' + self.ciphervigenere(text, key, decrypting) + '```')

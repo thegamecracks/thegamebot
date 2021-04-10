@@ -1,11 +1,8 @@
 # TODO: remove guild from database when removed
+import re
+
 import discord
 from discord.ext import commands
-import inflect
-
-from bot import utils
-
-inflector = inflect.engine()
 
 
 class Prefix(commands.Cog):
@@ -24,22 +21,16 @@ class Prefix(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """Send the bot's prefix if mentioned."""
-        def list_discard(seq, value):
-            try:
-                seq.remove(value)
-            except ValueError:
-                pass
-
         # Ignore messages that are from bot or didn't mention the bot
-        if (self.bot.user not in message.mentions
-                or message.author == self.bot.user):
+        if (message.author == self.bot.user
+                or self.bot.user not in message.mentions):
             return
 
-        bot_mentions = (f'<@{self.bot.user.id}>', f'<@!{self.bot.user.id}>')
+        bot_mention = re.compile(f'<@!?{self.bot.user.id}>')
 
         # Check if the message content ONLY consists of the mention
         # and return otherwise
-        if message.content not in bot_mentions:
+        if not bot_mention.fullmatch(message.content):
             return
 
         # Check cooldown
@@ -53,15 +44,14 @@ class Prefix(commands.Cog):
             prefix = [prefix]
         else:
             # Remove bot mentions in the prefixes
-            for mention in bot_mentions:
-                list_discard(prefix, mention + ' ')
+            prefix = [p for p in prefix if not bot_mention.match(p)]
 
         # Send available prefix(es)
         if len(prefix) == 1:
             await message.channel.send(f'My prefix here is "{prefix[0]}".')
         else:
             await message.channel.send('My prefixes here are {}.'.format(
-                inflector.join([f'"{p}"' for p in prefix]))
+                self.bot.inflector.join([f'"{p}"' for p in prefix]))
             )
 
 
@@ -84,8 +74,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
 
         if not prefix:
             ctx.command.reset_cooldown(ctx)
-            return await ctx.send(
-                'An empty prefix is not allowed.', delete_after=6)
+            return await ctx.send('An empty prefix is not allowed.')
 
         await ctx.trigger_typing()
 
@@ -94,8 +83,7 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
         )
 
         if prefix == current_prefix:
-            await ctx.send('That is already the current prefix.',
-                           delete_after=6)
+            await ctx.send('That is already the current prefix.')
         else:
             # Escape escape characters before printing
             clean_prefix = prefix.replace('\\', r'\\')

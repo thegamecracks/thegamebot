@@ -157,9 +157,7 @@ These are the limits set by Discord:
             await ctx.send(embed=embed)
         except discord.HTTPException as e:
             await ctx.send(
-                f'There was an error with your embed parameters: {e.text}',
-                delete_after=10
-            )
+                f'There was an error with your embed parameters: {e.text}')
 
 
 
@@ -172,8 +170,7 @@ These are the limits set by Discord:
         """Commands for using the Embed's hyperlink feature.
 
 These commands only work in servers."""
-        await ctx.send(f'Unknown {ctx.command.name} subcommand given.',
-                       delete_after=6)
+        await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
         ctx.command.reset_cooldown(ctx)
 
 
@@ -185,9 +182,7 @@ These commands only work in servers."""
 You will be DM'd for your parameters."""
         async def cancel_message(message):
             await message.edit(
-                content=f'~~{message.content}~~ Canceled hyperlink.',
-                delete_after=10
-            )
+                content=f'~~{message.content}~~ Canceled hyperlink.')
 
         def check(message):
             return message.channel == ctx.author.dm_channel
@@ -247,9 +242,7 @@ Make sure there's a space before and after the hyperlink.
 You will be DM'd for your parameters."""
         async def cancel_message(message):
             await message.edit(
-                content=f'~~{message.content}~~ Canceled hyperlink.',
-                delete_after=10
-            )
+                content=f'~~{message.content}~~ Canceled hyperlink.')
 
         def check(message):
             return message.channel == ctx.author.dm_channel
@@ -293,7 +286,6 @@ You will be DM'd for your parameters."""
     )
     async def client_slash_hyperlink(self, ctx: SlashContext, message):
         """Send a message with the ability to replace links with custom text."""
-        await ctx.respond(eat=True)
         if not self.hyperlink_regex.search(message):
             return await ctx.send(
                 'Your message should use a custom text hyperlink at least once.\n'

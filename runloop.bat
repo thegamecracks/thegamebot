@@ -1,5 +1,7 @@
 @echo off
 
+TITLE thegamebot
+
 :: Argument parsing
 :: https://stackoverflow.com/a/3981086
 SET args=
@@ -17,6 +19,7 @@ IF EXIST "RESTART" (
 
 :: Run the script
 :run
+:: ".venv\Scripts\pip.exe" "install" "-U" "discord.py"
 ".venv\Scripts\python.exe" "main.py" %args%
 IF EXIST "RESTART" (
 	DEL "RESTART"

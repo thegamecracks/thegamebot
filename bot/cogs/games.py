@@ -4,20 +4,15 @@ import csv
 import json
 import math
 import random
-from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Optional, List, Union
 
 import discord
 from discord.ext import commands
-import inflect
 
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot.classes.games import blackjack, multimath
 from bot.classes.get_reaction import get_reaction
-from bot.classes import paginator
-from bot import checks, utils
-
-inflector = inflect.engine()
+from bot import utils
 
 
 # phasmophobia commands
@@ -119,6 +114,25 @@ class UnturnedDatabase:
     def __init__(self, items):
         self.items = items
 
+    @staticmethod
+    def _parse_recipes(recipes: dict, item_ids: csv.reader):
+        items = {}
+        header = next(item_ids)
+
+        for ID, name, rarity, url in item_ids:
+            rec = recipes.get(ID)
+            dimensions = rec['dimensions'] if rec else None
+            recipe_data = (
+                {'primitive': rec['primitive'],
+                 'recipes': rec['recipes']}
+                if rec else None
+            )
+            ID = int(ID)
+            items[ID] = UnturnedItem(
+                ID, name, rarity, url, dimensions, recipe_data)
+
+        return items
+
     @classmethod
     def _get_items_from_files(cls):
         with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
@@ -127,50 +141,23 @@ class UnturnedDatabase:
         items = {}
         with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
             reader = csv.reader(f)
-            header = next(reader)
-            for id_, name, rarity, url in reader:
-                rec = recipes.get(id_)
-                dimensions = rec['dimensions'] if rec else None
-                recipe_data = (
-                    {'primitive': rec['primitive'],
-                     'recipes': rec['recipes']}
-                    if rec else None
-                )
-                id_ = int(id_)
-                items[id_] = UnturnedItem(
-                    id_, name, rarity, url, dimensions, recipe_data)
-
-        return items
+            return cls._parse_recipes(recipes, reader)
 
     @classmethod
     async def _get_items_from_files_nonblocking(cls):
-        executor = ThreadPoolExecutor()
         loop = asyncio.get_running_loop()
 
         with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
-            recipes = json.loads(await loop.run_in_executor(executor, f.read))
+            recipes = json.loads(await loop.run_in_executor(None, f.read))
 
         with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
-            raw_lines = await loop.run_in_executor(executor, f.readlines)
+            raw_lines = await loop.run_in_executor(None, f.readlines)
 
         items = {}
         reader = csv.reader(raw_lines)
-        next(reader)  # skip header
 
-        for ID, name, rarity, url in reader:
-            rec = recipes.get(ID)
-            dimensions = rec['dimensions'] if rec else None
-            recipe_data = (
-                {'primitive': rec['primitive'],
-                 'recipes': rec['recipes']}
-                if rec else None
-            )
-
-            ID = int(ID)
-            items[ID] = UnturnedItem(ID, name, rarity, url,
-                                     dimensions, recipe_data)
-
-        return items
+        return await loop.run_in_executor(
+            None, cls._parse_recipes, recipes, reader)
 
     def reload_items(self):
         """Regenerate self.items from the data files."""
@@ -298,20 +285,16 @@ size: (optional) The size of the deck to use in the session.
 
         if ctx.guild is None and not self.bot.intents.members:
             return await ctx.send(
-                'Unfortunately games will not work in DMs at this time.',
-                delete_after=10
-            )
+                'Unfortunately games will not work in DMs at this time.')
         elif size < 1:
-            return await ctx.send('The deck size must be at least one.',
-                                  delete_after=6)
+            return await ctx.send('The deck size must be at least one.')
         elif size > 10:
-            return await ctx.send('The deck size can only be ten at most.',
-                                  delete_after=6)
+            return await ctx.send('The deck size can only be ten at most.')
 
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
-            return await ctx.send(e, delete_after=8)
+            return await ctx.send(e)
 
         message = None
         d = create_deck(size)
@@ -450,14 +433,12 @@ Otherwise, only you can play:
 > multimath"""
         if ctx.guild is None and not self.bot.intents.members:
             return await ctx.send(
-                'Unfortunately games will not work in DMs at this time.',
-                delete_after=10
-            )
+                'Unfortunately games will not work in DMs at this time.')
 
         try:
             users = self.get_members(ctx, players, members)
         except ValueError as e:
-            return await ctx.send(e, delete_after=8)
+            return await ctx.send(e)
 
         game = multimath.BotMultimathGame(ctx)
 
@@ -524,7 +505,7 @@ Spirit Box"""
             )
         else:
             title = '{} ghosts match the given evidence{}:'.format(
-                inflector.number_to_words(
+                ctx.bot.inflector.number_to_words(
                     len(ghosts), threshold=10).capitalize(),
                 show_evidence(evidences, corrected_evidence)
             )
@@ -606,7 +587,7 @@ Spirit Box"""
         )
 
         content = '{} items were matched:'.format(
-            inflector.number_to_words(amount, threshold=10).capitalize()
+            self.bot.inflector.number_to_words(amount, threshold=10).capitalize()
         )
 
         return content, embed
@@ -664,7 +645,7 @@ Up to date as of 3.20.15.0."""
 
                     if items_required:
                         rec_str.append('> (Uses {})\n'.format(
-                            inflector.join(items_required)
+                            ctx.bot.inflector.join(items_required)
                         ))
 
                     requires = skills.copy()
@@ -674,7 +655,7 @@ Up to date as of 3.20.15.0."""
                         requires.append('Heat')
 
                     if requires:
-                        rec_str.append(f'> (Requires {inflector.join(requires)})')
+                        rec_str.append(f'> (Requires {ctx.bot.inflector.join(requires)})')
 
                     recipes_str.append(''.join(rec_str))
 
@@ -982,7 +963,7 @@ Note: There are only a few items with recipe data since I have to manually enter
         is_name_capitalized = result.name[0].isupper()
         plural_name = result.name
         plural_name = plural_name[0].lower() + plural_name[1:]
-        plural_name = inflector.plural(plural_name, amount)
+        plural_name = ctx.bot.inflector.plural(plural_name, amount)
         if is_name_capitalized:
             plural_name = plural_name[0].upper() + plural_name[1:]
 
@@ -1025,7 +1006,7 @@ Note: There are only a few items with recipe data since I have to manually enter
         requires.extend(humanize_other(requirements['other']))
 
         if requires:
-            description.append(f'Requires {inflector.join(requires)}')
+            description.append(f'Requires {ctx.bot.inflector.join(requires)}')
 
         embed = discord.Embed(
             color=self.unturned_get_rarity_color(result.rarity),

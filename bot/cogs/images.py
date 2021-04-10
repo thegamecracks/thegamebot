@@ -1,15 +1,12 @@
 import asyncio
-import json
 import io
 import os
-import random
 import textwrap
 from typing import Optional
 
 import aiohttp
 import discord
 from discord.ext import commands
-import inflect
 from PIL import Image, ImageDraw, ImageFont
 
 from bot import utils
@@ -18,8 +15,6 @@ CAT_API_URL = 'https://api.thecatapi.com/'
 CAT_API_KEY = os.getenv('PyDiscordBotAPICatKey')
 DOG_API_URL = 'https://api.thedogapi.com/'
 DOG_API_KEY = os.getenv('PyDiscordBotAPIDogKey')
-
-inflector = inflect.engine()
 
 
 async def query_thatapiguy(url, key):
@@ -71,9 +66,7 @@ class Images(commands.Cog):
         """\N{CAT FACE}"""
         if CAT_API_KEY is None:
             await ctx.send(
-                'Sorry, but the bot currently cannot query for a cat image.',
-                delete_after=10
-            )
+                'Sorry, but the bot currently cannot query for a cat image.')
             return await asyncio.sleep(10)
 
         await ctx.trigger_typing()
@@ -82,9 +75,7 @@ class Images(commands.Cog):
             cat = await query_thatapiguy(CAT_API_URL, CAT_API_KEY)
         except ValueError as e:
             return await ctx.send(
-                f'Could not get a cat image; status code {e.args[1]}',
-                delete_after=8
-            )
+                f'Could not get a cat image; status code {e.args[1]}')
 
         await ctx.send(embed=embed_thatapiguy(ctx, cat))
 
@@ -99,9 +90,7 @@ class Images(commands.Cog):
         """\N{DOG FACE}"""
         if DOG_API_KEY is None:
             await ctx.send(
-                'Sorry, but the bot currently cannot query for a dog image.',
-                delete_after=10
-            )
+                'Sorry, but the bot currently cannot query for a dog image.')
             return await asyncio.sleep(10)
 
         await ctx.trigger_typing()
@@ -110,9 +99,7 @@ class Images(commands.Cog):
             dog = await query_thatapiguy(DOG_API_URL, DOG_API_KEY)
         except ValueError as e:
             return await ctx.send(
-                f'Failed to query a dog image; status code {e.args[1]}',
-                delete_after=8
-            )
+                f'Failed to query a dog image; status code {e.args[1]}')
 
         await ctx.send(embed=embed_thatapiguy(ctx, dog))
 
@@ -196,12 +183,12 @@ Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
         if (length := len(text.replace(' ', ''))) == 0:
             return await ctx.send('Only alphabetic characters are allowed.')
         elif (size := length - 140) > 0:
-            return await ctx.send(inflector.inflect(
+            return await ctx.send(ctx.bot.inflector.inflect(
                 "Your text is {s} plural('character', {s}) too long.".format(
                     s=size)
             ))
         elif (size := text.count('\n') - 9) > 0:
-            return await ctx.send(inflector.inflect(
+            return await ctx.send(ctx.bot.inflector.inflect(
                 "Your text is {s} plural('line', {s}) too long.".format(
                     s=size)
             ))

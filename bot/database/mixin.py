@@ -2,6 +2,7 @@ import aiosqlite
 
 from discord.ext import commands
 
+from .currencydatabase import CurrencyDatabase
 from .gamedatabase import GameDatabase
 from .guilddatabase import GuildDatabase
 from .irishdatabase import IrishDatabase
@@ -16,12 +17,13 @@ class BotDatabaseMixin(commands.Bot):
     DATABASE_MAIN_PATH = 'data/thegamebot.db'
     DATABASE_IRISH_PATH = 'data/irishsquad.db'
 
-    DATABASES = ('dbusers', 'dbguilds', 'dbgames', 'dbirish', 'dbnotes',
-                 'dbprefixes', 'dbreminders')
+    DATABASES = ('dbusers', 'dbguilds', 'dbcurrency', 'dbgames',
+                 'dbirish', 'dbnotes', 'dbprefixes', 'dbreminders')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.dbcurrency = CurrencyDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbgames = GameDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbguilds = GuildDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbirish = IrishDatabase(self, self.DATABASE_IRISH_PATH)

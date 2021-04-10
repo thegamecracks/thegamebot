@@ -21,9 +21,9 @@ class RemovableReactEmbedPaginator(disputils.EmbedPaginator):
                 A list of `discord.User` that can control the pagination.
                 If None or an empty list, any user can control the pagination
                 (not recommended).
-        channel (Optional[discord.TextChannel]):
-            The text channel to send the embed to.
-            Must only be specified if `self.message` is `None`.
+            channel (Optional[discord.TextChannel]):
+                The text channel to send the embed to.
+                Must only be specified if `self.message` is `None`.
 
         """
         if channel is None and self.message is not None:
@@ -87,4 +87,4 @@ class RemovableReactEmbedPaginator(disputils.EmbedPaginator):
 
 class RemovableReactBotEmbedPaginator(disputils.BotEmbedPaginator,
                                       RemovableReactEmbedPaginator):
-    "Implements the BotEmbedPaginator interface."
+    """Implements the BotEmbedPaginator interface."""

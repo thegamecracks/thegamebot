@@ -69,8 +69,7 @@ class BlackjackDatabase(db.Database):
     async def get_blackjack_row(self, user_id: int):
         """Get the blackjack data for a user.
 
-        Automatically adds a row if it already exists
-        and the user already has an entry in the Users table.
+        Automatically adds a row to the Blackjack and Users table if needed.
 
         """
         async def get_row():
@@ -78,6 +77,8 @@ class BlackjackDatabase(db.Database):
                 self.TABLE_NAME, where={'user_id': user_id})
 
         user_id = int(user_id)
+
+        await self.bot.dbusers.add_user(user_id)
 
         row = await get_row()
         if row is None:

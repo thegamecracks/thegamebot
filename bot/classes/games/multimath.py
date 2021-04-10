@@ -9,8 +9,6 @@ import inflect
 from bot.classes.get_reaction import get_reaction
 from bot import utils
 
-inflector = inflect.engine()
-
 Operator = collections.namedtuple('Operator', ['symbol', 'func'])
 
 OPERATORS = (
@@ -25,17 +23,16 @@ class MultimathGame:
 
     precision = 2
 
-    def __init__(
-            self, *,
-            color=0x000000):
+    def __init__(self, *, color=0x000000, inflector: inflect.engine = None):
+        self.color = color
+        self.inflector = inflector or inflect.engine()
+
         self.a = 0
         self.b = 0
         self.op = None
         self.ans = 0
-
         self.question_count = 0
 
-        self.color = color
 
     def answer_question(self, user_answer):
         """
@@ -77,7 +74,7 @@ class MultimathGame:
                 title = f'Multimath started by {ctx.author.name}'
                 description.append(
                     'Allowed users: {}'.format(
-                        inflector.join([u.name for u in users])
+                        self.inflector.join([u.name for u in users])
                     )
                 )
 
@@ -184,7 +181,8 @@ class BotMultimathGame:
         self.options = options
 
         self.game = MultimathGame(
-            color=utils.get_bot_color(ctx.bot)
+            color=utils.get_bot_color(ctx.bot),
+            inflector=ctx.bot.inflector
         )
 
     async def run(self, *, channel=None, users=None):
