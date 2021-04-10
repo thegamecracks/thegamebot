@@ -120,7 +120,7 @@ If nothing is provided, all notes are shown."""
         length = len(note_list)
         if length == 0:
             return await ctx.send("You don't have any notes.")
-        elif index and (over_range := [str(n + 1) for n in index if n + 1 > length]):
+        elif index and (over_range := [str(n + 1) for n in index if not 0 < n + 1 <= length]):
             return await ctx.send(
                 '{} {} {} out of range. The highest index you have is {:,}.'.format(
                     ctx.bot.inflector.plural('Index', len(over_range)),
@@ -301,7 +301,7 @@ To see a list of your notes and their indices, use the "notes show" command."""
         length = len(note_list)
         if length == 0:
             return await ctx.send("You already don't have any notes.")
-        elif over_range := [str(n + 1) for n in index if n + 1 > length]:
+        elif over_range := [str(n + 1) for n in index if not 0 < n + 1 <= length]:
             return await ctx.send(
                 '{} {} {} out of range. The highest index you have is {:,}.'.format(
                     ctx.bot.inflector.plural('Index', len(over_range)),
