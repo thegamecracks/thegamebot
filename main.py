@@ -1,10 +1,12 @@
 import argparse
 import asyncio
 import collections
+import contextlib
 import datetime
 import time
 import os
 
+import aiohttp
 import discord
 from discord.ext import commands
 import discord_slash as dslash
@@ -126,6 +128,7 @@ async def main():
     # Add botvars
     with utils.update_text('Adding botvars',
                            'Added botvars'):
+        bot.session = aiohttp.ClientSession()
         bot.inflector = inflect.engine()
         bot.info_bootup_time = 0
         bot.info_processed_commands = collections.defaultdict(int)
@@ -163,7 +166,9 @@ async def main():
     # Start the bot
     print('Starting bot')
     try:
-        await bot.start(TOKEN)
+        async with contextlib.AsyncExitStack() as stack:
+            await stack.enter_async_context(bot.session)
+            await bot.start(TOKEN)
     except KeyboardInterrupt:
         logger.info('KeyboardInterrupt: closing bot')
     except Exception:

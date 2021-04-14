@@ -4,7 +4,6 @@ import os
 import textwrap
 from typing import Optional
 
-import aiohttp
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
@@ -17,17 +16,15 @@ DOG_API_URL = 'https://api.thedogapi.com/'
 DOG_API_KEY = os.getenv('PyDiscordBotAPIDogKey')
 
 
-async def query_thatapiguy(url, key):
+async def query_thatapiguy(session, url, key):
     search = 'v1/images/search?mime_types=jpg,png'
 
-    async with aiohttp.ClientSession(
-            headers={'x-api-key': key}) as session:
-        async with session.get(url + search) as response:
-            if response.status >= 400:
-                raise ValueError(response.status, response.reason)
+    async with session.get(url + search, headers={'x-api-key': key}) as response:
+        if response.status >= 400:
+            raise ValueError(response.status, response.reason)
 
-            # Acquire the json, disabling content-type check
-            return (await response.json(content_type=None))[0]
+        # Acquire the json, disabling content-type check
+        return (await response.json(content_type=None))[0]
 
 
 def embed_thatapiguy(ctx, response: dict):
@@ -72,7 +69,8 @@ class Images(commands.Cog):
         await ctx.trigger_typing()
 
         try:
-            cat = await query_thatapiguy(CAT_API_URL, CAT_API_KEY)
+            cat = await query_thatapiguy(
+                ctx.bot.session, CAT_API_URL, CAT_API_KEY)
         except ValueError as e:
             return await ctx.send(
                 f'Could not get a cat image; status code {e.args[1]}')
@@ -96,7 +94,8 @@ class Images(commands.Cog):
         await ctx.trigger_typing()
 
         try:
-            dog = await query_thatapiguy(DOG_API_URL, DOG_API_KEY)
+            dog = await query_thatapiguy(
+                ctx.bot.session, DOG_API_URL, DOG_API_KEY)
         except ValueError as e:
             return await ctx.send(
                 f'Failed to query a dog image; status code {e.args[1]}')
