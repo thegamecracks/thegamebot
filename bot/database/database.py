@@ -119,11 +119,6 @@ class Database:
         keys, placeholders, values = self.placeholder_insert(row)
         async with self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
-                # BUG: due to asqlite._ContextManagerMixin invoking its
-                # result's close() instead of __aexit__() when exiting,
-                # this means that asqlite._CursorWithTransaction's __aexit__
-                # does not get called and therefore does not automatically
-                # commit nor rollback. I will deem this a bug with the library.
                 await c.execute(
                     f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
                     *values
