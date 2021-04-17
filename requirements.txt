@@ -1,4 +1,5 @@
 aiohttp==3.7.3
+asqlite @ git+https://github.com/thegamecracks/asqlite/@1d0b7da105679eab891df927f1fc230775194fe4
 astunparse==1.6.3
 async-timeout==3.0.1
 attrs==19.3.0
