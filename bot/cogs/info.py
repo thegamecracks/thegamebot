@@ -301,8 +301,8 @@ and purges outdated messages daily. No user info or message content is stored.""
 
         cog = self.bot.get_cog('MessageTracker')
         if cog is None:
-            return await ctx.send('Unfortunately the bot is not tracking '
-                                  'message frequency at this time.')
+            return await ctx.send(
+                'The bot is currently not tracking message frequency.')
 
         async with cog.connect() as conn:
             async with conn.execute(
@@ -311,10 +311,13 @@ and purges outdated messages daily. No user info or message content is stored.""
                     ctx.guild.id, yesterday) as c:
                 count = (await c.fetchone())['total']
 
+        plural = ctx.bot.inflector.plural
+
         embed = discord.Embed(
             title='Server Message Count',
-            description='{:,} {} have been sent in the last 24 hours.'.format(
-                count, ctx.bot.inflector.plural('message', count)),
+            description='{:,} {} {} been sent in the last 24 hours.'.format(
+                count, plural('message', count), plural('has', count)
+            ),
             colour=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',

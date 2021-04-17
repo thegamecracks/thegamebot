@@ -91,8 +91,8 @@ class ReactionConfirmation(EmbedConfirmation):
         message = await EmbedConfirmation._prompt(self, title)
 
         # Add reactions
-        emoji = (self.emoji_yes.emoji, self.emoji_no.emoji)
-        for e in emoji:
+        emojis = (self.emoji_yes.emoji, self.emoji_no.emoji)
+        for e in emojis:
             await message.add_reaction(e)
 
         return message
