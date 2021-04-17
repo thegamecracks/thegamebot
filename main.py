@@ -17,7 +17,7 @@ import matplotlib.style as mplstyle
 
 from bot import checks
 from bot.database import BotDatabaseMixin
-from bot import errors, eventhandlers, utils
+from bot import errors, utils
 from bot.other import discordlogger
 
 cogs = [
@@ -27,6 +27,7 @@ cogs = [
         'background',
         'ciphers',
         'economy',
+        'eh',
         'embedding',
         'games',
         'graphing',
@@ -121,9 +122,6 @@ async def main():
     with utils.update_text('Initializing global checks',
                            'Initialized global checks'):
         checks.setup(bot)
-    with utils.update_text('Registering event handlers',
-                           'Registered event handlers'):
-        eventhandlers.setup(bot)
 
     # Add botvars
     with utils.update_text('Adding botvars',
