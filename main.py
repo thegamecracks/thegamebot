@@ -20,47 +20,76 @@ from bot.database import BotDatabaseMixin
 from bot import errors, utils
 from bot.other import discordlogger
 
-cogs = [
-    f'bot.cogs.{c}' for c in (
-        'settings',  # dependency of a lot of things
-        'administrative',
-        'background',
-        'ciphers',
-        'economy',
-        'eh',
-        'embedding',
-        'games',
-        'graphing',
-        'guildirish',
-        'images',
-        'messagetracker',  # dependency of info
-        'info',  # dependency of helpcommand
-        'helpcommand',
-        'mathematics',
-        'notes',
-        'prefix',
-        'randomization',
-        'reminders',
-        'timezones',
-        'undefined',
-        'uptime',
-    )
-]
-cogs.extend(('jishaku',))
-
-disabled_intents = [
+DISABLED_INTENTS = (
     'bans', 'integrations', 'webhooks', 'invites',
     'voice_states', 'typing'
-]
+)
 
 
 class TheGameBot(BotDatabaseMixin, commands.Bot):
-    """A custom version of Bot that allows case-insensitive references
-    to cogs. See "?tag case insensitive cogs" on the discord.py server.
-    """
+    EXT_LIST = [
+        f'bot.cogs.{c}' for c in (
+            'settings',  # dependency of a lot of things
+            'administrative',
+            'background',
+            'ciphers',
+            'economy',
+            'eh',
+            'embedding',
+            'games',
+            'graphing',
+            'guildirish',
+            'images',
+            'messagetracker',  # dependency of info
+            'info',  # dependency of helpcommand
+            'helpcommand',
+            'mathematics',
+            'notes',
+            'prefix',
+            'randomization',
+            'reminders',
+            'timezones',
+            'undefined',
+            'uptime',
+        )
+    ] + ['jishaku']
+
     def __init__(self, *args, **kwargs):
         super().__init__(super().get_prefix, *args, **kwargs)
+
+        # Allow case-insensitive references to cogs
+        # (see "?tag case insensitive cogs" on the discord.py server)
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
+
+        with utils.update_text('Initializing global checks',
+                               'Initialized global checks'):
+            checks.setup(self)
+
+        # Add botvars
+        with utils.update_text('Adding botvars',
+                               'Added botvars'):
+            self.session = aiohttp.ClientSession()
+            self.inflector = inflect.engine()
+            self.info_bootup_time = 0
+            self.info_processed_commands = collections.defaultdict(int)
+            self.timezones_users_inputting = set()
+            self.uptime_last_connect = datetime.datetime.now().astimezone()
+            self.uptime_last_connect_adjusted = self.uptime_last_connect
+            self.uptime_last_disconnect = self.uptime_last_connect
+            self.uptime_total_downtime = datetime.timedelta()
+            self.uptime_is_online = False
+
+        # Setup slash command system
+        with utils.update_text('Adding slash command extension',
+                               'Added slash command extension'):
+            self.slash = dslash.SlashCommand(self)
+
+        # Load extensions
+        for i, name in enumerate(self.EXT_LIST, start=1):
+            print(f'Loading extension {i}/{len(self.EXT_LIST)}',
+                  end='\r', flush=True)
+            self.load_extension(name)
+        print(f'Loaded all extensions         ')
 
     def get_cog(self, name):
         cog = super().get_cog(name)
@@ -85,6 +114,26 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
     async def try_user(self, id):
         return self.get_user(id) or await self.fetch_user(id)
 
+    async def setup(self):
+        """Do any asynchronous setup the bot needs."""
+        with utils.update_text('Setting up databases',
+                               'Set up databases'):
+            await self.db_setup()
+
+    async def start(self, *args, **kwargs):
+        logger = discordlogger.get_logger()
+        print('Starting bot')
+        try:
+            async with contextlib.AsyncExitStack() as stack:
+                await stack.enter_async_context(self.session)
+                await super().start(*args, **kwargs)
+        except KeyboardInterrupt:
+            logger.info('KeyboardInterrupt: closing bot')
+        except Exception:
+            logger.exception('Exception raised in bot')
+        finally:
+            await self.close()
+
 
 async def main():
     start_time = time.perf_counter()
@@ -97,82 +146,37 @@ async def main():
 
     args = parser.parse_args()
 
-    TOKEN = os.getenv('PyDiscordBotToken')
-    if TOKEN is None:
-        return print('Could not get token from environment.')
+    logger = discordlogger.get_logger()
+
+    token = os.getenv('PyDiscordBotToken')
+    if token is None:
+        s = 'Could not get token from environment.'
+        logger.error(s)
+        return print(s)
 
     # Use a non-GUI based backend for matplotlib
     matplotlib.use('Agg')
     mplstyle.use(['data/discord.mplstyle', 'fast'])
 
     # Set up client
-    logger = discordlogger.get_logger()
-
     intents = discord.Intents.default()
     intents.members = args.members
     intents.presences = args.presences
-    for attr in disabled_intents:
+    for attr in DISABLED_INTENTS:
         setattr(intents, attr, False)
 
     bot = TheGameBot(intents=intents)
-
-    with utils.update_text('Setting up databases',
-                           'Set up databases'):
-        await bot.db_setup()
-    with utils.update_text('Initializing global checks',
-                           'Initialized global checks'):
-        checks.setup(bot)
-
-    # Add botvars
-    with utils.update_text('Adding botvars',
-                           'Added botvars'):
-        bot.session = aiohttp.ClientSession()
-        bot.inflector = inflect.engine()
-        bot.info_bootup_time = 0
-        bot.info_processed_commands = collections.defaultdict(int)
-        bot.timezones_users_inputting = set()
-        bot.uptime_last_connect = datetime.datetime.now().astimezone()
-        bot.uptime_last_connect_adjusted = bot.uptime_last_connect
-        bot.uptime_last_disconnect = bot.uptime_last_connect
-        bot.uptime_total_downtime = datetime.timedelta()
-        bot.uptime_is_online = False
-
-    # Setup slash command system
-    with utils.update_text('Adding slash command extension',
-                           'Added slash command extension'):
-        bot.slash = dslash.SlashCommand(bot)
-
-    # Load extensions
-    for i, name in enumerate(cogs, start=1):
-        print(f'Loading extension {i}/{len(cogs)}', end='\r', flush=True)
-        bot.load_extension(name)
-    print(f'Loaded all extensions         ')
-
-    # Clean up
-    del parser, args, attr, i, name
+    await bot.setup()
 
     async def bootup_time(bot, start_time):
         """Calculate the bootup time of the bot."""
         await bot.wait_until_ready()
         bot.info_bootup_time = time.perf_counter() - start_time
 
-    # Create tasks
     loop = asyncio.get_running_loop()
-
     loop.create_task(bootup_time(bot, start_time))
 
-    # Start the bot
-    print('Starting bot')
-    try:
-        async with contextlib.AsyncExitStack() as stack:
-            await stack.enter_async_context(bot.session)
-            await bot.start(TOKEN)
-    except KeyboardInterrupt:
-        logger.info('KeyboardInterrupt: closing bot')
-    except Exception:
-        logger.exception('Exception raised in bot')
-    finally:
-        await bot.close()
+    await bot.start(token)
 
 
 if __name__ == '__main__':
