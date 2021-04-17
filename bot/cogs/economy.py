@@ -142,19 +142,22 @@ class Economy(commands.Cog):
         db = ctx.bot.dbcurrency
 
         async with db.connect() as conn:
-            async with await conn.execute(
+            async with conn.cursor(transaction=True) as c:
+                await c.execute(
                     f'SELECT SUM(cents) AS total FROM {db.TABLE_NAME} '
-                    'WHERE guild_id = ?', (ctx.guild.id,)) as c:
+                    'WHERE guild_id = ?', ctx.guild.id
+                )
                 total = (await c.fetchone())['total'] or 0
 
-            async with await conn.execute(
+                await c.execute(
                     f'SELECT user_id, cents FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? AND cents != 0 ORDER BY cents DESC '
                     f'LIMIT {self.LEADERBOARD_MAX_DISPLAYED:d}',
-                    (ctx.guild.id,)) as c:
+                    ctx.guild.id
+                )
                 rows = []
                 i = 1
-                async for row in c:
+                while row := await c.fetchone():
                     id_ = row['user_id']
                     member = ctx.guild.get_member(id_)
                     dollars = format_cents(row['cents'])

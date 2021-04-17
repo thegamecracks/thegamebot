@@ -63,7 +63,7 @@ class PrefixDatabase(db.Database):
 
         Returns:
             None
-            List[aiosqlite.Row]: A list of deleted entries if pop is True.
+            List[sqlite3.Row]: A list of deleted entries if pop is True.
 
         """
         guild_id = int(guild_id)

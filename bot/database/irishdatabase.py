@@ -40,26 +40,12 @@ class ChargeDatabase(db.Database):
 
         new = charges + amount
 
-        # async with self.connect(writing=True) as conn:
-        #     await conn.execute(
-        #         f'UPDATE {self.TABLE_NAME} SET amount=? WHERE user_id=?',
-        #         (new, user_id)
-        #     )
-        #     await conn.commit()
-
         return await self.update_rows(
             self.TABLE_NAME, {'amount': new}, where={'user_id': user_id})
 
     async def delete_charges(self, user_id: int):
         """Delete a user's charges entry."""
         user_id = int(user_id)
-
-        # async with self.connect(writing=True) as conn:
-        #     await conn.execute(
-        #         f'DELETE FROM {self.TABLE_NAME} WHERE user_id=?',
-        #         (user_id,)
-        #     )
-        #     await conn.commit()
 
         return await self.delete_rows(self.TABLE_NAME, {'user_id': user_id})
 
@@ -74,11 +60,6 @@ class ChargeDatabase(db.Database):
 
         """
         async def get_row():
-            # async with self.connect() as conn:
-            #     async with await conn.execute(
-            #             f'SELECT amount FROM {self.TABLE_NAME} WHERE user_id=?',
-            #             (user_id,)) as c:
-            #         return await c.fetchone()
             return await self.get_one(
                 self.TABLE_NAME, 'amount', where={'user_id': user_id})
 

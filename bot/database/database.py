@@ -2,24 +2,25 @@ import asyncio
 import os.path
 from typing import Tuple
 
-import aiosqlite
+import asqlite
 
 
 class AsyncConnection:
-    """An outer context manager for an aiosqlite Connection.
+    """An outer context manager for an asqlite Connection.
 
     This does NOT support using nested with-statements with the same object.
 
     When using connection locks with `writing=True`, be careful not
-    to attempt making several connections to the same database in the
-    same task without unlocking, which would otherwise result in a deadlock:
+    to attempt making nested connections to the same database,
+    which would otherwise result in a deadlock:
         >>> async with AsyncConnection('db', writing=True) as conn1:
         ...     async with AsyncConnection('db', writing=True) as conn2:
         ...         pass  # deadlock
 
     Args:
         path (str): The path to the database.
-        script (str): A script to execute upon entering the connection.
+        script (Optional[str]):
+            A script to execute upon entering the connection.
             Exceptions that occur will be propagated.
         writing (bool): If True, uses a lock for connections
             with the same path so that only one writing connection
@@ -29,16 +30,16 @@ class AsyncConnection:
             for over 5 seconds.
 
     """
-    __slots__ = ('conn', 'path', 'script', 'writing')
+    __slots__ = ('_conn', 'conn', 'path', 'script', 'writing')
 
     _write_locks = {}  # path: Lock
     # NOTE: this can grow indefinitely
 
-    def __init__(self, path, script, *, writing=False):
+    def __init__(self, path, script=None, *, writing=False):
         self.path = path
         self.script = script
         self.writing = writing
-        self.conn = None
+        self._conn = self.conn = None
 
     def __repr__(self):
         return '{0.__class__.__name__}({0.path})'
@@ -51,28 +52,25 @@ class AsyncConnection:
             self._write_locks[path] = lock
         return lock
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> asqlite.Connection:
         if self.writing:
             await self._get_write_lock().acquire()
 
-        self.conn = aiosqlite.connect(self.path)
-        conn = self.conn
+        self._conn = asqlite.connect(self.path)
+        self.conn = await self._conn.__aenter__()
 
-        await conn.__aenter__()
+        if self.script:
+            try:
+                await self.conn.executescript(self.script)
+            except Exception as e:
+                await self.__aexit__(type(e), e, e.__traceback__)
+                raise
 
-        conn.row_factory = aiosqlite.Row
-
-        try:
-            await conn.executescript(self.script)
-        except Exception as e:
-            await self.__aexit__(type(e), e, e.__traceback__)
-            raise
-
-        return conn
+        return self.conn
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.conn.__aexit__(exc_type, exc_val, exc_tb)
-        self.conn = None
+        await self._conn.__aexit__(exc_type, exc_val, exc_tb)
+        self._conn = self.conn = None
         if self.writing:
             self._get_write_lock().release()
 
@@ -93,7 +91,6 @@ class Database:
     """
     __slots__ = ('bot', 'path')
 
-    PRAGMAS = 'PRAGMA foreign_keys = 1;'
     TABLE_SETUP = ''
 
     def __init__(self, bot, path):
@@ -105,7 +102,7 @@ class Database:
 
     def connect(self, *, writing=False):
         """Create an AsyncConnection context manager."""
-        return AsyncConnection(self.path, self.PRAGMAS, writing=writing)
+        return AsyncConnection(self.path, writing=writing)
 
     async def setup_table(self, conn):
         await conn.executescript(self.TABLE_SETUP)
@@ -118,18 +115,19 @@ class Database:
                 Should only come from a programmatic source.
             row (dict): A dictionary of values to add.
 
-        Returns:
-            int: The last row id.
-
         """
         keys, placeholders, values = self.placeholder_insert(row)
         async with self.connect(writing=True) as conn:
-            rowid = await conn.execute_insert(
-                f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
-                values
-            )
-            await conn.commit()
-        return rowid
+            async with conn.cursor(transaction=True) as c:
+                # BUG: due to asqlite._ContextManagerMixin invoking its
+                # result's close() instead of __aexit__() when exiting,
+                # this means that asqlite._CursorWithTransaction's __aexit__
+                # does not get called and therefore does not automatically
+                # commit nor rollback. I will deem this a bug with the library.
+                await c.execute(
+                    f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
+                    *values
+                )
 
     async def delete_rows(self, table: str, where: dict, *, pop=False):
         """Delete rows matching a dictionary of values.
@@ -144,32 +142,25 @@ class Database:
 
         Returns:
             None
-            List[aiosqlite.Row]
+            List[sqlite3.Row]
 
         """
         keys, values = self.escape_row(where, ' AND ')
         rows = None
         async with self.connect(writing=True) as conn:
-            if pop:
-                async with conn.execute(
-                        f'SELECT * FROM {table} WHERE {keys}', values) as c:
+            async with conn.cursor(transaction=True) as c:
+                if pop:
+                    await c.execute(f'SELECT * FROM {table} WHERE {keys}', *values)
                     rows = await c.fetchall()
 
-            await conn.execute(
-                f'DELETE FROM {table} WHERE {keys}',
-                values
-            )
-            await conn.commit()
+                await c.execute(f'DELETE FROM {table} WHERE {keys}', *values)
         return rows
 
     def _get_rows_query(self, table: str, *columns: str, where: dict = None):
         column_keys = ', '.join(columns) if columns else '*'
 
-        values = None
-        where_str = ''
-        if where is not None:
-            keys, values = self.escape_row(where, ' AND ')
-            where_str = f' WHERE {keys}'
+        keys, values = self.escape_row(where or {}, ' AND ')
+        where_str = f' WHERE {keys}' if keys else ''
 
         query = f'SELECT {column_keys} FROM {table}{where_str}'
 
@@ -179,10 +170,11 @@ class Database:
         query, values = self._get_rows_query(table, *columns, where=where)
 
         async with self.connect() as conn:
-            if one:
-                async with conn.execute(query, values) as c:
+            async with conn.cursor(transaction=True) as c:
+                await c.execute(query, *values)
+                if one:
                     return await c.fetchone()
-            return await conn.execute_fetchall(query, values)
+                return await c.fetchall()
 
     async def get_rows(self, table: str, *columns: str, where: dict = None):
         """Get rows from a table.
@@ -197,7 +189,7 @@ class Database:
             where (Optional[dict]): A dictionary of values to match.
 
         Returns:
-            List[aiosqlite.Row]
+            List[sqlite3.Row]
             None
 
         """
@@ -216,7 +208,7 @@ class Database:
             where (Optional[dict]): A dictionary of values to match.
 
         Returns:
-            aiosqlite.Row
+            sqlite3.Row
             None
 
         """
@@ -236,7 +228,7 @@ class Database:
                 (before modification).
 
         Returns:
-            List[aiosqlite.Row]
+            List[sqlite3.Row]
             None
 
         """
@@ -245,17 +237,18 @@ class Database:
         rows = None
 
         async with self.connect(writing=True) as conn:
-            if pop:
-                async with conn.execute(
+            async with conn.cursor(transaction=True) as c:
+                if pop:
+                    await c.execute(
                         f'SELECT * FROM {table} WHERE {where_keys}',
-                        where_values) as c:
+                        *where_values
+                    )
                     rows = await c.fetchall()
 
-            await conn.execute(
-                f'UPDATE {table} SET {row_keys} WHERE {where_keys}',
-                row_values + where_values
-            )
-            await conn.commit()
+                await c.execute(
+                    f'UPDATE {table} SET {row_keys} WHERE {where_keys}',
+                    *(row_values + where_values)
+                )
 
         return rows
 
@@ -272,20 +265,21 @@ class Database:
             where (Optional[dict]): A dictionary of values to match.
 
         Yields:
-            aiosqlite.Row
+            sqlite3.Row
 
         """
         query, values = self._get_rows_query(table, *columns, where=where)
 
         async with self.connect() as conn:
-            async with conn.execute(query, values) as c:
-                async for row in c:
+            async with conn.execute(query, *values) as c:
+                while row := await c.fetchone():
                     yield row
 
     async def vacuum(self):
         """Vacuum the database."""
-        async with self.connect() as db:
-            await db.execute('VACUUM')
+        async with self.connect() as conn:
+            async with conn.transaction():
+                await conn.execute('VACUUM')
 
     @staticmethod
     def placeholder_insert(row: dict) -> Tuple[str, str, list]:
@@ -317,6 +311,10 @@ class Database:
             ...     f'UPDATE {table} SET {keys}',
             ...     values
             ... )
+
+        Returns:
+            Tuple[str, List[Any]]: The placeholders for the WHERE clause
+                along with a list of values for each placeholder.
 
         """
         keys, values = [], []

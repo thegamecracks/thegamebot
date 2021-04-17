@@ -1,4 +1,4 @@
-import aiosqlite
+import asqlite
 
 from discord.ext import commands
 
@@ -36,7 +36,7 @@ class BotDatabaseMixin(commands.Bot):
         """Set up tables for each database."""
         for attr in self.DATABASES:
             db = getattr(self, attr)
-            async with aiosqlite.connect(db.path) as conn:
+            async with asqlite.connect(db.path) as conn:
                 await db.setup_table(conn)
 
     async def get_prefix(self, message):

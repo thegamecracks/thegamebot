@@ -21,33 +21,31 @@ class UserDatabase(db.Database):
     );
     """
 
-    async def add_user(self, user_id: int, *, timezone: pytz.BaseTzInfo = None):
+    async def add_user(
+            self, user_id: int,
+            *, timezone: pytz.BaseTzInfo = None) -> bool:
         """Add a user to the database if the user does not exist.
 
         Returns:
-            int: The lastrowid returned by add_row().
-            None: the row already exists.
+            bool: whether a new row was added or not.
 
         """
         user_id, timezone = int(user_id), getattr(timezone, 'zone', timezone)
 
         if await self.get_user(user_id) is None:
-            return await self.add_row(
+            await self.add_row(
                 self.TABLE_NAME, {
                     'id': user_id,
                     'timezone': timezone
                 }
             )
+            return True
+        return False
+
 
     async def delete_user(self, user_id: int):
         """Delete a user from the database."""
         user_id = int(user_id)
-
-        # async with self.connect(writing=True) as conn:
-        #     await conn.execute(
-        #         f'DELETE FROM {self.TABLE_NAME} WHERE id=?', (user_id,))
-        #     await conn.commit()
-
         return await self.delete_rows(self.TABLE_NAME, {'id': user_id})
 
     async def get_timezone(self, user_id: int) -> Optional[pytz.BaseTzInfo]:
@@ -65,7 +63,7 @@ class UserDatabase(db.Database):
         async with self.connect() as conn:
             async with conn.execute(
                     f'SELECT timezone FROM {self.TABLE_NAME} WHERE id=?',
-                    (user_id,)) as c:
+                    user_id) as c:
                 row = await c.fetchone()
 
         timezone = row['timezone'] if row is not None else None
@@ -86,11 +84,4 @@ class UserDatabase(db.Database):
 
         """
         user_id = int(user_id)
-
-        # async with self.connect() as conn:
-        #     async with await conn.execute(
-        #             f'SELECT * FROM {self.TABLE_NAME} WHERE id=?',
-        #             (user_id,)) as c:
-        #         return await c.fetchone()
-
         return await self.get_one(self.TABLE_NAME, where={'id': user_id})

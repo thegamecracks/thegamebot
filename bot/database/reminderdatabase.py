@@ -49,7 +49,7 @@ class ReminderDatabase(db.Database):
 
         Returns:
             None
-            List[aiosqlite.Row]: A list of deleted entries if pop is True.
+            List[sqlite3.Row]: A list of deleted entries if pop is True.
 
         """
         reminder_id = int(reminder_id)

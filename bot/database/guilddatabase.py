@@ -19,21 +19,12 @@ class GuildDatabase(db.Database):
     async def add_guild(self, guild_id: int):
         """Add a guild to the database if the guild does not exist."""
         guild_id = int(guild_id)
-
         if await self.get_guild(guild_id) is None:
             return await self.add_row(self.TABLE_NAME, {'id': guild_id})
 
     async def delete_guild(self, guild_id: int):
         """Delete a guild from the database."""
         guild_id = int(guild_id)
-
-        # async with self.connect(writing=True) as conn:
-        #     await conn.execute(
-        #         f'DELETE FROM {self.TABLE_NAME} WHERE id=?',
-        #         (guild_id,)
-        #     )
-        #     await conn.commit()
-
         return await self.delete_rows(self.TABLE_NAME, {'id': guild_id})
 
     async def get_guild(self, guild_id: int):
@@ -43,11 +34,4 @@ class GuildDatabase(db.Database):
 
         """
         guild_id = int(guild_id)
-
-        # async with self.connect() as conn:
-        #     async with await conn.execute(
-        #             f'SELECT * FROM {self.TABLE_NAME} WHERE id=?',
-        #             (guild_id,)) as c:
-        #         return await c.fetchone()
-
         return await self.get_one(self.TABLE_NAME, where={'id': guild_id})

@@ -308,7 +308,7 @@ and purges outdated messages daily. No user info or message content is stored.""
             async with conn.execute(
                     'SELECT COUNT(*) AS total FROM Messages '
                     'WHERE guild_id = ? AND created_at > ?',
-                    (ctx.guild.id, yesterday,)) as c:
+                    ctx.guild.id, yesterday) as c:
                 count = (await c.fetchone())['total']
 
         embed = discord.Embed(
