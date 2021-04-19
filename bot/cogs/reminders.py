@@ -383,7 +383,7 @@ To remove only one reminder, use the removereminder command."""
                 'reminder was deleted during wait'
             )
 
-        user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+        user = await self.bot.try_user(user_id)
 
         if user is None:
             # Could not find user; remove database entry

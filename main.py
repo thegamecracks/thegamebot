@@ -113,9 +113,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         open('RESTART', 'w').close()
         return await self.close()
 
-    async def try_user(self, id):
-        return self.get_user(id) or await self.fetch_user(id)
-
     async def setup(self):
         """Do any asynchronous setup the bot needs."""
         with utils.update_text('Setting up databases',
@@ -135,6 +132,9 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             logger.exception('Exception raised in bot')
         finally:
             await self.close()
+
+    async def try_user(self, id):
+        return self.get_user(id) or await self.fetch_user(id)
 
 
 async def main():

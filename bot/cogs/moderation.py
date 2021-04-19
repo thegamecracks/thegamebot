@@ -49,7 +49,10 @@ class Moderation(commands.Cog):
     @commands.group(name='purge', invoke_without_command=True)
     @commands.cooldown(2, 10, commands.BucketType.channel)
     @commands.has_permissions(manage_messages=True)
-    @commands.bot_has_permissions(manage_messages=True)
+    @commands.bot_has_permissions(
+        manage_messages=True,
+        read_message_history=True
+    )
     async def client_purge(self, ctx, limit: PurgeLimitConverter):
         """Bulk delete messages in the current channel.
 
@@ -61,7 +64,10 @@ limit: The number of messages to look through. (range: 2-100)"""
     @client_purge.command(name='bot')
     @commands.cooldown(2, 10, commands.BucketType.channel)
     @commands.has_permissions(manage_messages=True)
-    @commands.bot_has_permissions(manage_messages=True)
+    @commands.bot_has_permissions(
+        manage_messages=True,
+        read_message_history=True
+    )
     async def client_purge_bot(self, ctx, limit: PurgeLimitConverter):
         """Delete messages from bots.
 
@@ -76,6 +82,7 @@ limit: The number of messages to look through. (range: 2-100)"""
     @client_purge.command(name='self')
     @commands.cooldown(2, 10, commands.BucketType.channel)
     @commands.has_permissions(manage_messages=True)
+    @commands.bot_has_permissions(read_message_history=True)
     async def client_purge_self(self, ctx, limit: PurgeLimitConverter):
         """Delete messages from me.
 

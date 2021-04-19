@@ -1,4 +1,5 @@
 import datetime
+import sqlite3
 
 import discord
 from discord.ext import commands
@@ -25,8 +26,9 @@ class Tags(commands.Cog):
     """Store and use guild-specific tags."""
     qualified_name = 'Tags'
 
-    TAGS_BY_MAX_DISPLAYED = 10
-    TAGS_LEADERBOARD_MAX_DISPLAYED = 10
+    TAG_BY_MAX_DISPLAYED = 10
+    TAG_LEADERBOARD_MAX_DISPLAYED = 10
+    TAG_CREATE_MAX_NAME_LENGTH = 50
 
     def __init__(self, bot):
         self.bot = bot
@@ -69,7 +71,7 @@ class Tags(commands.Cog):
                 await c.execute(
                     f'SELECT name, uses FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? AND user_id = ? ORDER BY uses DESC '
-                    f'LIMIT {self.TAGS_BY_MAX_DISPLAYED}',
+                    f'LIMIT {self.TAG_BY_MAX_DISPLAYED}',
                     ctx.guild.id, user.id
                 )
                 rows = await c.fetchall()
@@ -95,13 +97,21 @@ class Tags(commands.Cog):
             *, content: commands.clean_content):
         """Create a tag.
 
-name: The name of the tag. For names with multiple spaces, use quotes as such:
-    `tag create "my tag name" content afterwards`
+name: The name of the tag. When using spaces, surround it with quotes as such:
+    `tag create "my tag name" content`
 content: The content of the tag."""
-        await ctx.bot.dbtags.add_tag(
-            ctx.guild.id, name, content, ctx.author.id)
+        diff = len(name) - self.TAG_CREATE_MAX_NAME_LENGTH
+        if diff > 0:
+            return await ctx.send(
+                f'Your tag name is {diff:,} characters too long.')
 
-        await ctx.send('Created your new tag!')
+        try:
+            await ctx.bot.dbtags.add_tag(
+                ctx.guild.id, name, content, ctx.author.id)
+        except sqlite3.IntegrityError:
+            await ctx.send('A tag with this name already exists!')
+        else:
+            await ctx.send('Created your new tag!')
 
 
     @client_tag.command(name='delete')
@@ -192,7 +202,7 @@ content: The new content to use."""
                 await c.execute(
                     f'SELECT name, user_id, uses FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? ORDER BY uses DESC '
-                    f'LIMIT {self.TAGS_LEADERBOARD_MAX_DISPLAYED}',
+                    f'LIMIT {self.TAG_LEADERBOARD_MAX_DISPLAYED}',
                     ctx.guild.id
                 )
                 rows = await c.fetchall()
