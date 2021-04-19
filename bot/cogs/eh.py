@@ -384,8 +384,6 @@ class EventHandlers(commands.Cog):
             await ctx.send(f'I cannot find the given emoji "{error.argument}"')
         elif isinstance(error, commands.ExpectedClosingQuoteError):
             await ctx.send('Expected a closing quotation mark.')
-        elif isinstance(error, errors.IndexOutOfBoundsError):
-            await ctx.send(str(error))
         elif isinstance(error, commands.InvalidEndOfQuotedStringError):
             await ctx.send('Expected a space after a closing quotation mark.')
         elif isinstance(error, commands.MaxConcurrencyReached):
@@ -440,8 +438,11 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, (commands.UserNotFound,
                                 commands.MemberNotFound)):
             await ctx.send('I cannot find the given user.')
+        elif isinstance(error_unpacked, errors.ErrorHandlerResponse):
+            # superclass
+            await ctx.send(str(error))
         elif isinstance(error, commands.UserInputError):
-            # NOTE: This is a superclass of several other errors
+            # superclass
             await ctx.send('Failed to parse your parameters.\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.ConversionError):

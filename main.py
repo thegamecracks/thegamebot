@@ -44,6 +44,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'info',  # dependency of helpcommand
             'helpcommand',
             'mathematics',
+            'moderation',
             'notes',
             'prefix',
             'randomization',
