@@ -107,13 +107,16 @@ class Database:
     async def setup_table(self, conn):
         await conn.executescript(self.TABLE_SETUP)
 
-    async def add_row(self, table: str, row: dict):
+    async def add_row(self, table: str, row: dict) -> int:
         """Add a row to a table.
 
         Args:
             table (str): The table name to insert into.
                 Should only come from a programmatic source.
             row (dict): A dictionary of values to add.
+
+        Returns:
+            int: The last row id.
 
         """
         keys, placeholders, values = self.placeholder_insert(row)
@@ -123,6 +126,7 @@ class Database:
                     f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
                     *values
                 )
+                return c._cursor.lastrowid
 
     async def delete_rows(self, table: str, where: dict, *, pop=False):
         """Delete rows matching a dictionary of values.
@@ -151,21 +155,25 @@ class Database:
                 await c.execute(f'DELETE FROM {table} WHERE {keys}', *values)
         return rows
 
-    def _get_rows_query(self, table: str, *columns: str, where: dict = None):
+    def _get_rows_query(
+            self, table: str, *columns: str, where: dict = None, one=False):
         column_keys = ', '.join(columns) if columns else '*'
 
         keys, values = self.escape_row(where or {}, ' AND ')
-        where_str = f' WHERE {keys}' if keys else ''
+        where_str = f' WHERE {keys}' * bool(keys)
+        limit = ' LIMIT 1' * bool(one)
 
-        query = f'SELECT {column_keys} FROM {table}{where_str}'
+        query = f'SELECT {column_keys} FROM {table}{where_str}{limit}'
 
         return query, values
 
-    async def _get_rows(self, table: str, *columns: str, where: dict = None, one: bool):
-        query, values = self._get_rows_query(table, *columns, where=where)
+    async def _get_rows(
+            self, table: str, *columns: str, where: dict = None, one=False):
+        query, values = self._get_rows_query(
+            table, *columns, where=where, one=one)
 
         async with self.connect() as conn:
-            async with conn.cursor(transaction=True) as c:
+            async with conn.cursor() as c:
                 await c.execute(query, *values)
                 if one:
                     return await c.fetchone()
@@ -188,7 +196,7 @@ class Database:
             None
 
         """
-        return await self._get_rows(table, *columns, where=where, one=False)
+        return await self._get_rows(table, *columns, where=where)
 
     async def get_one(self, table: str, *columns: str, where: dict):
         """Get one row from a table.
@@ -273,8 +281,7 @@ class Database:
     async def vacuum(self):
         """Vacuum the database."""
         async with self.connect() as conn:
-            async with conn.transaction():
-                await conn.execute('VACUUM')
+            await conn.execute('VACUUM')
 
     @staticmethod
     def placeholder_insert(row: dict) -> Tuple[str, str, list]:

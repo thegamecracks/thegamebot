@@ -32,11 +32,10 @@ class ReminderDatabase(db.Database):
         """
         user_id = int(user_id)
 
-        return await self.add_row(self.TABLE_NAME, {
-            'user_id': user_id,
-            'due': due,
-            'content': content
-        })
+        return await self.add_row(
+            self.TABLE_NAME,
+            {'user_id': user_id, 'due': due, 'content': content}
+        )
 
     async def delete_reminder_by_id(self, reminder_id: int, pop=False):
         """Delete a reminder from the Reminders table.

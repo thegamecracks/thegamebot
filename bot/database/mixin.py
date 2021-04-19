@@ -48,20 +48,14 @@ class BotDatabaseMixin(commands.Bot):
 
         guild = message.guild
 
-        # If in DMs, get default prefix
         if guild is None:
             prefix = get_default_prefix()
-            if prefix is not None:
-                return commands.when_mentioned_or(prefix)(self, message)
-            return commands.when_mentioned(self, message)
-
-        # Else, fetch guild prefix
-        guild_id = guild.id
-        await self.dbguilds.add_guild(guild_id)
-        prefix = await self.dbprefixes.get_prefix(guild_id)
-        if prefix is None:
-            await self.dbprefixes.add_prefix(guild_id, get_default_prefix())
-            prefix = await self.dbprefixes.get_prefix(guild_id)
+        else:
+            await self.dbguilds.add_guild(guild.id)
+            prefix = await self.dbprefixes.get_prefix(guild.id)
+            if prefix is None:
+                await self.dbprefixes.add_prefix(guild.id, get_default_prefix())
+                prefix = await self.dbprefixes.get_prefix(guild.id)
 
         if prefix is not None:
             return commands.when_mentioned_or(prefix)(self, message)

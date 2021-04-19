@@ -166,9 +166,10 @@ class Economy(commands.Cog):
 
         if any(r[2] is None for r in rows):
             # Use mentions, not all members could be found
-            description = [f'{i}. <@{id_}> : {dollars}'
+            description = [f'**{i}.** <@{id_}> : {dollars}'
                            for i, id_, member, dollars in rows]
-            description.append(f'Total: {format_cents(total)}')
+            description.append(f'**Total:** {format_cents(total)}')
+            description = '\n'.join(description)
         else:
             # All member names can be used
             description = [

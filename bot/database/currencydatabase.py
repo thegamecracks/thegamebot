@@ -8,7 +8,7 @@ from . import database as db
 
 
 class CurrencyDatabase(db.Database):
-    """Provide an interface to a UserDatabase with a Currency table."""
+    """Provide an interface to the Currency table."""
 
     TABLE_NAME = 'Currency'
     TABLE_SETUP = f"""

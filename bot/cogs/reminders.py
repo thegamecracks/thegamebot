@@ -1,5 +1,3 @@
-"""
-Note: This requires members intent to be enabled in order to send reminders."""
 import asyncio
 import datetime
 import re
@@ -35,13 +33,8 @@ class Reminders(commands.Cog):
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
         # so this could use an LRU cache implementation
-        if self.bot.intents.members:
-            # Only send reminders when members intent is enabled
-            self.send_reminders_tasks = {}  # reminder_id: Task
-            self.send_reminders.start()
-        else:
-            self.description += ('\n**NOTE**: The bot currently '
-                                 'cannot send reminders at this time.')
+        self.send_reminders_tasks = {}  # reminder_id: Task
+        self.send_reminders.start()
 
     def cog_unload(self):
         self.send_reminders.cancel()
@@ -89,14 +82,6 @@ class Reminders(commands.Cog):
             self.cache[user_id] = reminders
 
         return reminders
-
-    async def send_with_disclaimer(
-            self, messageable, content=None, *args, **kwargs):
-        if content is not None and not self.bot.intents.members:
-            content += ('\nNote: the bot currently cannot send '
-                        'reminders at this time.')
-
-        return await messageable.send(content, *args, **kwargs)
 
 
 
@@ -151,8 +136,7 @@ You can have a maximum of 5 reminders."""
                 when, content = re.split(' to ', time_and_reminder, flags=re.IGNORECASE)
                 when = self.parse_datetime(when)
             except (ValueError, AttributeError):
-                return await self.send_with_disclaimer(
-                    ctx,
+                return await ctx.send(
                     'Could not understand your reminder request. Check this '
                     "command's help page for allowed syntax."
                 )
@@ -161,16 +145,16 @@ You can have a maximum of 5 reminders."""
             seconds_until = td.total_seconds()
 
             if seconds_until < 0:
-                return await self.send_with_disclaimer(
-                    ctx, 'You cannot create a reminder for the past.')
+                return await ctx.send(
+                    'You cannot create a reminder for the past.')
             elif seconds_until < self.MINIMUM_REMINDER_TIME:
-                return await self.send_with_disclaimer(
-                    ctx, 'You must set a reminder lasting for at '
+                return await ctx.send(
+                    'You must set a reminder lasting for at '
                     f'least {self.MINIMUM_REMINDER_TIME} seconds.'
                 )
             elif not content:
-                return await self.send_with_disclaimer(
-                    ctx, 'You must have a message with your reminder.')
+                return await ctx.send(
+                    'You must have a message with your reminder.')
 
             # Round seconds down if td does not specify seconds
             if td.seconds % 60 == 0:
@@ -180,20 +164,18 @@ You can have a maximum of 5 reminders."""
 
             await self.add_reminder(ctx.author.id, utcdue, content)
 
-            await self.send_with_disclaimer(
-                ctx, 'Your {} reminder has been added!'.format(
+            await ctx.send(
+                'Your {} reminder has been added!'.format(
                     ctx.bot.inflector.ordinal(total_reminders + 1)
                 ),
                 embed=discord.Embed(
                     color=utils.get_user_color(ctx.bot, ctx.author),
                     timestamp=utcdue
-                )
+                ).set_footer(text='Due date')
             )
         else:
-            await self.send_with_disclaimer(
-                ctx, 'Sorry, but you have reached your maximum limit '
-                'of 5 reminders.'
-            )
+            await ctx.send('Sorry, but you have reached your maximum '
+                           'limit of 5 reminders.')
 
 
 
@@ -210,18 +192,15 @@ To remove several reminders, use the removereminders command."""
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
-            return await self.send_with_disclaimer(
-                ctx, "You already don't have any reminders.")
+            return await ctx.send("You already don't have any reminders.")
 
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
-            await self.send_with_disclaimer(
-                ctx, 'That reminder index does not exist.')
+            await ctx.send('That reminder index does not exist.')
         else:
             await self.delete_reminder_by_id(reminder['reminder_id'])
-            await self.send_with_disclaimer(
-                ctx, 'Reminder successfully deleted!')
+            await ctx.send('Reminder successfully deleted!')
 
 
 
@@ -239,30 +218,26 @@ To remove only one reminder, use the removereminder command."""
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
-            return await self.send_with_disclaimer(
-                ctx, "You already don't have any reminders.")
+            return await ctx.send("You already don't have any reminders.")
 
         if indices.lower() == 'all':
             for reminder in reminder_list:
                 await self.delete_reminder_by_id(reminder['reminder_id'])
-            await self.send_with_disclaimer(
-                ctx, 'Reminders successfully deleted!')
+            await ctx.send('Reminders successfully deleted!')
 
         else:
             start, end = [int(n) for n in indices.split('-')]
             start -= 1
             if start < 0:
-                return await self.send_with_disclaimer(
-                    ctx, 'Start must be 1 or greater.')
+                return await ctx.send('Start must be 1 or greater.')
             elif end > len(reminder_list):
-                return await self.send_with_disclaimer(
-                    ctx, f'End must only go up to {len(reminder_list)}.')
+                return await ctx.send(
+                    f'End must only go up to {len(reminder_list)}.')
 
             for i in range(start, end):
                 reminder = reminder_list[i]
                 await self.delete_reminder_by_id(reminder['reminder_id'])
-            await self.send_with_disclaimer(
-                ctx, 'Reminders successfully deleted!')
+            await ctx.send('Reminders successfully deleted!')
 
 
 
@@ -277,18 +252,15 @@ To remove only one reminder, use the removereminder command."""
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
-            return await self.send_with_disclaimer(
-                ctx, "You don't have any reminders.")
+            return await ctx.send("You don't have any reminders.")
 
         if index < 1:
-            return await self.send_with_disclaimer(
-                ctx, 'Index must be 1 or greater.')
+            return await ctx.send('Index must be 1 or greater.')
 
         try:
             reminder = reminder_list[index - 1]
         except IndexError:
-            await self.send_with_disclaimer(
-                ctx, 'That index does not exist.')
+            await ctx.send('That index does not exist.')
         else:
             utcdue = datetime.datetime.fromisoformat(reminder['due'])
             embed = discord.Embed(
@@ -306,7 +278,7 @@ To remove only one reminder, use the removereminder command."""
                     inflector=ctx.bot.inflector
                 )
             ).set_footer(text='Due date')
-            await self.send_with_disclaimer(ctx, embed=embed)
+            await ctx.send(embed=embed)
 
 
 
@@ -322,8 +294,7 @@ To remove only one reminder, use the removereminder command."""
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
-            return await self.send_with_disclaimer(
-                ctx, "You don't have any reminders.")
+            return await ctx.send("You don't have any reminders.")
 
         # Create fields for each reminder, limiting them
         # to 140 characters/5 lines
@@ -342,7 +313,7 @@ To remove only one reminder, use the removereminder command."""
         for i, content in enumerate(fields, start=1):
             embed.add_field(name=f'Reminder {i:,}', value=content)
 
-        await self.send_with_disclaimer(ctx, embed=embed)
+        await ctx.send(embed=embed)
 
 
 
@@ -358,12 +329,6 @@ To remove only one reminder, use the removereminder command."""
             bool: Indicates whether the task was created or not.
 
         """
-        if not self.bot.intents.members:
-            # Prevents creating reminder tasks without members intent
-            # as get_user() doesn't work, meaning it's basically
-            # impossible to send DMs
-            return False
-
         if utcnow is None:
             utcnow = datetime.datetime.utcnow()
 
@@ -374,13 +339,8 @@ To remove only one reminder, use the removereminder command."""
             # Task already exists; skip
             return False
 
-        if td < zero_td:
-            # Overdue; send message immediately
-            self.create_reminder_task(
-                reminder_id, user_id, utcwhen, zero_td, content)
-            return True
-        elif td < self.send_reminders_near_due:
-            # Close to due date; spin up task
+        if td < self.send_reminders_near_due:
+            # Close to due date (or overdue); spin up task
             self.create_reminder_task(
                 reminder_id, user_id, utcwhen, td, content)
             return True
@@ -393,7 +353,8 @@ To remove only one reminder, use the removereminder command."""
         self.send_reminders_tasks[reminder_id] = task
 
         discordlogger.get_logger().info(
-            f'Reminders: created reminder task for {user_id}, due in {td}')
+            f'Reminders: created reminder task {reminder_id} '
+            f'for {user_id}, due in {td}')
 
         return task
 
@@ -405,9 +366,7 @@ To remove only one reminder, use the removereminder command."""
         def remove_task():
             self.send_reminders_tasks.pop(reminder_id, None)
 
-        def log_and_print(message):
-            discordlogger.get_logger().info(message)
-            print(message)
+        logger = discordlogger.get_logger()
 
         db = self.bot.dbreminders
 
@@ -419,13 +378,16 @@ To remove only one reminder, use the removereminder command."""
         if await db.get_one(db.TABLE_NAME, 'reminder_id',
                             where={'reminder_id': reminder_id}) is None:
             # Reminder was deleted during wait; don't send
-            return
+            logger.info(
+                f'Reminders: failed to send reminder, ID {reminder_id}: '
+                'reminder was deleted during wait'
+            )
 
-        user = self.bot.get_user(user_id)
+        user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
 
         if user is None:
             # Could not find user; remove database entry
-            log_and_print(
+            logger.info(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
                 f'could not find user: {user_id}'
             )
@@ -447,19 +409,19 @@ To remove only one reminder, use the removereminder command."""
         try:
             await user.send(embed=embed)
         except discord.Forbidden as e:
-            log_and_print(
+            logger.info(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
                 f'was forbidden from sending: {e}'
             )
         except discord.HTTPException as e:
-            log_and_print(
+            logger.info(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
                 f'HTTPException occurred: {e}'
             )
         else:
             # Successful; remove reminder task and database entry
-            discordlogger.get_logger().info(
-                f'Reminders: successfully sent reminder, ID {reminder_id}')
+            logger.info('Reminders: successfully sent reminder, '
+                        f'ID {reminder_id}')
             await remove_entry()
         finally:
             remove_task()
