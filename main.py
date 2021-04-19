@@ -49,6 +49,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'prefix',
             'randomization',
             'reminders',
+            'tags',
             'timezones',
             'undefined',
             'uptime',

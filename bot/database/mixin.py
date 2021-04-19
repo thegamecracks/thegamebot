@@ -9,6 +9,7 @@ from .irishdatabase import IrishDatabase
 from .notedatabase import NoteDatabase
 from .prefixdatabase import PrefixDatabase
 from .reminderdatabase import ReminderDatabase
+from .tagdatabase import TagDatabase
 from .userdatabase import UserDatabase
 from bot import errors
 
@@ -18,7 +19,8 @@ class BotDatabaseMixin(commands.Bot):
     DATABASE_IRISH_PATH = 'data/irishsquad.db'
 
     DATABASES = ('dbusers', 'dbguilds', 'dbcurrency', 'dbgames',
-                 'dbirish', 'dbnotes', 'dbprefixes', 'dbreminders')
+                 'dbirish', 'dbnotes', 'dbprefixes', 'dbreminders',
+                 'dbtags')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -30,6 +32,7 @@ class BotDatabaseMixin(commands.Bot):
         self.dbnotes = NoteDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbprefixes = PrefixDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbreminders = ReminderDatabase(self, self.DATABASE_MAIN_PATH)
+        self.dbtags = TagDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbusers = UserDatabase(self, self.DATABASE_MAIN_PATH)
 
     async def db_setup(self):
