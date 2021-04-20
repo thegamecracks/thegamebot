@@ -57,36 +57,6 @@ class Tags(commands.Cog):
             uses=tag['uses'] + 1,
             record_time=False
         )
-
-
-    @client_tag.command(name='by')
-    @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag_by(self, ctx, *, user: discord.Member = None):
-        """Get a list of the top tags you or someone else owns."""
-        user = user or ctx.author
-
-        db = ctx.bot.dbtags
-        async with db.connect() as conn:
-            async with conn.cursor() as c:
-                await c.execute(
-                    f'SELECT name, uses FROM {db.TABLE_NAME} '
-                    'WHERE guild_id = ? AND user_id = ? ORDER BY uses DESC '
-                    f'LIMIT {self.TAG_BY_MAX_DISPLAYED}',
-                    ctx.guild.id, user.id
-                )
-                rows = await c.fetchall()
-
-        description = [f"**{i:,}.** {r['name']} : {r['uses']:,}"
-                       for i, r in enumerate(rows, start=1)]
-        description = '\n'.join(description)
-
-        embed = discord.Embed(
-            color=utils.get_bot_color(ctx.bot),
-            description=description,
-            timestamp=datetime.datetime.utcnow()
-        )
-
-        await ctx.send(embed=embed)
                 
 
 
@@ -211,6 +181,36 @@ content: The new content to use."""
             f"**{i:,}.** {r['name']} : <@{r['user_id']}> : {r['uses']:,}"
             for i, r in enumerate(rows, start=1)
         ]
+        description = '\n'.join(description)
+
+        embed = discord.Embed(
+            color=utils.get_bot_color(ctx.bot),
+            description=description,
+            timestamp=datetime.datetime.utcnow()
+        )
+
+        await ctx.send(embed=embed)
+
+
+    @client_tag.command(name='list')
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    async def client_tag_list(self, ctx, *, user: discord.Member = None):
+        """Get a list of the top tags you or someone else owns."""
+        user = user or ctx.author
+
+        db = ctx.bot.dbtags
+        async with db.connect() as conn:
+            async with conn.cursor() as c:
+                await c.execute(
+                    f'SELECT name, uses FROM {db.TABLE_NAME} '
+                    'WHERE guild_id = ? AND user_id = ? ORDER BY uses DESC '
+                    f'LIMIT {self.TAG_BY_MAX_DISPLAYED}',
+                    ctx.guild.id, user.id
+                )
+                rows = await c.fetchall()
+
+        description = [f"**{i:,}.** {r['name']} : {r['uses']:,}"
+                       for i, r in enumerate(rows, start=1)]
         description = '\n'.join(description)
 
         embed = discord.Embed(

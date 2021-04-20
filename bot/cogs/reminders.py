@@ -114,11 +114,12 @@ class Reminders(commands.Cog):
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_addreminder(self, ctx, *, time_and_reminder):
         """Add a reminder.
-Usage:
 
+Usage:
     <command> at 10pm EST to <x>
     <command> in 30 sec/min/h/days to <x>
     <command> on wednesday to <x> (checks the current day in UTC)
+Note that the time and your reminder message have to be separated with "to".
 
 Reminders will appear in your DMs.
 Time is rounded down to the minute if seconds are not specified.
@@ -133,7 +134,9 @@ You can have a maximum of 5 reminders."""
             try:
                 # Separate time and reminder,
                 # also making sure that content is provided
-                when, content = re.split(' to ', time_and_reminder, flags=re.IGNORECASE)
+                when, content = [s.strip() for s in re.split(
+                    'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
+                )]
                 when = self.parse_datetime(when)
             except (ValueError, AttributeError):
                 return await ctx.send(
