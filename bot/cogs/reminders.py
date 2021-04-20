@@ -20,7 +20,7 @@ class Reminders(commands.Cog):
 
     DATEPARSER_SETTINGS = {
         'PREFER_DATES_FROM': 'future',
-        'RETURN_AS_TIMEZONE_AWARE': False,
+        'RETURN_AS_TIMEZONE_AWARE': True,
         'TIMEZONE': 'UTC',
     }
 
@@ -87,23 +87,24 @@ class Reminders(commands.Cog):
 
 
 
-    def parse_datetime(self, date_string):
+    async def parse_datetime(self, ctx, date_string: str):
         # Determine timezone
+        # Check string for timezone, then look in database, and fallback to UTC
         date_string, tz = dateparser.timezone_parser.pop_tz_offset_from_string(date_string)
+        tz: datetime.tzinfo = tz or await ctx.bot.dbusers.get_timezone(
+            ctx.author.id) or pytz.UTC
 
-        if tz is not None:
-            # Make times relative to the given timezone instead of UTC
-            settings = self.DATEPARSER_SETTINGS.copy()
-            settings['RELATIVE_BASE'] = pytz.UTC.localize(
-                datetime.datetime.utcnow()).astimezone(tz)
-        else:
-            settings = self.DATEPARSER_SETTINGS
+        # Make times relative to the timezone
+        settings = self.DATEPARSER_SETTINGS.copy()
+        now = pytz.UTC.localize(datetime.datetime.utcnow()).astimezone(tz)
+        settings['RELATIVE_BASE'] = now
+        settings['TIMEZONE'] = now.tzname()
 
+        # Parse
         dt = dateparser.parse(date_string, settings=settings)
 
-        if tz is not None:
-            # Offset back to UTC and make it timezone-naive
-            dt = dt.astimezone(pytz.UTC).replace(tzinfo=None)
+        # Offset back to UTC and make it timezone-naive
+        dt = dt.astimezone(pytz.UTC).replace(tzinfo=None)
 
         return dt
 
@@ -113,15 +114,17 @@ class Reminders(commands.Cog):
         aliases=['remindme'])
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_addreminder(self, ctx, *, time_and_reminder):
-        """Add a reminder.
+        """Add a reminder to be sent in your DMs.
 
 Usage:
     <command> at 10pm EST to <x>
     <command> in 30 sec/min/h/days to <x>
-    <command> on wednesday to <x> (checks the current day in UTC)
+    <command> on wednesday to <x>
 Note that the time and your reminder message have to be separated with "to".
+If you have not explicitly said a timezone in the command but you have
+provided the bot your timezone before with "timezone set", that timezone will
+be used instead of UTC.
 
-Reminders will appear in your DMs.
 Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
         await ctx.channel.trigger_typing()
@@ -137,7 +140,7 @@ You can have a maximum of 5 reminders."""
                 when, content = [s.strip() for s in re.split(
                     'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
                 )]
-                when = self.parse_datetime(when)
+                when = await self.parse_datetime(ctx, when)
             except (ValueError, AttributeError):
                 return await ctx.send(
                     'Could not understand your reminder request. Check this '
