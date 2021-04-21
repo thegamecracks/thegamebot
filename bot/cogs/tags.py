@@ -8,11 +8,9 @@ from bot.classes.confirmation import AdaptiveConfirmation
 from bot import errors, utils
 
 
-class TagNameConverter(commands.clean_content):
+class TagNameConverter(commands.Converter):
     """Ensure a tag name is suitable."""
     async def convert(self, ctx, arg):
-        arg = await super().convert(ctx, arg)
-
         first_word, *_ = arg.split(None, 1)
         command = ctx.bot.get_command('tag')
         if first_word in command.all_commands:
@@ -98,7 +96,7 @@ content: The content of the tag."""
 
         await ctx.bot.dbtags.delete_tag(ctx.guild.id, name)
 
-        await ctx.send(f'Deleted tag "{tag["name"]}".')
+        await ctx.send(f'Deleted the given tag.')
 
 
     @client_tag.command(name='edit')
@@ -169,15 +167,16 @@ content: The new content to use."""
     async def client_tag_leaderboard(self, ctx):
         """Get a list of the top tags used in this server."""
         db = ctx.bot.dbtags
-            async with conn.cursor() as c:
-                await c.execute(
         async with await db.connect() as conn:
+            async with conn.execute(
                     f'SELECT name, user_id, uses FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? ORDER BY uses DESC '
                     f'LIMIT {self.TAG_LEADERBOARD_MAX_DISPLAYED}',
-                    ctx.guild.id
-                )
+                    ctx.guild.id) as c:
                 rows = await c.fetchall()
+
+        if not rows:
+            return await ctx.send('This server currently has no tags.')
 
         description = [
             f"**{i:,}.** {r['name']} : <@{r['user_id']}> : {r['uses']:,}"
@@ -201,15 +200,16 @@ content: The new content to use."""
         user = user or ctx.author
 
         db = ctx.bot.dbtags
-            async with conn.cursor() as c:
-                await c.execute(
         async with await db.connect() as conn:
+            async with conn.execute(
                     f'SELECT name, uses FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? AND user_id = ? ORDER BY uses DESC '
                     f'LIMIT {self.TAG_BY_MAX_DISPLAYED}',
-                    ctx.guild.id, user.id
-                )
+                    ctx.guild.id, user.id) as c:
                 rows = await c.fetchall()
+
+        if not rows:
+            return await ctx.send('This server currently has no tags.')
 
         description = [f"**{i:,}.** {r['name']} : {r['uses']:,}"
                        for i, r in enumerate(rows, start=1)]
