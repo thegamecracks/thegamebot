@@ -50,11 +50,19 @@ class EventHandlers(commands.Cog):
         'on_resumed',
     )
 
-    COMMAND_ERROR_IGNORE_EXCEPTIONS = (commands.CommandNotFound,)
+    IGNORE_EXCEPTIONS = (commands.CommandNotFound,)
     # Prevents errors from being processed in this set of exceptions
-    COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
-    # Same as above except this prevents raising the error if the exception
-    # was not matched. Helpful for ignoring superclasses of exceptions.
+    IGNORE_PRINTING_EXCEPTIONS = (
+        commands.CheckFailure,
+        commands.CommandOnCooldown,
+        commands.DisabledCommand,
+        commands.MaxConcurrencyReached,
+        commands.UserInputError,
+    )
+    # Prevents printing simplified command errors.
+    IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
+    # Prevents raising the error if the exception was not matched.
+    # Helpful for ignoring superclasses of exceptions.
 
     COOLDOWN_DESCRIPTIONS = {
         commands.BucketType.default: 'Too many people have used this command '
@@ -216,7 +224,7 @@ class EventHandlers(commands.Cog):
 
     async def on_command_error(self, ctx, error):
         error_unpacked = getattr(error, 'original', error)
-        if isinstance(error, self.COMMAND_ERROR_IGNORE_EXCEPTIONS):
+        if isinstance(error, self.IGNORE_EXCEPTIONS):
             return
         elif isinstance(error_unpacked, self.ERRORS_TO_LIMIT):
             if self.command_error_limiter.check_user(ctx, error_unpacked):
@@ -224,12 +232,13 @@ class EventHandlers(commands.Cog):
                 return
 
         # Print error
-        print(
-            'Command error ({}:{}:"{}")\n  {}: {}'.format(
-                f'{ctx.guild}:{ctx.channel}' if ctx.guild else '<DM>',
-                ctx.author, ctx.invoked_with, type(error).__name__, error
+        if not isinstance(error, self.IGNORE_PRINTING_EXCEPTIONS):
+            print(
+                'Command error ({}:{}:"{}")\n  {}: {}'.format(
+                    f'{ctx.guild}:{ctx.channel}' if ctx.guild else '<DM>',
+                    ctx.author, ctx.invoked_with, type(error).__name__, error
+                )
             )
-        )
 
         # Error message functions
         def convert_perms_to_english(perms):
@@ -468,7 +477,7 @@ class EventHandlers(commands.Cog):
                            'disabled for this server.')
         elif isinstance(error_unpacked, errors.SettingsNotFound):
             await ctx.send('Fatal error: settings could not be loaded.')
-        elif not isinstance(error, self.COMMAND_ERROR_IGNORE_EXCEPTIONS_AFTER):
+        elif not isinstance(error, self.IGNORE_EXCEPTIONS_AFTER):
             raise error
 
 

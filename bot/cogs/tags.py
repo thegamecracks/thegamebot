@@ -35,7 +35,9 @@ class Tags(commands.Cog):
 
 
     def cog_check(self, ctx):
-        return ctx.guild is not None
+        if ctx.guild is None:
+            raise commands.NoPrivateMessage()
+        return True
 
 
 
