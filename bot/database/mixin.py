@@ -3,6 +3,7 @@ import asqlite
 from discord.ext import commands
 
 from .currencydatabase import CurrencyDatabase
+from .database import ConnectionPool
 from .gamedatabase import GameDatabase
 from .guilddatabase import GuildDatabase
 from .irishdatabase import IrishDatabase
@@ -25,6 +26,7 @@ class BotDatabaseMixin(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.dbpool = ConnectionPool()
         self.dbcurrency = CurrencyDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbgames = GameDatabase(self, self.DATABASE_MAIN_PATH)
         self.dbguilds = GuildDatabase(self, self.DATABASE_MAIN_PATH)

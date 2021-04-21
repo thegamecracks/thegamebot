@@ -1,78 +1,85 @@
 import asyncio
+import dataclasses
 import os.path
 from typing import Tuple
 
 import asqlite
 
 
-class AsyncConnection:
-    """An outer context manager for an asqlite Connection.
+@dataclasses.dataclass(eq=False, frozen=True)
+class Connector:
+    """An object providing a context manager for acquiring
+    and releasing the lock to the underlying connection.
+    Returned by ConnectionPool.get_connector().
 
-    This does NOT support using nested with-statements with the same object.
-
-    When using connection locks with `writing=True`, be careful not
-    to attempt making nested connections to the same database,
-    which would otherwise result in a deadlock:
-        >>> async with AsyncConnection('db', writing=True) as conn1:
-        ...     async with AsyncConnection('db', writing=True) as conn2:
-        ...         pass  # deadlock
-
-    Args:
-        path (str): The path to the database.
-        script (Optional[str]):
-            A script to execute upon entering the connection.
-            Exceptions that occur will be propagated.
-        writing (bool): If True, uses a lock for connections
-            with the same path so that only one writing connection
-            can be running at once. This prevents the error
-            `sqlite3.OperationalError: database is locked`
-            from occurring when a writing connection is blocked
-            for over 5 seconds.
+    Usage:
+        >>> pool = ConnectionPool()
+        >>> async with await pool.get_connector('foo.db', writing=True) as conn:
+        ...      await conn.execute('CREATE TABLE ...')
 
     """
-    __slots__ = ('_conn', 'conn', 'path', 'script', 'writing')
+    __slots__ = ('conn', 'lock', 'writing')
 
-    _write_locks = {}  # path: Lock
-    # NOTE: this can grow indefinitely
+    conn: asqlite.Connection
+    lock: asyncio.Lock
+    writing: bool
 
-    def __init__(self, path, script=None, *, writing=False):
-        self.path = path
-        self.script = script
-        self.writing = writing
-        self._conn = self.conn = None
-
-    def __repr__(self):
-        return '{0.__class__.__name__}({0.path})'
-
-    def _get_write_lock(self):
-        path = os.path.abspath(self.path)
-        lock = self._write_locks.get(path)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._write_locks[path] = lock
-        return lock
+    # def __await__(self):
+    #     if self.writing:
+    #         raise ValueError('Cannot directly access a writing connection')
+    #     yield self.conn
 
     async def __aenter__(self) -> asqlite.Connection:
         if self.writing:
-            await self._get_write_lock().acquire()
-
-        self._conn = asqlite.connect(self.path)
-        self.conn = await self._conn.__aenter__()
-
-        if self.script:
-            try:
-                await self.conn.executescript(self.script)
-            except Exception as e:
-                await self.__aexit__(type(e), e, e.__traceback__)
-                raise
+            await self.lock.acquire()
 
         return self.conn
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._conn.__aexit__(exc_type, exc_val, exc_tb)
-        self._conn = self.conn = None
         if self.writing:
-            self._get_write_lock().release()
+            self.lock.release()
+
+
+class ConnectionPool:
+    """A pool of connections to different databases.
+
+    Once entered, use the get_connector() method to obtain Connector objects.
+    Usage:
+        >>> pool = ConnectionPool()
+        >>> async with await pool.get_connector('foo.db', writing=True) as conn:
+        ...      await conn.execute('CREATE TABLE ...')
+    """
+    __slots__ = ('_connections', '_running')
+
+    def __init__(self):
+        self._connections = {}
+        self._running = False
+
+    async def get_connector(self, path, *, writing: bool) -> Connector:
+        if not self._running:
+            raise RuntimeError('Cannot connect when pool is closed')
+
+        path = os.path.abspath(path)
+
+        conn_lock = self._connections.get(path)
+        if conn_lock is None:
+            conn_lock = (
+                await asqlite.connect(path),
+                asyncio.Lock()
+            )
+            self._connections[path] = conn_lock
+
+        return Connector(*conn_lock, writing=writing)
+
+    async def __aenter__(self):
+        self._running = True
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        for conn, lock in self._connections.values():
+            await conn.close()
+        self._connections.clear()
+        self._running = False
 
 
 class Database:
@@ -100,9 +107,19 @@ class Database:
     def __repr__(self):
         return '{}({!r})'.format(self.__class__.__name__, self.path)
 
-    def connect(self, *, writing=False):
-        """Create an AsyncConnection context manager."""
-        return AsyncConnection(self.path, writing=writing)
+    async def connect(self, *, writing=False) -> Connector:
+        """Create a connection to the database.
+        This requires the bot's connection pool to be running.
+
+        Usage:
+            >>> async with await database.connect() as conn:
+            ...     await conn.execute(...)
+
+        Raises:
+            RuntimeError: The connection pool is closed.
+
+        """
+        return await self.bot.dbpool.get_connector(self.path, writing=writing)
 
     async def setup_table(self, conn):
         await conn.executescript(self.TABLE_SETUP)
@@ -120,7 +137,7 @@ class Database:
 
         """
         keys, placeholders, values = self.placeholder_insert(row)
-        async with self.connect(writing=True) as conn:
+        async with await self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
                 await c.execute(
                     f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
@@ -146,7 +163,7 @@ class Database:
         """
         keys, values = self.escape_row(where, ' AND ')
         rows = None
-        async with self.connect(writing=True) as conn:
+        async with await self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
                 if pop:
                     await c.execute(f'SELECT * FROM {table} WHERE {keys}', *values)
@@ -172,7 +189,7 @@ class Database:
         query, values = self._get_rows_query(
             table, *columns, where=where, one=one)
 
-        async with self.connect() as conn:
+        async with await self.connect() as conn:
             async with conn.cursor() as c:
                 await c.execute(query, *values)
                 if one:
@@ -239,7 +256,7 @@ class Database:
         where_keys, where_values = self.escape_row(where, ' AND ')
         rows = None
 
-        async with self.connect(writing=True) as conn:
+        async with await self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
                 if pop:
                     await c.execute(
@@ -273,14 +290,14 @@ class Database:
         """
         query, values = self._get_rows_query(table, *columns, where=where)
 
-        async with self.connect() as conn:
+        async with await self.connect() as conn:
             async with conn.execute(query, *values) as c:
                 while row := await c.fetchone():
                     yield row
 
     async def vacuum(self):
         """Vacuum the database."""
-        async with self.connect() as conn:
+        async with await self.connect() as conn:
             await conn.execute('VACUUM')
 
     @staticmethod

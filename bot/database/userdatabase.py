@@ -60,7 +60,7 @@ class UserDatabase(db.Database):
         """
         user_id = int(user_id)
 
-        async with self.connect() as conn:
+        async with await self.connect() as conn:
             async with conn.execute(
                     f'SELECT timezone FROM {self.TABLE_NAME} WHERE id=?',
                     user_id) as c:

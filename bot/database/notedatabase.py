@@ -64,7 +64,7 @@ class NoteDatabase(db.Database):
             note_ids = [(int(n),) for n in note_ids]
 
         rows = None
-        async with self.connect(writing=True) as conn:
+        async with await self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
                 if pop:
                     await c.execute(

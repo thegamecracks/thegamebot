@@ -169,9 +169,9 @@ content: The new content to use."""
     async def client_tag_leaderboard(self, ctx):
         """Get a list of the top tags used in this server."""
         db = ctx.bot.dbtags
-        async with db.connect() as conn:
             async with conn.cursor() as c:
                 await c.execute(
+        async with await db.connect() as conn:
                     f'SELECT name, user_id, uses FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? ORDER BY uses DESC '
                     f'LIMIT {self.TAG_LEADERBOARD_MAX_DISPLAYED}',
@@ -201,9 +201,9 @@ content: The new content to use."""
         user = user or ctx.author
 
         db = ctx.bot.dbtags
-        async with db.connect() as conn:
             async with conn.cursor() as c:
                 await c.execute(
+        async with await db.connect() as conn:
                     f'SELECT name, uses FROM {db.TABLE_NAME} '
                     'WHERE guild_id = ? AND user_id = ? ORDER BY uses DESC '
                     f'LIMIT {self.TAG_BY_MAX_DISPLAYED}',

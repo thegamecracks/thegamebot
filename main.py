@@ -122,16 +122,17 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
     async def start(self, *args, **kwargs):
         logger = discordlogger.get_logger()
         print('Starting bot')
-        try:
-            async with contextlib.AsyncExitStack() as stack:
-                await stack.enter_async_context(self.session)
+        async with contextlib.AsyncExitStack() as stack:
+            await stack.enter_async_context(self.dbpool)
+            await stack.enter_async_context(self.session)
+            try:
                 await super().start(*args, **kwargs)
-        except KeyboardInterrupt:
-            logger.info('KeyboardInterrupt: closing bot')
-        except Exception:
-            logger.exception('Exception raised in bot')
-        finally:
-            await self.close()
+            except KeyboardInterrupt:
+                logger.info('KeyboardInterrupt: closing bot')
+            except Exception:
+                logger.exception('Exception raised in bot')
+            finally:
+                await self.close()
 
     async def try_user(self, id):
         return self.get_user(id) or await self.fetch_user(id)
