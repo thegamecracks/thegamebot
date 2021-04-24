@@ -41,7 +41,7 @@ class Tags(commands.Cog):
 
 
 
-    @commands.group(name='tag', invoke_without_command=True)
+    @commands.group(name='tag', aliases=('tags',), invoke_without_command=True)
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_tag(self, ctx, *, name: TagNameConverter):
         """Show a tag."""
@@ -128,6 +128,9 @@ content: The new content to use."""
         if tag is None:
             return await ctx.send('That tag does not exist!')
 
+        created_at = datetime.datetime.fromisoformat(tag['created_at'])
+        created_at = await ctx.bot.localize_datetime(ctx.author.id, created_at)
+
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot),
             title=tag['name']
@@ -139,19 +142,16 @@ content: The new content to use."""
             value=format(tag['uses'], ',')
         ).add_field(
             name='Time of Creation',
-            value='{}'.format(
-                datetime.datetime.fromisoformat(
-                    tag['created_at']
-                ).strftime('%Y/%m/%d %a %X UTC')
-            ),
+            value=created_at.strftime('%c %Z (%z)'),
             inline=False
         )
         if tag['edited_at'] is not None:
+            edited_at = datetime.datetime.fromisoformat(tag['created_at'])
+            edited_at = await ctx.bot.localize_datetime(
+                ctx.author.id, edited_at)
             embed.add_field(
                 name='Last Edited',
-                value=datetime.datetime.fromisoformat(
-                    tag['created_at']
-                ).strftime('%Y/%m/%d %a %X UTC'),
+                value=edited_at.strftime('%c %Z (%z)'),
                 inline=False
             )
         embed.set_footer(

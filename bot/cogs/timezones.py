@@ -92,9 +92,9 @@ class Timezones(commands.Cog):
 
         # Try adding user entry
         db = self.bot.dbusers
-        rowid = await db.add_user(user_id, timezone=timezone)
+        success = await db.add_user(user_id, timezone=timezone)
 
-        if rowid is None:
+        if not success:
             # Update user entry
             await db.update_rows(
                 db.TABLE_NAME,

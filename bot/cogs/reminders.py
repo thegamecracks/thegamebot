@@ -401,10 +401,16 @@ To remove only one reminder, use the removereminder command."""
             remove_task()
             return
 
+        when = await self.bot.localize_datetime(
+            user.id,
+            utcwhen
+        )
+        when_str = when.strftime('%c %Z')
+
         if seconds == 0:
-            title = f'Late reminder for {utcwhen.strftime("%c UTC")}'
+            title = f'Late reminder for {when_str}'
         else:
-            title = f'Reminder for {utcwhen.strftime("%c UTC")}'
+            title = f'Reminder for {when_str}'
         embed = discord.Embed(
             title=title,
             description=content,

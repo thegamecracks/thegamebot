@@ -54,13 +54,11 @@ async def get_reaction(client, message, reactions=None,
             pending_tasks, return_when=asyncio.FIRST_COMPLETED,
             timeout=timeout
         )
-        result = completed_tasks.pop().result()
+        return completed_tasks.pop().result()
     except KeyError:
         # Timed out!
         raise asyncio.TimeoutError(
             'Timed out while waiting for reaction change')
-    else:
-        return result
     finally:
         for task in pending_tasks:
             task.cancel()

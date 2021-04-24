@@ -59,8 +59,7 @@ class Informative(commands.Cog):
 
 
 
-    @commands.command(
-        name='about', aliases=['info'])
+    @commands.command(name='about', aliases=('info',))
     @commands.cooldown(3, 60, commands.BucketType.guild)
     @commands.max_concurrency(3, wait=True)
     async def client_aboutbot(self, ctx, *args):
@@ -83,12 +82,14 @@ Optional settings:
         version_python = f'{vp.major}.{vp.minor}.{vp.micro}'
 
         start_time = datetime.datetime.fromtimestamp(
-            self.process.create_time()).astimezone().astimezone(pytz.utc)
+            self.process.create_time()).astimezone()
+        start_time = await ctx.bot.localize_datetime(ctx.author.id, start_time)
+        start_time = start_time.strftime('%Y/%m/%d %X %Z (%z)')
 
         await ctx.trigger_typing()
 
         field_statistics = [
-            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}"
+            f"Bot started at: {start_time}"
         ]
 
         if self.bot.intents.members:
@@ -114,7 +115,9 @@ Optional settings:
             # Add system information
             p = self.process
             with p.oneshot():
-                mem_usage = p.memory_full_info().uss
+                memory_info = p.memory_full_info()
+                mem_phys = humanize.naturalsize(memory_info.uss)
+                mem_virt = humanize.naturalsize(memory_info.vms)
                 num_threads = p.num_threads()
                 num_handles = p.num_handles()
                 cpu = p.cpu_percent(interval=0.1)
@@ -128,7 +131,7 @@ Optional settings:
             field_statistics.extend((
                 f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds',
                 f'> CPU usage: {cpu:.3g}%',
-                f'> Memory usage: {humanize.naturalsize(mem_usage)}',
+                f'> Memory usage: {mem_phys} (virtual: {mem_virt})',
                 f'> Threads: {num_threads}',
                 f'> Handles: {num_handles}'
             ))
@@ -429,8 +432,7 @@ and purges outdated messages daily. No user info or message content is stored.""
 
 
 
-    @commands.command(
-        name='serverinfo')
+    @commands.command(name='serverinfo')
     @commands.guild_only()
     @commands.cooldown(1, 15, commands.BucketType.channel)
     async def client_serverinfo(self, ctx, streamer_friendly: bool = True):
@@ -450,7 +452,10 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            guild.created_at.strftime('%Y/%m/%d %a %X UTC')
+            (await ctx.bot.localize_datetime(
+                ctx.author.id,
+                guild.created_at
+            )).strftime('%c %Z (%z)')
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -516,8 +521,7 @@ Format referenced from the Ayana bot."""
 
 
 
-    @commands.command(
-        name='uptime')
+    @commands.command(name='uptime')
     @commands.cooldown(2, 20, commands.BucketType.user)
     async def client_uptime(self, ctx):
         """Get the uptime of the bot."""
@@ -528,12 +532,13 @@ Format referenced from the Ayana bot."""
         )
         diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
-        utc = self.bot.uptime_last_connect.astimezone(datetime.timezone.utc)
-        date_string = utc.strftime('%Y/%m/%d %a %X UTC')
+        uptime = await ctx.bot.localize_datetime(
+            ctx.author.id, ctx.bot.uptime_last_connect)
+        uptime_string = uptime.strftime('%c %Z (%z)')
 
         await ctx.send(embed=discord.Embed(
             title='Uptime',
-            description=f'{diff_string}\n({date_string})',
+            description=f'{diff_string}\n({uptime_string})',
             color=utils.get_bot_color(ctx.bot)
         ))
 
@@ -541,8 +546,7 @@ Format referenced from the Ayana bot."""
 
 
 
-    @commands.command(
-        name='userinfo')
+    @commands.command(name='userinfo')
     @commands.cooldown(3, 20, commands.BucketType.user)
     async def client_userinfo(self, ctx,
                               streamer_friendly: Optional[bool] = True,
@@ -597,7 +601,10 @@ Format referenced from the Ayana bot."""
                     **self.DATETIME_DIFFERENCE_PRECISION,
                     inflector=ctx.bot.inflector
                 ),
-                user.joined_at.strftime('%Y/%m/%d %a %X UTC')
+                (await ctx.bot.localize_datetime(
+                    ctx.author.id,
+                    user.joined_at
+                )).strftime('%c %Z (%z)')
             )
             nickname = user.nick
             roles = user.roles
@@ -637,7 +644,10 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            user.created_at.strftime('%Y/%m/%d %a %X UTC')
+            (await ctx.bot.localize_datetime(
+                ctx.author.id,
+                user.created_at
+            )).strftime('%c %Z (%z)')
         )
 
         embed = discord.Embed(

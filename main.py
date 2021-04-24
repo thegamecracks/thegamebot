@@ -14,6 +14,7 @@ import inflect
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
+import pytz
 
 from bot import checks
 from bot.database import BotDatabaseMixin
@@ -95,13 +96,32 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
     def get_cog(self, name):
         cog = super().get_cog(name)
-        if cog is None and name == 'Settings':
+        if cog is None and name.lower() == 'settings':
             raise errors.SettingsNotFound()
         return cog
 
     async def is_owner(self, user):
         return (await super().is_owner(user)
                 or user.id in self.get_cog('Settings').get('owner_ids'))
+
+    async def localize_datetime(self, user_id, dt):
+        """Localize a datetime to the user's region from the database,
+        if they have one assigned.
+
+        The datetime can be either naive or aware;
+        the former is assumed to be in UTC.
+
+        Always returns an aware timezone.
+        """
+        # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
+        timezone = await self.dbusers.get_timezone(user_id)
+
+        if dt.tzinfo is None:
+            dt = pytz.UTC.localize(dt)
+        if timezone is not None:
+            dt = dt.astimezone(timezone)
+
+        return dt
 
     async def restart(self):
         """Create a file named RESTART and logout.
