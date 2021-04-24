@@ -14,7 +14,6 @@ from discord_slash import SlashContext
 import discord_slash as dslash
 import humanize
 import psutil
-import pytz
 
 from bot import converters, utils
 
@@ -84,7 +83,7 @@ Optional settings:
         start_time = datetime.datetime.fromtimestamp(
             self.process.create_time()).astimezone()
         start_time = await ctx.bot.localize_datetime(ctx.author.id, start_time)
-        start_time = start_time.strftime('%Y/%m/%d %X %Z (%z)')
+        start_time = utils.strftime_zone(start_time)
 
         await ctx.trigger_typing()
 
@@ -452,10 +451,10 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            (await ctx.bot.localize_datetime(
-                ctx.author.id,
-                guild.created_at
-            )).strftime('%c %Z (%z)')
+            utils.strftime_zone(
+                await ctx.bot.localize_datetime(
+                    ctx.author.id, guild.created_at)
+            )
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -492,7 +491,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Time of Server Creation',
-            value=f'{created[0]} ago ({created[1]})',
+            value=f'{created[0]} ago\n({created[1]})',
             inline=False
         )
         embed.add_field(
@@ -534,7 +533,7 @@ Format referenced from the Ayana bot."""
 
         uptime = await ctx.bot.localize_datetime(
             ctx.author.id, ctx.bot.uptime_last_connect)
-        uptime_string = uptime.strftime('%c %Z (%z)')
+        uptime_string = utils.strftime_zone(uptime)
 
         await ctx.send(embed=discord.Embed(
             title='Uptime',
@@ -601,10 +600,10 @@ Format referenced from the Ayana bot."""
                     **self.DATETIME_DIFFERENCE_PRECISION,
                     inflector=ctx.bot.inflector
                 ),
-                (await ctx.bot.localize_datetime(
-                    ctx.author.id,
-                    user.joined_at
-                )).strftime('%c %Z (%z)')
+                utils.strftime_zone(
+                    await ctx.bot.localize_datetime(
+                        ctx.author.id, user.joined_at)
+                )
             )
             nickname = user.nick
             roles = user.roles
@@ -644,10 +643,10 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            (await ctx.bot.localize_datetime(
-                ctx.author.id,
-                user.created_at
-            )).strftime('%c %Z (%z)')
+            utils.strftime_zone(
+                await ctx.bot.localize_datetime(
+                    ctx.author.id, user.created_at)
+            )
         )
 
         embed = discord.Embed(
@@ -686,12 +685,12 @@ Format referenced from the Ayana bot."""
                 joined_name = 'Time of Server Join'
             embed.add_field(
                 name=joined_name,
-                value=f'{joined[0]} ago ({joined[1]})',
+                value=f'{joined[0]} ago\n({joined[1]})',
                 inline=False
             )
         embed.add_field(
             name='Time of User Creation',
-            value=f'{created[0]} ago ({created[1]})',
+            value=f'{created[0]} ago\n({created[1]})',
             inline=False
         )
         if status is not None:

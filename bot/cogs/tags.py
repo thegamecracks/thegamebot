@@ -142,7 +142,7 @@ content: The new content to use."""
             value=format(tag['uses'], ',')
         ).add_field(
             name='Time of Creation',
-            value=created_at.strftime('%c %Z (%z)'),
+            value=utils.strftime_zone(created_at),
             inline=False
         )
         if tag['edited_at'] is not None:
@@ -151,7 +151,7 @@ content: The new content to use."""
                 ctx.author.id, edited_at)
             embed.add_field(
                 name='Last Edited',
-                value=edited_at.strftime('%c %Z (%z)'),
+                value=utils.strftime_zone(edited_at),
                 inline=False
             )
         embed.set_footer(

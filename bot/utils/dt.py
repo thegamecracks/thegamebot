@@ -1,34 +1,49 @@
 import inflect
 
 
+def strftime_zone(dt, naive='%c', aware='%c %Z (%z)', aware_utc='%c %Z') -> str:
+    """A shorthand for turning a datetime into a string,
+    including timezone information.
+
+    Args:
+        dt (datetime.datetime): The datetime to format.
+        naive (str): The format to use when the datetime is timezone-naive.
+        aware (str): The format to use when the datetime is timezone-aware.
+        aware_utc (str): The format to use when the datetime is localized
+
+    Returns:
+        str
+
+    """
+    utcoffset = dt.utcoffset()
+    if utcoffset is None:
+        return dt.strftime(naive)
+    elif utcoffset:
+        return dt.strftime(aware)
+    return dt.strftime(aware_utc)
+
+
 def timedelta_string(
         diff,
         years=True, months=True, weeks=True, days=True,
         hours=True, minutes=True, seconds=True,
-        inflector=None):
-    """Return a string representation of a timedelta.
+        capitalize=False, inflector=None):
+    """Return a string representation of a relativedelta.
 
     Can show years, months, weeks, day, hours, and minutes.
 
     """
-    def s(n):
-        return 's' if n != 1 else ''
+    units = ('years', 'months', 'weeks', 'days', 'hours', 'minutes', 'seconds')
 
     inflector = inflector or inflect.engine()
 
     message = []
-    if diff.years and years:
-        message.append(f"{diff.years:,} Year{s(diff.years)}")
-    if diff.months and months:
-        message.append(f"{diff.months:,} Month{s(diff.months)}")
-    if diff.weeks and weeks:
-        message.append(f"{diff.weeks:,} Week{s(diff.weeks)}")
-    if diff.days and days:
-        message.append(f"{diff.days:,} Day{s(diff.days)}")
-    if diff.hours and hours:
-        message.append(f"{diff.hours:,} Hour{s(diff.hours)}")
-    if diff.minutes and minutes:
-        message.append(f"{diff.minutes:,} Minute{s(diff.minutes)}")
-    if diff.seconds and seconds:
-        message.append(f"{diff.seconds:,} Second{s(diff.seconds)}")
-    return inflector.join(message)
+    for u in units:
+        n = getattr(diff, u)
+        if n and locals()[u]:
+            message.append('{:,} {}'.format(
+                n,
+                u[:-1] if n == 1 else u
+            ))
+
+    return inflector.inflect(inflector.join(message))
