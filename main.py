@@ -104,7 +104,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         return (await super().is_owner(user)
                 or user.id in self.get_cog('Settings').get('owner_ids'))
 
-    async def localize_datetime(self, user_id, dt):
+    async def localize_datetime(self, user_id, dt, prefer_utc=True):
         """Localize a datetime to the user's region from the database,
         if they have one assigned.
 
@@ -112,12 +112,27 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         the former is assumed to be in UTC.
 
         Always returns an aware timezone.
+
+        Args:
+            user_id (int): The ID of the user to localize the datetime to.
+            dt (datetime.datetime): The datetime to localize.
+            prefer_utc (bool): If the datetime has a timezone,
+                localize to UTC first before going to their timezone.
+                This results in datetimes always being UTC if the user
+                does not have a timezone set.
+
+        Returns:
+            datetime.datetime
+
         """
         # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
         timezone = await self.dbusers.get_timezone(user_id)
 
         if dt.tzinfo is None:
             dt = pytz.UTC.localize(dt)
+        elif prefer_utc:
+            dt = dt.astimezone(pytz.UTC)
+
         if timezone is not None:
             dt = dt.astimezone(timezone)
 
