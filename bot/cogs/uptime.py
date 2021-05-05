@@ -72,8 +72,9 @@ class Uptime(commands.Cog):
     @commands.Cog.listener()
     async def on_disconnect(self):
         """Used for uptime tracking."""
-        self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
-        self.bot.uptime_is_online = False
+        if self.bot.uptime_is_online:
+            self.bot.uptime_last_disconnect = datetime.datetime.now().astimezone()
+            self.bot.uptime_is_online = False
 
 
     @commands.Cog.listener()
