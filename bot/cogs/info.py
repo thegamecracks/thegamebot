@@ -1,6 +1,7 @@
 import collections
 import datetime
 import io
+import itertools
 import random
 import sys
 import time
@@ -314,9 +315,9 @@ This only counts channels that both you and the bot can see."""
         bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
         day, hour = 86400, 3600
         bins = day // hour * 6
+        fig, ax = plt.subplots()
 
         # Plot messages
-        fig, ax = plt.subplots()
         N, bins, patches = ax.hist(
             messages, bins=bins, cumulative=-1 if cumulative else False)
 
@@ -337,9 +338,15 @@ This only counts channels that both you and the bot can see."""
         # Force yaxis integer ticks
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
+        # Add grid 
+        ax.set_axisbelow(True)
+        ax.grid(color='#707070', alpha=0.4)
+        
+
         # Set colors and add shadow to labels
-        for item in ([ax.title, ax.xaxis.label, ax.yaxis.label]
-                     + ax.get_xticklabels() + ax.get_yticklabels()):
+        for item in itertools.chain(
+                (ax.title, ax.xaxis.label, ax.yaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels()):
             item.set_color(bot_color)
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(

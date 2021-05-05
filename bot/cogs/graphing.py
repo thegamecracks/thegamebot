@@ -4,6 +4,7 @@ import contextlib
 import decimal
 import functools
 import io
+import itertools
 ##import multiprocessing
 from pathlib import Path
 import random
@@ -288,12 +289,10 @@ or the last message that was sent."""
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
         # Set colors and add shadow to labels
-        labels = (
-            [ax.title, ax.xaxis.label, ax.yaxis.label]
-            + ax.get_legend().get_texts() + ax.get_xticklabels()
-            + ax.get_yticklabels()
-        )
-        for item in labels:
+        for item in itertools.chain(
+                (ax.title, ax.xaxis.label, ax.yaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels(),
+                ax.get_legend().get_texts()):
             item.set_color(bot_color)
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
@@ -411,8 +410,9 @@ periods: The number of compounding periods in each term."""
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
         # Set colors and add shadow to labels
-        for item in ([ax.title, ax.xaxis.label, ax.yaxis.label]
-                     + ax.get_xticklabels() + ax.get_yticklabels()):
+        for item in itertools.chain(
+                (ax.title, ax.xaxis.label, ax.yaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels()):
             item.set_color(bot_color)
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
@@ -647,9 +647,10 @@ To see the different methods you can use to provide text, check the help message
         ax.set_yticks(yticks)
 
         # Set colors
-        for item in ([ax.xaxis.label, ax.yaxis.label, ax.zaxis.label]
-                     + ax.get_xticklabels() + ax.get_yticklabels()
-                     + ax.get_zticklabels()):
+        for item in itertools.chain(
+                (ax.xaxis.label, ax.yaxis.label, ax.zaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels(),
+                ax.get_zticklabels()):
             item.set_color(bot_color)
 
         # Set spine and pane colors
