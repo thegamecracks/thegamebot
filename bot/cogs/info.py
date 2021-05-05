@@ -1,7 +1,8 @@
 import collections
 import datetime
-import sys
+import io
 import random
+import sys
 import time
 from typing import Optional
 
@@ -13,6 +14,10 @@ from discord_slash import cog_ext as dslash_cog
 from discord_slash import SlashContext
 import discord_slash as dslash
 import humanize
+import matplotlib
+import matplotlib.patheffects as path_effects
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import psutil
 
 from bot import converters, utils
@@ -291,14 +296,86 @@ This only counts channels that both you and the bot can see."""
 
 
 
+    def message_count_graph(self, cog, messages, cumulative=False):
+        """Generate a histogram of when messages were sent.
+        Assumes all messages were sent in the last day.
+
+        Args:
+            cog (commands.Cog): The Graphing cog.
+            messages (List[float]): A list of times in seconds since now
+                for each message that was sent.
+            cumulative (bool): Accumulate message counts in the histogram.
+
+        """
+        def in_hours(seconds, pos):
+            return seconds // hour
+
+        # Constants
+        bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
+        day, hour = 86400, 3600
+        bins = day // hour * 6
+
+        # Plot messages
+        fig, ax = plt.subplots()
+        N, bins, patches = ax.hist(
+            messages, bins=bins, cumulative=-1 if cumulative else False)
+
+        # Color each bar
+        for patch in patches:
+            patch.set_facecolor('#54f360')
+
+        # Add labels
+        ax.set_title('Message Count Graph')
+        ax.set_xlabel('# hours ago')
+        ax.set_ylabel('# messages')
+
+        # Set ticks and formatting
+        ax.set_xticks(range(0, day + 1, hour * 6))
+        ax.xaxis.set_major_formatter(in_hours)
+        ax.invert_xaxis()
+
+        # Force yaxis integer ticks
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+        # Set colors and add shadow to labels
+        for item in ([ax.title, ax.xaxis.label, ax.yaxis.label]
+                     + ax.get_xticklabels() + ax.get_yticklabels()):
+            item.set_color(bot_color)
+            item.set_path_effects([
+                path_effects.withSimplePatchShadow(
+                    offset=(1, -1),
+                    alpha=cog.TEXT_SHADOW_ALPHA
+                )
+            ])
+
+        # Color the spines and ticks
+        for spine in ax.spines.values():
+            spine.set_color(bot_color)
+        ax.tick_params(colors=bot_color)
+
+        # Make background fully transparent
+        fig.patch.set_facecolor('#00000000')
+
+        f = io.BytesIO()
+        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
+        # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
+
+        plt.close(fig)
+        return f
+
+
     @commands.command(name='messagecount')
     @commands.guild_only()
-    @commands.cooldown(2, 10, commands.BucketType.channel)
-    async def client_messagecount(self, ctx):
+    @commands.cooldown(3, 120, commands.BucketType.channel)
+    @commands.max_concurrency(3, wait=True)
+    async def client_messagecount(self, ctx, cumulative: bool = False):
         """Get the number of messages sent in the server within one day.
 
 This command only records the server ID and timestamps of messages,
-and purges outdated messages daily. No user info or message content is stored."""
+and purges outdated messages daily. No user info or message content is stored.
+
+cumulative: When graphing, makes the number of messages cumulative."""
         yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 
         cog = self.bot.get_cog('MessageTracker')
@@ -306,12 +383,21 @@ and purges outdated messages daily. No user info or message content is stored.""
             return await ctx.send(
                 'The bot is currently not tracking message frequency.')
 
+        await ctx.trigger_typing()
+
+        now = datetime.datetime.utcnow().timestamp()
         async with cog.connect() as conn:
             async with conn.execute(
-                    'SELECT COUNT(*) AS total FROM Messages '
+                    'SELECT created_at FROM Messages '
                     'WHERE guild_id = ? AND created_at > ?',
                     ctx.guild.id, yesterday) as c:
-                count = (await c.fetchone())['total']
+                messages = []
+                while m := await c.fetchone():
+                    dt = datetime.datetime.fromisoformat(m['created_at'])
+                    td = now - dt.timestamp()
+                    messages.append(td)
+
+        count = len(messages)
 
         plural = ctx.bot.inflector.plural
 
@@ -326,7 +412,18 @@ and purges outdated messages daily. No user info or message content is stored.""
             icon_url=ctx.author.avatar_url
         )
 
-        await ctx.send(embed=embed)
+        graph = None
+        graphing_cog = ctx.bot.get_cog('Graphing')
+        if count and graphing_cog:
+            # Generate graph
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.message_count_graph,
+                graphing_cog, messages, cumulative
+            )
+            graph = discord.File(f, filename='graph.png')
+            embed.set_image(url='attachment://graph.png')
+
+        await ctx.send(file=graph, embed=embed)
 
 
 
@@ -742,7 +839,4 @@ Format referenced from the Ayana bot."""
 
 
 def setup(bot):
-    info = Informative(bot)
-    # Categorize help command in info
-    bot.help_command.cog = info
-    bot.add_cog(info)
+    bot.add_cog(Informative(bot))
