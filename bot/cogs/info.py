@@ -16,7 +16,6 @@ from discord_slash import SlashContext
 import discord_slash as dslash
 import humanize
 import matplotlib
-import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import psutil
@@ -316,11 +315,12 @@ This only counts channels that both you and the bot can see."""
         day, hour = 86400, 3600
         bins_per_hour = 3
         n_bins = 24 * bins_per_hour
+        bin_edges = range(0, day + 1, day // n_bins)
         fig, ax = plt.subplots()
 
         # Plot messages
         N, bins, patches = ax.hist(
-            messages, bins=n_bins, cumulative=-cumulative)
+            messages, bins=bin_edges, cumulative=-cumulative)
 
         # Color each bar
         colors = plt.cm.hsv([0.4 - 0.15 * i / 23 for i in range(24)])
@@ -381,11 +381,9 @@ This only counts channels that both you and the bot can see."""
 
 This command only records the server ID and timestamps of messages,
 and purges outdated messages daily. No user info or message content is stored.
-A histogram is also generated when 100 messages are more have been sent.
-NOTE: this graph may not be rendered properly if messages have not been
-spread out significantly.
+A time series graph is generated along with this.
 
-cumulative: When graphing, makes the number of messages cumulative."""
+cumulative: If true, makes the number of messages cumulative when graphing."""
         yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 
         cog = self.bot.get_cog('MessageTracker')
@@ -424,7 +422,7 @@ cumulative: When graphing, makes the number of messages cumulative."""
 
         graph = None
         graphing_cog = ctx.bot.get_cog('Graphing')
-        if count >= 100 and graphing_cog:
+        if count and graphing_cog:
             # Generate graph
             f = await ctx.bot.loop.run_in_executor(
                 None, self.message_count_graph,
