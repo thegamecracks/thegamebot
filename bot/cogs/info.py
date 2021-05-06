@@ -256,7 +256,7 @@ This only counts channels that both you and the bot can see."""
                 cooldown.type, '')
             description.append(
                 'Cooldown settings: '
-                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}'
+                f'{cooldown.rate}/{cooldown.per:.0f}s {cooldown_type}'
             )
 
         # Insert concurrency limit
