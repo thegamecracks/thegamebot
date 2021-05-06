@@ -315,12 +315,12 @@ This only counts channels that both you and the bot can see."""
         bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
         day, hour = 86400, 3600
         bins_per_hour = 3
-        bins = 24 * bins_per_hour
+        n_bins = 24 * bins_per_hour
         fig, ax = plt.subplots()
 
         # Plot messages
         N, bins, patches = ax.hist(
-            messages, bins=bins, cumulative=-1 if cumulative else False)
+            messages, bins=n_bins, cumulative=-cumulative)
 
         # Color each bar
         colors = plt.cm.hsv([0.4 - 0.15 * i / 23 for i in range(24)])
@@ -346,7 +346,6 @@ This only counts channels that both you and the bot can see."""
         # Add grid 
         ax.set_axisbelow(True)
         ax.grid(color='#707070', alpha=0.4)
-        
 
         # Set label colors
         for item in itertools.chain(
@@ -382,6 +381,9 @@ This only counts channels that both you and the bot can see."""
 
 This command only records the server ID and timestamps of messages,
 and purges outdated messages daily. No user info or message content is stored.
+A histogram is also generated when 100 messages are more have been sent.
+NOTE: this graph may not be rendered properly if messages have not been
+spread out significantly.
 
 cumulative: When graphing, makes the number of messages cumulative."""
         yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
@@ -402,7 +404,7 @@ cumulative: When graphing, makes the number of messages cumulative."""
                 messages = []
                 while m := await c.fetchone():
                     dt = datetime.datetime.fromisoformat(m['created_at'])
-                    td = now - dt.timestamp()
+                    td = max(0, now - dt.timestamp())
                     messages.append(td)
 
         count = len(messages)
@@ -422,7 +424,7 @@ cumulative: When graphing, makes the number of messages cumulative."""
 
         graph = None
         graphing_cog = ctx.bot.get_cog('Graphing')
-        if count and graphing_cog:
+        if count >= 100 and graphing_cog:
             # Generate graph
             f = await ctx.bot.loop.run_in_executor(
                 None, self.message_count_graph,
