@@ -314,7 +314,8 @@ This only counts channels that both you and the bot can see."""
         # Constants
         bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
         day, hour = 86400, 3600
-        bins = day // hour * 6
+        bins_per_hour = 3
+        bins = 24 * bins_per_hour
         fig, ax = plt.subplots()
 
         # Plot messages
@@ -322,8 +323,12 @@ This only counts channels that both you and the bot can see."""
             messages, bins=bins, cumulative=-1 if cumulative else False)
 
         # Color each bar
-        for patch in patches:
-            patch.set_facecolor('#54f360')
+        colors = plt.cm.hsv([0.4 - 0.15 * i / 23 for i in range(24)])
+        patches_grouped = (patches[i:i + bins_per_hour]
+                           for i in range(0, len(patches), bins_per_hour))
+        for c, bars in zip(colors, patches_grouped):
+            for p in bars:
+                p.set_facecolor(c)
 
         # Add labels
         ax.set_title('Message Count Graph')
@@ -343,17 +348,11 @@ This only counts channels that both you and the bot can see."""
         ax.grid(color='#707070', alpha=0.4)
         
 
-        # Set colors and add shadow to labels
+        # Set label colors
         for item in itertools.chain(
                 (ax.title, ax.xaxis.label, ax.yaxis.label),
                 ax.get_xticklabels(), ax.get_yticklabels()):
             item.set_color(bot_color)
-            item.set_path_effects([
-                path_effects.withSimplePatchShadow(
-                    offset=(1, -1),
-                    alpha=cog.TEXT_SHADOW_ALPHA
-                )
-            ])
 
         # Color the spines and ticks
         for spine in ax.spines.values():
@@ -362,6 +361,8 @@ This only counts channels that both you and the bot can see."""
 
         # Make background fully transparent
         fig.patch.set_facecolor('#00000000')
+
+        cog.set_axes_aspect(ax, 9 / 16, 'box')
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)

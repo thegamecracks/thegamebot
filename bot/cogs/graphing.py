@@ -100,9 +100,6 @@ or the last message that was sent."""
         self.bot = bot
 
 
-
-
-
     async def get_text(self, ctx, text: str, *, message=None):
         """Obtain text from the user either in an attachment or from
         the text argument.
@@ -203,6 +200,27 @@ or the last message that was sent."""
             return False, 'There are no english letters in this text.'
 
         return True, text
+
+
+    def set_axes_aspect(self, ax, ratio, *args, **kwargs):
+        """Set an Axes's aspect ratio.
+
+        This is based off of https://www.statology.org/matplotlib-aspect-ratio/.
+
+        Args:
+            ax (matplotlib.axes.Axes): The Axes to set the aspect ratio for.
+            ratio (Union[int, float]): The ratio of height to width,
+                i.e. a ratio of 2 will make the height 2 times the width.
+            *args
+            **kwargs: Passed into ax.set_aspect().
+
+        """
+        x_left, x_right = ax.get_xlim()
+        y_low, y_high = ax.get_ylim()
+        x_size = x_right - x_left
+        y_size = y_low - y_high
+        current_ratio = abs(x_size / y_size)
+        ax.set_aspect(current_ratio * ratio, *args, **kwargs)
 
 
 
