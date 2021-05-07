@@ -2,6 +2,7 @@ import collections
 import datetime
 import io
 import itertools
+import math
 import random
 import sys
 import time
@@ -16,8 +17,10 @@ from discord_slash import SlashContext
 import discord_slash as dslash
 import humanize
 import matplotlib
+from matplotlib import colors
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+import numpy as np
 import psutil
 
 from bot import converters, utils
@@ -296,7 +299,7 @@ This only counts channels that both you and the bot can see."""
 
 
 
-    def message_count_graph(self, cog, messages, cumulative=False):
+    def message_count_graph(self, cog, messages, now, cumulative=False):
         """Generate a histogram of when messages were sent.
         Assumes all messages were sent in the last day.
 
@@ -304,10 +307,30 @@ This only counts channels that both you and the bot can see."""
             cog (commands.Cog): The Graphing cog.
             messages (List[float]): A list of times in seconds since now
                 for each message that was sent.
+            now (datetime.datetime): A timezone-aware datetime of now.
             cumulative (bool): Accumulate message counts in the histogram.
 
         """
-        def in_hours(seconds, pos):
+        def downtime_to_seconds(downtimes):
+            """Convert a list of downtimes into a set of seconds denoting
+            which hours have been affected by the downtime.
+            """
+            affected_bins = set()
+            for period in downtimes:
+                end = (now - period.end).total_seconds()
+                if end > day:
+                    continue
+                start = (now - period.start).total_seconds()
+                # Round the start and end to the nearest bin
+                start = math.ceil(start / seconds_per_bin)
+                end = int(end // seconds_per_bin)
+                # Add the bins inbetween the start and end
+                for b in range(end, start + 1):
+                    affected_bins.add(b * seconds_per_bin)
+
+            return affected_bins
+
+        def format_hours(seconds, pos):
             return seconds // hour
 
         # Constants
@@ -315,7 +338,10 @@ This only counts channels that both you and the bot can see."""
         day, hour = 86400, 3600
         bins_per_hour = 3
         n_bins = 24 * bins_per_hour
-        bin_edges = range(0, day + 1, day // n_bins)
+        seconds_per_bin = day // n_bins
+        bin_edges = range(0, day + 1, seconds_per_bin)
+        downtime_bins = downtime_to_seconds(self.bot.uptime_downtimes)
+
         fig, ax = plt.subplots()
 
         # Plot messages
@@ -330,6 +356,19 @@ This only counts channels that both you and the bot can see."""
             for p in bars:
                 p.set_facecolor(c)
 
+        if downtime_bins:
+            # Plot downtime and include legend
+            downtime_data = np.repeat(np.array(list(downtime_bins)), max(N))
+            dtN, dtbins, dtpatches = ax.hist(
+                downtime_data, bins=bin_edges, hatch='//',
+                facecolor='#00000000', edgecolor='#00000000'
+            )
+            # Workaround to color just the hatches since
+            # no public interface is provided
+            for patch in dtpatches:
+                patch._hatch_color = matplotlib.colors.to_rgba('#ff0000a0')
+            ax.legend([dtpatches[0]], ['Downtime'], labelcolor=bot_color)
+
         # Add labels
         ax.set_title('Message Count Graph')
         ax.set_xlabel('# hours ago')
@@ -337,7 +376,10 @@ This only counts channels that both you and the bot can see."""
 
         # Set ticks and formatting
         ax.set_xticks(range(0, day + 1, hour * 6))
-        ax.xaxis.set_major_formatter(in_hours)
+        # ax.set_xticks(range(0, hour_span * hour + 1, hour * math.ceil(hour_span / 4)))
+        # NOTE: looks better to always use 6 hour tick increments
+        # instead of dynamically changing the ticks based on the hour span
+        ax.xaxis.set_major_formatter(format_hours)
         ax.invert_xaxis()
 
         # Force yaxis integer ticks
@@ -406,13 +448,19 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                     messages.append(td)
 
         count = len(messages)
+        now = datetime.datetime.now().astimezone()
+        start_time = datetime.datetime.fromtimestamp(
+            self.process.create_time()).astimezone()
+        start_hour = math.ceil((now - start_time).total_seconds() / 3600)
+        hour_span = min(24, start_hour)
 
         plural = ctx.bot.inflector.plural
 
         embed = discord.Embed(
             title='Server Message Count',
-            description='{:,} {} {} been sent in the last 24 hours.'.format(
-                count, plural('message', count), plural('has', count)
+            description='{:,} {} {} been sent in the last {}.'.format(
+                count, plural('message', count), plural('has', count),
+                'hour' if hour_span == 1 else f'{hour_span} hours'
             ),
             colour=utils.get_bot_color(ctx.bot)
         ).set_footer(
@@ -426,7 +474,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             # Generate graph
             f = await ctx.bot.loop.run_in_executor(
                 None, self.message_count_graph,
-                graphing_cog, messages, cumulative
+                graphing_cog, messages, now, cumulative
             )
             graph = discord.File(f, filename='graph.png')
             embed.set_image(url='attachment://graph.png')
