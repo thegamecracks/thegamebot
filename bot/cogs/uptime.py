@@ -79,6 +79,7 @@ class Uptime(commands.Cog):
             # Calculate downtime
             now = datetime.datetime.now().astimezone()
             diff = now - self.bot.uptime_last_disconnect
+            self.add_downtime_record(self.bot.uptime_last_disconnect, now)
 
             # If downtime was long or force_update is True,
             # update last connect, else record the downtime
@@ -92,14 +93,13 @@ class Uptime(commands.Cog):
                     print('Uptime: forced uptime reset')
                 else:
                     print(
-                        'Uptime: Downtime of {} seconds exceeded allowed '
-                        'downtime ({} seconds); resetting uptime'.format(
+                        'Uptime: Resetting uptime after downtime of '
+                        '{} seconds (>{} seconds)'.format(
                             diff.total_seconds(),
                             self.UPTIME_ALLOWED_DOWNTIME
                         )
                     )
             else:
-                self.add_downtime_record(self.bot.uptime_last_disconnect, now)
                 self.bot.uptime_total_downtime += diff
                 self.bot.uptime_last_connect_adjusted = (
                     self.bot.uptime_last_connect
@@ -111,11 +111,7 @@ class Uptime(commands.Cog):
             self.bot.uptime_is_online = True
 
 
-    @tasks.loop(minutes=1)
-    async def running_check(self):
-        """Do a continuously running test to make sure that the bot is running
-        the entire time. If the host goes into sleep mode, this will notice
-        a large discrepancy between checks and record it as downtime."""
+    def run_check(self):
         now = datetime.datetime.now().astimezone()
         if now - self.last_running_check > datetime.timedelta(minutes=2):
             # Missed a check; assume downtime lasted for the entire duration
@@ -126,13 +122,26 @@ class Uptime(commands.Cog):
         self.last_running_check = now
 
 
+    @tasks.loop(minutes=1)
+    async def running_check(self):
+        """Do a continuously running test to make sure that the bot is running
+        the entire time. If the host goes into sleep mode, this will notice
+        a large discrepancy between checks and record it as downtime."""
+        self.run_check()
+
+
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
         """Used for tracking processed commands."""
         self.bot.info_processed_commands[ctx.command.qualified_name] += 1
 
 
-    # on_connect: Triggered when waking up from computer sleep.
+    @commands.Cog.listener()
+    async def on_connect(self):
+        """Triggered when waking up from computer sleep.
+        Triggers the running check immediately."""
+        self.bot.uptime_is_online = True
+        self.run_check()
 
 
     @commands.Cog.listener()
