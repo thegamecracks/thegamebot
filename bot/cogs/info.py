@@ -50,6 +50,8 @@ class Informative(commands.Cog):
         commands.BucketType.role:     'per role'
     }
 
+    MESSAGECOUNT_BINS_PER_HOUR = 3
+
     def __init__(self, bot):
         self.bot = bot
         self.process = psutil.Process()
@@ -320,12 +322,12 @@ This only counts channels that both you and the bot can see."""
                 end = (now - period.end).total_seconds()
                 if end > day:
                     continue
-                start = (now - period.start).total_seconds()
+                start = min(day, (now - period.start).total_seconds())
                 # Round the start and end to the nearest bin
                 start = math.ceil(start / seconds_per_bin)
                 end = int(end // seconds_per_bin)
                 # Add the bins inbetween the start and end
-                for b in range(end, start + 1):
+                for b in range(end, start):
                     affected_bins.add(b * seconds_per_bin)
 
             return affected_bins
@@ -336,7 +338,7 @@ This only counts channels that both you and the bot can see."""
         # Constants
         bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
         day, hour = 86400, 3600
-        bins_per_hour = 3
+        bins_per_hour = self.MESSAGECOUNT_BINS_PER_HOUR
         n_bins = 24 * bins_per_hour
         seconds_per_bin = day // n_bins
         bin_edges = range(0, day + 1, seconds_per_bin)
