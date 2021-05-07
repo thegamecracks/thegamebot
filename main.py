@@ -76,6 +76,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             self.info_bootup_time = 0
             self.info_processed_commands = collections.defaultdict(int)
             self.timezones_users_inputting = set()
+            self.uptime_downtimes = collections.deque()
             self.uptime_last_connect = datetime.datetime.now().astimezone()
             self.uptime_last_connect_adjusted = self.uptime_last_connect
             self.uptime_last_disconnect = self.uptime_last_connect
