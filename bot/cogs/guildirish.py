@@ -151,15 +151,16 @@ class IrishSquad(commands.Cog):
         db = self.bot.dbirish.charges
         await ctx.channel.trigger_typing()
 
-        async with db.connect() as conn:
-            async with await conn.execute(
-                    f'SELECT SUM(amount) AS total FROM {db.TABLE_NAME}') as c:
+        async with await db.connect() as conn:
+            async with conn.cursor(transaction=True) as c:
+                await c.execute(f'SELECT SUM(amount) AS total FROM {db.TABLE_NAME}')
                 total = (await c.fetchone())['total']
 
-            async with await conn.execute(
+                await c.execute(
                     f'SELECT user_id, amount FROM {db.TABLE_NAME} '
                     'WHERE amount != 0 ORDER BY amount DESC '
-                    f'LIMIT {self.CHARGE_LEADERBOARD_MAX:d}') as c:
+                    f'LIMIT {self.CHARGE_LEADERBOARD_MAX:d}'
+                )
                 rows = await c.fetchall()
 
         description = []
@@ -202,7 +203,7 @@ This requires a confirmation."""
 
         if confirmed:
             db = ctx.bot.dbirish.charges
-            async with db.connect(writing=True) as conn:
+            async with await db.connect()(writing=True) as conn:
                 await conn.execute(f'DELETE FROM {db.TABLE_NAME}')
                 await conn.commit()
 
@@ -238,11 +239,11 @@ This requires a confirmation."""
 
         invalid_users = []
 
-        async with db.connect(writing=True) as conn:
+        async with await db.connect()(writing=True) as conn:
             async with await conn.execute('SELECT id FROM Users') as c:
                 # Remove all IDs from the Users table if they are
                 # not in the guild
-                async for row in c:
+                while row := await c.fetchone():
                     user_id = row['id']
                     member = guild.get_member(user_id)
                     if member is None:

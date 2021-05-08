@@ -63,6 +63,15 @@ class Testing(commands.Cog, command_attrs={'hidden': True}):
 
 
 
+    @commands.command(name='getuser')
+    async def client_convert_user(
+            self, ctx, *, user: discord.User):
+        await ctx.send(str(user))
+
+
+
+
+
     @commands.command(name='rolemoji')
     async def client_role_emoji(
             self, ctx, *args: Union[discord.Role,

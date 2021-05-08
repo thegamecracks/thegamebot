@@ -1,7 +1,10 @@
 import collections
 import datetime
-import sys
+import io
+import itertools
+import math
 import random
+import sys
 import time
 from typing import Optional
 
@@ -13,8 +16,12 @@ from discord_slash import cog_ext as dslash_cog
 from discord_slash import SlashContext
 import discord_slash as dslash
 import humanize
+import matplotlib
+from matplotlib import colors
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+import numpy as np
 import psutil
-import pytz
 
 from bot import converters, utils
 
@@ -43,6 +50,12 @@ class Informative(commands.Cog):
         commands.BucketType.role:     'per role'
     }
 
+    MESSAGECOUNT_BINS_PER_HOUR = 3
+    MESSAGECOUNT_DOWNTIME_BINS_PER_HOUR = 6
+    MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES = False
+    # If true, uses the uptime cog to filter downtimes
+    # shorter than UPTIME_ALLOWED_DOWNTIME
+
     def __init__(self, bot):
         self.bot = bot
         self.process = psutil.Process()
@@ -59,8 +72,7 @@ class Informative(commands.Cog):
 
 
 
-    @commands.command(
-        name='about', aliases=['info'])
+    @commands.command(name='about', aliases=('info',))
     @commands.cooldown(3, 60, commands.BucketType.guild)
     @commands.max_concurrency(3, wait=True)
     async def client_aboutbot(self, ctx, *args):
@@ -83,12 +95,14 @@ Optional settings:
         version_python = f'{vp.major}.{vp.minor}.{vp.micro}'
 
         start_time = datetime.datetime.fromtimestamp(
-            self.process.create_time()).astimezone().astimezone(pytz.utc)
+            self.process.create_time()).astimezone()
+        start_time = await ctx.bot.localize_datetime(ctx.author.id, start_time)
+        start_time = utils.strftime_zone(start_time)
 
         await ctx.trigger_typing()
 
         field_statistics = [
-            f"Bot started at: {start_time.strftime('%Y/%m/%d %a %X UTC')}"
+            f"Bot started at: {start_time}"
         ]
 
         if self.bot.intents.members:
@@ -114,7 +128,9 @@ Optional settings:
             # Add system information
             p = self.process
             with p.oneshot():
-                mem_usage = p.memory_full_info().uss
+                memory_info = p.memory_full_info()
+                mem_phys = humanize.naturalsize(memory_info.uss)
+                mem_virt = humanize.naturalsize(memory_info.vms)
                 num_threads = p.num_threads()
                 num_handles = p.num_handles()
                 cpu = p.cpu_percent(interval=0.1)
@@ -128,7 +144,7 @@ Optional settings:
             field_statistics.extend((
                 f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds',
                 f'> CPU usage: {cpu:.3g}%',
-                f'> Memory usage: {humanize.naturalsize(mem_usage)}',
+                f'> Memory usage: {mem_phys} (virtual: {mem_virt})',
                 f'> Threads: {num_threads}',
                 f'> Handles: {num_handles}'
             ))
@@ -248,7 +264,7 @@ This only counts channels that both you and the bot can see."""
                 cooldown.type, '')
             description.append(
                 'Cooldown settings: '
-                f'{cooldown.rate}/{cooldown.per:.2g}s {cooldown_type}'
+                f'{cooldown.rate}/{cooldown.per:.0f}s {cooldown_type}'
             )
 
         # Insert concurrency limit
@@ -289,39 +305,206 @@ This only counts channels that both you and the bot can see."""
 
 
 
+    def message_count_graph(
+            self, graphing_cog, uptime_cog, messages, now, cumulative=False):
+        """Generate a histogram of when messages were sent.
+        Assumes all messages were sent in the last day.
+
+        Args:
+            graphing_cog (commands.Cog): The Graphing cog.
+            uptime_cog (Optional[commands.Cog]): The Uptime cog.
+                Only required if intermittent downtimes should be filtered.
+            messages (List[float]): A list of times in seconds since now
+                for each message that was sent.
+            now (datetime.datetime): A timezone-aware datetime of now.
+            cumulative (bool): Accumulate message counts in the histogram.
+
+        """
+        def downtime_to_seconds(downtimes):
+            """Convert a list of downtimes into a set of seconds denoting
+            which hours have been affected by the downtime.
+            """
+            n_bins = 24 * downtime_bins_per_hour
+            seconds_per_bin = day // n_bins
+            minimum_downtime = getattr(
+                uptime_cog, 'UPTIME_ALLOWED_DOWNTIME', None)
+
+            affected_bins = set()
+            for period in downtimes:
+                end = (now - period.end).total_seconds()
+                if end > day:
+                    continue
+                elif (  minimum_downtime is not None
+                        and period.total_seconds() < minimum_downtime):
+                    # Ignore intermittent downtime periods
+                    continue
+
+                start = min(day, (now - period.start).total_seconds())
+
+                # Round the start and end to the nearest bin
+                start = math.ceil(start / seconds_per_bin)
+                end = int(end // seconds_per_bin)
+
+                # Add the bins inbetween the start and end
+                for b in range(end, start):
+                    affected_bins.add(b * seconds_per_bin)
+
+            return range(0, day + 1, seconds_per_bin), affected_bins
+
+        def format_hours(seconds, pos):
+            return seconds // hour
+
+        # Constants
+        bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
+        day, hour = 86400, 3600
+        bins_per_hour = self.MESSAGECOUNT_BINS_PER_HOUR
+        downtime_bins_per_hour = self.MESSAGECOUNT_DOWNTIME_BINS_PER_HOUR
+        n_bins = 24 * bins_per_hour
+        seconds_per_bin = day // n_bins
+        bin_edges = range(0, day + 1, seconds_per_bin)
+        downtime_edges, downtime_bins = downtime_to_seconds(
+            self.bot.uptime_downtimes)
+
+        fig, ax = plt.subplots()
+
+        # Plot messages
+        N, bins, patches = ax.hist(
+            messages, bins=bin_edges, cumulative=-cumulative)
+
+        # Color each bar
+        colors = plt.cm.hsv([0.4 - 0.15 * i / 23 for i in range(24)])
+        patches_grouped = (patches[i:i + bins_per_hour]
+                           for i in range(0, len(patches), bins_per_hour))
+        for c, bars in zip(colors, patches_grouped):
+            for p in bars:
+                p.set_facecolor(c)
+
+        if downtime_bins:
+            # Plot downtime and include legend
+            downtime_data = np.repeat(np.array(list(downtime_bins)), max(N))
+            dtN, dtbins, dtpatches = ax.hist(
+                downtime_data, bins=downtime_edges, hatch='//',
+                facecolor='#00000000', edgecolor='#00000000'
+            )
+            # Workaround to color just the hatches since
+            # no public interface is provided
+            for patch in dtpatches:
+                patch._hatch_color = matplotlib.colors.to_rgba('#ff0000a0')
+            ax.legend([dtpatches[0]], ['Downtime'], labelcolor=bot_color)
+
+        # Add labels
+        ax.set_title('Message Count Graph')
+        ax.set_xlabel('# hours ago')
+        ax.set_ylabel('# messages')
+
+        # Set ticks and formatting
+        ax.set_xticks(range(0, day + 1, hour * 6))
+        # ax.set_xticks(range(0, hour_span * hour + 1, hour * math.ceil(hour_span / 4)))
+        # NOTE: looks better to always use 6 hour tick increments
+        # instead of dynamically changing the ticks based on the hour span
+        ax.xaxis.set_major_formatter(format_hours)
+        ax.invert_xaxis()
+
+        # Force yaxis integer ticks
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+        # Add grid 
+        ax.set_axisbelow(True)
+        ax.grid(color='#707070', alpha=0.4)
+
+        # Set label colors
+        for item in itertools.chain(
+                (ax.title, ax.xaxis.label, ax.yaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels()):
+            item.set_color(bot_color)
+
+        # Color the spines and ticks
+        for spine in ax.spines.values():
+            spine.set_color(bot_color)
+        ax.tick_params(colors=bot_color)
+
+        # Make background fully transparent
+        fig.patch.set_facecolor('#00000000')
+
+        graphing_cog.set_axes_aspect(ax, 9 / 16, 'box')
+
+        f = io.BytesIO()
+        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
+        # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
+
+        plt.close(fig)
+        return f
+
+
     @commands.command(name='messagecount')
     @commands.guild_only()
-    @commands.cooldown(2, 10, commands.BucketType.channel)
-    async def client_messagecount(self, ctx):
+    @commands.cooldown(3, 120, commands.BucketType.channel)
+    @commands.max_concurrency(3, wait=True)
+    async def client_messagecount(self, ctx, cumulative: bool = False):
         """Get the number of messages sent in the server within one day.
 
 This command only records the server ID and timestamps of messages,
-and purges outdated messages daily. No user info or message content is stored."""
+and purges outdated messages daily. No user info or message content is stored.
+A time series graph is generated along with this.
+
+cumulative: If true, makes the number of messages cumulative when graphing."""
         yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 
         cog = self.bot.get_cog('MessageTracker')
         if cog is None:
-            return await ctx.send('Unfortunately the bot is not tracking '
-                                  'message frequency at this time.')
+            return await ctx.send(
+                'The bot is currently not tracking message frequency.')
 
+        await ctx.trigger_typing()
+
+        now = datetime.datetime.utcnow().timestamp()
         async with cog.connect() as conn:
             async with conn.execute(
-                    'SELECT COUNT(*) AS total FROM Messages '
+                    'SELECT created_at FROM Messages '
                     'WHERE guild_id = ? AND created_at > ?',
-                    (ctx.guild.id, yesterday,)) as c:
-                count = (await c.fetchone())['total']
+                    ctx.guild.id, yesterday) as c:
+                messages = []
+                while m := await c.fetchone():
+                    dt = datetime.datetime.fromisoformat(m['created_at'])
+                    td = max(0, now - dt.timestamp())
+                    messages.append(td)
+
+        count = len(messages)
+        now = datetime.datetime.now().astimezone()
+        start_time = datetime.datetime.fromtimestamp(
+            self.process.create_time()).astimezone()
+        start_hour = math.ceil((now - start_time).total_seconds() / 3600)
+        hour_span = min(24, start_hour)
+
+        plural = ctx.bot.inflector.plural
 
         embed = discord.Embed(
             title='Server Message Count',
-            description='{:,} {} have been sent in the last 24 hours.'.format(
-                count, ctx.bot.inflector.plural('message', count)),
+            description='{:,} {} {} been sent in the last {}.'.format(
+                count, plural('message', count), plural('has', count),
+                'hour' if hour_span == 1 else f'{hour_span} hours'
+            ),
             colour=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',
             icon_url=ctx.author.avatar_url
         )
 
-        await ctx.send(embed=embed)
+        graph = None
+        require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
+        graphing_cog = ctx.bot.get_cog('Graphing')
+        uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
+        if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
+            # Generate graph
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.message_count_graph,
+                graphing_cog, uptime_cog, messages, now, cumulative
+            )
+            graph = discord.File(f, filename='graph.png')
+            embed.set_image(url='attachment://graph.png')
+
+        await ctx.send(file=graph, embed=embed)
 
 
 
@@ -426,8 +609,7 @@ and purges outdated messages daily. No user info or message content is stored.""
 
 
 
-    @commands.command(
-        name='serverinfo')
+    @commands.command(name='serverinfo')
     @commands.guild_only()
     @commands.cooldown(1, 15, commands.BucketType.channel)
     async def client_serverinfo(self, ctx, streamer_friendly: bool = True):
@@ -447,7 +629,10 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            guild.created_at.strftime('%Y/%m/%d %a %X UTC')
+            utils.strftime_zone(
+                await ctx.bot.localize_datetime(
+                    ctx.author.id, guild.created_at)
+            )
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -484,7 +669,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Time of Server Creation',
-            value=f'{created[0]} ago ({created[1]})',
+            value=f'{created[0]} ago\n({created[1]})',
             inline=False
         )
         embed.add_field(
@@ -513,8 +698,7 @@ Format referenced from the Ayana bot."""
 
 
 
-    @commands.command(
-        name='uptime')
+    @commands.command(name='uptime')
     @commands.cooldown(2, 20, commands.BucketType.user)
     async def client_uptime(self, ctx):
         """Get the uptime of the bot."""
@@ -525,12 +709,13 @@ Format referenced from the Ayana bot."""
         )
         diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
-        utc = self.bot.uptime_last_connect.astimezone(datetime.timezone.utc)
-        date_string = utc.strftime('%Y/%m/%d %a %X UTC')
+        uptime = await ctx.bot.localize_datetime(
+            ctx.author.id, ctx.bot.uptime_last_connect)
+        uptime_string = utils.strftime_zone(uptime)
 
         await ctx.send(embed=discord.Embed(
             title='Uptime',
-            description=f'{diff_string}\n({date_string})',
+            description=f'{diff_string}\n({uptime_string})',
             color=utils.get_bot_color(ctx.bot)
         ))
 
@@ -538,8 +723,7 @@ Format referenced from the Ayana bot."""
 
 
 
-    @commands.command(
-        name='userinfo')
+    @commands.command(name='userinfo')
     @commands.cooldown(3, 20, commands.BucketType.user)
     async def client_userinfo(self, ctx,
                               streamer_friendly: Optional[bool] = True,
@@ -594,7 +778,10 @@ Format referenced from the Ayana bot."""
                     **self.DATETIME_DIFFERENCE_PRECISION,
                     inflector=ctx.bot.inflector
                 ),
-                user.joined_at.strftime('%Y/%m/%d %a %X UTC')
+                utils.strftime_zone(
+                    await ctx.bot.localize_datetime(
+                        ctx.author.id, user.joined_at)
+                )
             )
             nickname = user.nick
             roles = user.roles
@@ -634,7 +821,10 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            user.created_at.strftime('%Y/%m/%d %a %X UTC')
+            utils.strftime_zone(
+                await ctx.bot.localize_datetime(
+                    ctx.author.id, user.created_at)
+            )
         )
 
         embed = discord.Embed(
@@ -673,12 +863,12 @@ Format referenced from the Ayana bot."""
                 joined_name = 'Time of Server Join'
             embed.add_field(
                 name=joined_name,
-                value=f'{joined[0]} ago ({joined[1]})',
+                value=f'{joined[0]} ago\n({joined[1]})',
                 inline=False
             )
         embed.add_field(
             name='Time of User Creation',
-            value=f'{created[0]} ago ({created[1]})',
+            value=f'{created[0]} ago\n({created[1]})',
             inline=False
         )
         if status is not None:
@@ -730,7 +920,4 @@ Format referenced from the Ayana bot."""
 
 
 def setup(bot):
-    info = Informative(bot)
-    # Categorize help command in info
-    bot.help_command.cog = info
-    bot.add_cog(info)
+    bot.add_cog(Informative(bot))

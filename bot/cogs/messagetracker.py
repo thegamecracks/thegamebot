@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import datetime
 
-import aiosqlite
+import asqlite
 import discord
 from discord.ext import commands, tasks
 
@@ -23,8 +23,7 @@ class MessageTracker(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self._conn = aiosqlite.connect(':memory:')
-        self._open = False
+        self._conn = None
         self._lock = asyncio.Lock()
 
         self.vacuum.start()
@@ -32,10 +31,9 @@ class MessageTracker(commands.Cog):
     def cog_unload(self):
         """Cancel running tasks and close the database."""
         self.vacuum.cancel()
-        if self._open:
+        if self._conn:
             loop = asyncio.get_running_loop()
             loop.create_task(self._conn.close())
-            self._open = False
 
     @commands.Cog.listener()
     async def on_message(self, m):
@@ -43,43 +41,34 @@ class MessageTracker(commands.Cog):
         if m.guild is None:
             return
 
-        cog = self.bot.get_cog('MessageTracker')
-        if cog is None:
-            return
-
-        async with cog.connect() as conn:
-            # Add to guild table if it does not exist already
-            await conn.execute(
-                'INSERT OR IGNORE INTO Guilds (id) VALUES (?)',
-                (m.guild.id,)
-            )
-            # Store message
-            await conn.execute("""
-                INSERT INTO Messages (guild_id, created_at) VALUES (?, ?)
-                """, (m.guild.id, m.created_at)
-            )
-            await conn.commit()
+        async with self.connect() as conn:
+            async with conn.transaction():
+                # Add to guild table if it does not exist already
+                await conn.execute(
+                    'INSERT OR IGNORE INTO Guilds (id) VALUES (?)',
+                    m.guild.id
+                )
+                # Store message
+                await conn.execute(
+                    'INSERT INTO Messages (guild_id, created_at) VALUES (?, ?)',
+                    m.guild.id, m.created_at
+                )
 
     @tasks.loop(hours=12)
     async def vacuum(self):
         """Remove messages older than 24 hours."""
         yesterday = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
 
-        cog = self.bot.get_cog('MessageTracker')
-        if cog is None:
-            return
-
-        async with cog.connect() as conn:
+        async with self.connect() as conn:
             await conn.execute(
                 'DELETE FROM Messages WHERE (created_at < ?)',
-                (yesterday,)
+                yesterday
             )
-            await conn.commit()
 
     @contextlib.asynccontextmanager
-    async def connect(self):
-        """Return the aiosqlite connection."""
-        if not self._open:
+    async def connect(self) -> asqlite.Connection:
+        """Return the asqlite connection."""
+        if not self._conn:
             await self.setup_database()
 
         await self._lock.acquire()
@@ -90,15 +79,12 @@ class MessageTracker(commands.Cog):
 
     async def setup_database(self):
         """Open the database and create the tables."""
-        if self._open:
+        if self._conn:
             raise RuntimeError('The database is already open.')
 
-        await self._conn
-        self._open = True
-        self._conn.row_factory = aiosqlite.Row
-        await self._conn.executescript(self.TABLE_SETUP)
-        await self._conn.commit()
-
+        self._conn = await asqlite.connect(':memory:')
+        async with self._conn.transaction():
+            await self._conn.executescript(self.TABLE_SETUP)
 
 
 

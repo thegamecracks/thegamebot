@@ -4,6 +4,7 @@ import contextlib
 import decimal
 import functools
 import io
+import itertools
 ##import multiprocessing
 from pathlib import Path
 import random
@@ -97,9 +98,6 @@ or the last message that was sent."""
 
     def __init__(self, bot):
         self.bot = bot
-
-
-
 
 
     async def get_text(self, ctx, text: str, *, message=None):
@@ -204,6 +202,27 @@ or the last message that was sent."""
         return True, text
 
 
+    def set_axes_aspect(self, ax, ratio, *args, **kwargs):
+        """Set an Axes's aspect ratio.
+
+        This is based off of https://www.statology.org/matplotlib-aspect-ratio/.
+
+        Args:
+            ax (matplotlib.axes.Axes): The Axes to set the aspect ratio for.
+            ratio (Union[int, float]): The ratio of height to width,
+                i.e. a ratio of 2 will make the height 2 times the width.
+            *args
+            **kwargs: Passed into ax.set_aspect().
+
+        """
+        x_left, x_right = ax.get_xlim()
+        y_low, y_high = ax.get_ylim()
+        x_size = x_right - x_left
+        y_size = y_low - y_high
+        current_ratio = abs(x_size / y_size)
+        ax.set_aspect(current_ratio * ratio, *args, **kwargs)
+
+
 
 
 
@@ -288,12 +307,10 @@ or the last message that was sent."""
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
         # Set colors and add shadow to labels
-        labels = (
-            [ax.title, ax.xaxis.label, ax.yaxis.label]
-            + ax.get_legend().get_texts() + ax.get_xticklabels()
-            + ax.get_yticklabels()
-        )
-        for item in labels:
+        for item in itertools.chain(
+                (ax.title, ax.xaxis.label, ax.yaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels(),
+                ax.get_legend().get_texts()):
             item.set_color(bot_color)
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
@@ -411,8 +428,9 @@ periods: The number of compounding periods in each term."""
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
         # Set colors and add shadow to labels
-        for item in ([ax.title, ax.xaxis.label, ax.yaxis.label]
-                     + ax.get_xticklabels() + ax.get_yticklabels()):
+        for item in itertools.chain(
+                (ax.title, ax.xaxis.label, ax.yaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels()):
             item.set_color(bot_color)
             item.set_path_effects([
                 path_effects.withSimplePatchShadow(
@@ -647,9 +665,10 @@ To see the different methods you can use to provide text, check the help message
         ax.set_yticks(yticks)
 
         # Set colors
-        for item in ([ax.xaxis.label, ax.yaxis.label, ax.zaxis.label]
-                     + ax.get_xticklabels() + ax.get_yticklabels()
-                     + ax.get_zticklabels()):
+        for item in itertools.chain(
+                (ax.xaxis.label, ax.yaxis.label, ax.zaxis.label),
+                ax.get_xticklabels(), ax.get_yticklabels(),
+                ax.get_zticklabels()):
             item.set_color(bot_color)
 
         # Set spine and pane colors

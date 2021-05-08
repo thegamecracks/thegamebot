@@ -283,13 +283,16 @@ size: (optional) The size of the deck to use in the session.
         def time_to_shuffle(deck, size):
             return len(deck) / (52 * size) < self.BLACKJACK_SHUFFLE_SIZE
 
+        ret_msg = None
         if ctx.guild is None and not self.bot.intents.members:
-            return await ctx.send(
-                'Unfortunately games will not work in DMs at this time.')
+            ret_msg = 'Unfortunately games will not work in DMs at this time.'
         elif size < 1:
-            return await ctx.send('The deck size must be at least one.')
+            ret_msg = 'The deck size must be at least one.'
         elif size > 10:
-            return await ctx.send('The deck size can only be ten at most.')
+            ret_msg = 'The deck size can only be ten at most.'
+        if ret_msg:
+            ctx.command.reset_cooldown(ctx)
+            return await ctx.send(ret_msg)
 
         try:
             users = self.get_members(ctx, players, members)
@@ -432,6 +435,7 @@ If no members are specified after "allow" or you type "all", anyone can play:
 Otherwise, only you can play:
 > multimath"""
         if ctx.guild is None and not self.bot.intents.members:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(
                 'Unfortunately games will not work in DMs at this time.')
 

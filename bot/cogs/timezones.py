@@ -1,12 +1,11 @@
 import asyncio
-import contextlib
 import datetime
 import re
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 # import dateparser.search
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import pytz
 
 from bot.converters import TimezoneConverter
@@ -92,9 +91,9 @@ class Timezones(commands.Cog):
 
         # Try adding user entry
         db = self.bot.dbusers
-        rowid = await db.add_user(user_id, timezone=timezone)
+        success = await db.add_user(user_id, timezone=timezone)
 
-        if rowid is None:
+        if not success:
             # Update user entry
             await db.update_rows(
                 db.TABLE_NAME,
@@ -328,7 +327,7 @@ You can find the timezone names using this [Time Zone Map](https://kevinnovak.gi
         UTC = pytz.utc
         utcnow = UTC.localize(datetime.datetime.utcnow())
         tznow = utcnow.astimezone(timezone)
-        await ctx.send(tznow.strftime('%c %Z (%z)'))
+        await ctx.send(utils.strftime_zone(tznow))
 
 
     @client_timezone.command(name='set')

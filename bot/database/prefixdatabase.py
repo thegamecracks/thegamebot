@@ -8,7 +8,7 @@ from . import database as db
 
 class PrefixDatabase(db.Database):
     """Provide an interface to a GuildDatabase with a Prefixes table."""
-    __slots__ = ('prefix_cache',)
+    __slots__ = ('__cache',)
 
     PREFIX_SIZE_LIMIT = 20
 
@@ -24,7 +24,7 @@ class PrefixDatabase(db.Database):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prefix_cache = {}
+        self.__cache = {}
 
     async def add_prefix(self, guild_id: int, prefix: str = None):
         """Add a prefix for a guild if it does not exist.
@@ -48,9 +48,9 @@ class PrefixDatabase(db.Database):
         if stored_prefix is None:
             await self.add_row(self.TABLE_NAME, {'guild_id': guild_id, 'prefix': prefix})
 
-            self.prefix_cache[guild_id] = prefix
+            self.__cache[guild_id] = prefix
         else:
-            self.prefix_cache[guild_id] = stored_prefix
+            self.__cache[guild_id] = stored_prefix
 
     async def delete_prefix(self, guild_id: int, pop=False):
         """Delete a prefix from a guild.
@@ -63,7 +63,7 @@ class PrefixDatabase(db.Database):
 
         Returns:
             None
-            List[aiosqlite.Row]: A list of deleted entries if pop is True.
+            List[sqlite3.Row]: A list of deleted entries if pop is True.
 
         """
         guild_id = int(guild_id)
@@ -71,7 +71,7 @@ class PrefixDatabase(db.Database):
         prefixes = await self.delete_rows(
             self.TABLE_NAME, where={'guild_id': guild_id}, pop=pop)
 
-        self.prefix_cache.pop(guild_id, None)
+        self.__cache.pop(guild_id, None)
 
         return prefixes
 
@@ -87,7 +87,7 @@ class PrefixDatabase(db.Database):
         """
         guild_id = int(guild_id)
 
-        prefix = self.prefix_cache.get(guild_id)
+        prefix = self.__cache.get(guild_id)
         if prefix is not None:
             return prefix
 
@@ -99,7 +99,7 @@ class PrefixDatabase(db.Database):
 
         prefix = query['prefix']
 
-        self.prefix_cache[guild_id] = prefix
+        self.__cache[guild_id] = prefix
 
         return prefix
 
@@ -120,4 +120,4 @@ class PrefixDatabase(db.Database):
         await self.update_rows(
             self.TABLE_NAME, {'prefix': prefix}, where={'guild_id': guild_id})
 
-        self.prefix_cache[guild_id] = prefix
+        self.__cache[guild_id] = prefix

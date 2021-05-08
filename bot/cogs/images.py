@@ -1,13 +1,15 @@
 import asyncio
+import enum
 import io
 import os
 import textwrap
 from typing import Optional
 
-import aiohttp
 import discord
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
+import qrcode
+import qrcode.exceptions
 
 from bot import utils
 
@@ -17,17 +19,15 @@ DOG_API_URL = 'https://api.thedogapi.com/'
 DOG_API_KEY = os.getenv('PyDiscordBotAPIDogKey')
 
 
-async def query_thatapiguy(url, key):
+async def query_thatapiguy(session, url, key):
     search = 'v1/images/search?mime_types=jpg,png'
 
-    async with aiohttp.ClientSession(
-            headers={'x-api-key': key}) as session:
-        async with session.get(url + search) as response:
-            if response.status >= 400:
-                raise ValueError(response.status, response.reason)
+    async with session.get(url + search, headers={'x-api-key': key}) as response:
+        if response.status >= 400:
+            raise ValueError(response.status, response.reason)
 
-            # Acquire the json, disabling content-type check
-            return (await response.json(content_type=None))[0]
+        # Acquire the json, disabling content-type check
+        return (await response.json(content_type=None))[0]
 
 
 def embed_thatapiguy(ctx, response: dict):
@@ -39,6 +39,42 @@ def embed_thatapiguy(ctx, response: dict):
     ).set_image(
         url=response['url']
     )
+
+
+class QRCodeECL(enum.IntEnum):
+    L = qrcode.ERROR_CORRECT_L
+    M = qrcode.ERROR_CORRECT_M
+    Q = qrcode.ERROR_CORRECT_Q
+    H = qrcode.ERROR_CORRECT_H
+
+
+class QRCodeECConverter(commands.Converter):
+    """Convert to an error correction level for qrcode.QRCode."""
+    async def convert(self, ctx, arg) -> QRCodeECL:
+        arg = arg.strip().casefold()
+
+        if arg in ('l', 'low'):
+            return QRCodeECL.L
+        elif arg in ('m', 'medium'):
+            return QRCodeECL.M
+        elif arg == 'q':
+            return QRCodeECL.Q
+        elif arg in ('h', 'high'):
+            return QRCodeECL.H
+
+        raise commands.UserInputError(f'Unknown error correction level: {arg!r}')
+
+
+class QRCodeVersionConverter(commands.Converter):
+    """Convert to a QR code version between 1 and 40."""
+    async def convert(self, ctx, argument) -> int:
+        try:
+            n = int(argument)
+        except ValueError:
+            raise commands.UserInputError
+        if 1 <= n <= 40:
+            return n
+        raise commands.UserInputError(f'Unknown QR code version: {n}')
 
 
 class Images(commands.Cog):
@@ -72,7 +108,8 @@ class Images(commands.Cog):
         await ctx.trigger_typing()
 
         try:
-            cat = await query_thatapiguy(CAT_API_URL, CAT_API_KEY)
+            cat = await query_thatapiguy(
+                ctx.bot.session, CAT_API_URL, CAT_API_KEY)
         except ValueError as e:
             return await ctx.send(
                 f'Could not get a cat image; status code {e.args[1]}')
@@ -96,12 +133,67 @@ class Images(commands.Cog):
         await ctx.trigger_typing()
 
         try:
-            dog = await query_thatapiguy(DOG_API_URL, DOG_API_KEY)
+            dog = await query_thatapiguy(
+                ctx.bot.session, DOG_API_URL, DOG_API_KEY)
         except ValueError as e:
             return await ctx.send(
                 f'Failed to query a dog image; status code {e.args[1]}')
 
         await ctx.send(embed=embed_thatapiguy(ctx, dog))
+
+
+
+
+
+    @commands.command(name='qrcode')
+    @commands.cooldown(1, 5, commands.BucketType.channel)
+    @commands.max_concurrency(3, wait=True)
+    async def client_qrcode(
+            self, ctx,
+            version: Optional[QRCodeVersionConverter],
+            ec_level: Optional[QRCodeECConverter], *, text):
+        """Generate a QR code.
+
+version: The QR code version to use (1-40). This corresponds to how much data can be held.
+Every
+If not given, uses the smallest version possible.
+ec_level: The error correction level to use. The higher the level, the more dense the QR code will be.
+If not given, defaults to Level M.
+    L: up to 7% of errors can be corrected
+    M: up to 15%
+    Q: up to 25%
+    H: up to 30%
+text: The message to encode."""
+        if ec_level is None:
+            ec_level = QRCodeECL.M
+
+        await ctx.trigger_typing()
+
+        qr = qrcode.QRCode(
+            version=version,
+            error_correction=ec_level
+        )
+        qr.add_data(text)
+        try:
+            qr.make(fit=False)
+        except qrcode.exceptions.DataOverflowError:
+            s = 'Too much data to fit in the QR code.'
+            if ec_level != qrcode.ERROR_CORRECT_L:
+                s += ' Try lowering the error correction level.'
+            return await ctx.send(s)
+
+        loop = asyncio.get_running_loop()
+        img = await loop.run_in_executor(None, qr.make_image)
+
+        f = io.BytesIO()
+        img.save(f, format='png')
+        f.seek(0)
+
+        await ctx.send(
+            f'Version {qr.version} QR code with '
+            f'error correction level {ec_level.name}:',
+            file=discord.File(f, filename='qrcode.png')
+        )
 
 
 

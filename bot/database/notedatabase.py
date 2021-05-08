@@ -55,7 +55,7 @@ class NoteDatabase(db.Database):
 
         Returns:
             None
-            List[aiosqlite.Row]: A list of deleted entries if pop is True.
+            List[sqlite3.Row]: A list of deleted entries if pop is True.
 
         """
         if isinstance(note_ids, int):
@@ -64,19 +64,20 @@ class NoteDatabase(db.Database):
             note_ids = [(int(n),) for n in note_ids]
 
         rows = None
-        async with self.connect(writing=True) as conn:
-            if pop:
-                async with conn.execute(
+        async with await self.connect(writing=True) as conn:
+            async with conn.cursor(transaction=True) as c:
+                if pop:
+                    await c.execute(
                         f'SELECT * FROM {self.TABLE_NAME} '
                         'WHERE note_id IN ({})'.format(
                             ', '.join([str(x[0]) for x in note_ids])
-                        )) as c:
+                        )
+                    )
                     rows = await c.fetchall()
-            await conn.executemany(
-                f'DELETE FROM {self.TABLE_NAME} WHERE note_id=?',
-                note_ids
-            )
-            await conn.commit()
+                await c.executemany(
+                    f'DELETE FROM {self.TABLE_NAME} WHERE note_id=?',
+                    note_ids
+                )
         return rows
 
     async def delete_note_by_user_id(self, user_id: int, entry_num: int):

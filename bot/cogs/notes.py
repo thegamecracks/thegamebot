@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import re
 import textwrap
 from typing import Iterable, Optional
@@ -22,25 +23,23 @@ class IndexConverter(commands.Converter):
         1-3      # range(0, 3)
 
     """
-    int_regex = re.compile(r'\d+')
+    int_regex = re.compile(r'-?\d+')
     
     async def convert(self, ctx, argument) -> Iterable[int]:
         # slice
-        if '-' in argument:
-            try:
-                x, y = [int(n) for n in argument.split('-', 1)]
+        try:
+            x, y = [int(n) for n in argument.split('-', 1)]
 
-                if x - 1 < 0:
-                    raise errors.IndexOutOfBoundsError(
-                        'Your starting index cannot be below 1.')
-                elif y < x:
-                    raise errors.IndexOutOfBoundsError(
-                        'Your end index cannot be lower than your starting index.')
-
-                return range(x - 1, y)
-            except ValueError:
+            if x - 1 < 0:
                 raise errors.IndexOutOfBoundsError(
-                    'Could not understand your range.')
+                    'Your starting index cannot be below 1.')
+            elif y < x:
+                raise errors.IndexOutOfBoundsError(
+                    'Your end index cannot be lower than your starting index.')
+
+            return range(x - 1, y)
+        except ValueError:
+            pass
 
         # list
         indices = self.int_regex.findall(argument)
@@ -73,6 +72,14 @@ class NoteManagement(commands.Cog):
         await self.bot.dbusers.add_user(user_id)
         await self.bot.dbnotes.add_note(user_id, *args, **kwargs)
         self.cache.pop(user_id, None)
+
+    def invalid_indices(self, maximum: int, index: list, *, limit=3):
+        """Return a list of 1-indexed strings indicating which
+        indices are out of bounds."""
+        over = (str(n + 1) for n in index if not 0 < n + 1 <= maximum)
+        if limit:
+            return list(itertools.islice(over, limit))
+        return list(over)
 
     async def delete_notes_by_note_id(self, note_id, pop=False):
         """Remove a note by note_id and update the cache."""
@@ -120,12 +127,12 @@ If nothing is provided, all notes are shown."""
         length = len(note_list)
         if length == 0:
             return await ctx.send("You don't have any notes.")
-        elif index and (over_range := [str(n + 1) for n in index if not 0 < n + 1 <= length]):
+        elif index and (out_of_bounds := self.invalid_indices(length, index)):
             return await ctx.send(
-                '{} {} {} out of range. The highest index you have is {:,}.'.format(
-                    ctx.bot.inflector.plural('Index', len(over_range)),
-                    ctx.bot.inflector.join(over_range),
-                    ctx.bot.inflector.plural('is', len(over_range)),
+                '{} {} {} out of range. Your notes are 1-{:,}.'.format(
+                    ctx.bot.inflector.plural('Index', len(out_of_bounds)),
+                    ctx.bot.inflector.join(out_of_bounds),
+                    ctx.bot.inflector.plural('is', len(out_of_bounds)),
                     length
                 )
             )
@@ -301,12 +308,12 @@ To see a list of your notes and their indices, use the "notes show" command."""
         length = len(note_list)
         if length == 0:
             return await ctx.send("You already don't have any notes.")
-        elif over_range := [str(n + 1) for n in index if not 0 < n + 1 <= length]:
+        elif out_of_bounds := self.invalid_indices(length, index):
             return await ctx.send(
-                '{} {} {} out of range. The highest index you have is {:,}.'.format(
-                    ctx.bot.inflector.plural('Index', len(over_range)),
-                    ctx.bot.inflector.join(over_range),
-                    ctx.bot.inflector.plural('is', len(over_range)),
+                '{} {} {} out of range. Your notes are 1-{:,}.'.format(
+                    ctx.bot.inflector.plural('Index', len(out_of_bounds)),
+                    ctx.bot.inflector.join(out_of_bounds),
+                    ctx.bot.inflector.plural('is', len(out_of_bounds)),
                     length
                 )
             )

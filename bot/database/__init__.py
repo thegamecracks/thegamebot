@@ -7,4 +7,5 @@ from . import irishdatabase
 from . import notedatabase
 from . import prefixdatabase
 from . import reminderdatabase
+from . import tagdatabase
 from . import userdatabase

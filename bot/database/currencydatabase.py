@@ -8,7 +8,7 @@ from . import database as db
 
 
 class CurrencyDatabase(db.Database):
-    """Provide an interface to a UserDatabase with a Currency table."""
+    """Provide an interface to the Currency table."""
 
     TABLE_NAME = 'Currency'
     TABLE_SETUP = f"""
@@ -94,18 +94,18 @@ class CurrencyDatabase(db.Database):
         await self.add_entry(guild_id, user1)
         await self.add_entry(guild_id, user2)
 
-        async with self.connect(writing=True) as conn:
-            await conn.execute(
-                f'UPDATE {self.TABLE_NAME} SET cents = cents - ? '
-                'WHERE guild_id=? AND user_id=?',
-                (cents, guild_id, user1)
-            )
-            await conn.execute(
-                f'UPDATE {self.TABLE_NAME} SET cents = cents + ? '
-                'WHERE guild_id=? AND user_id=?',
-                (cents, guild_id, user2)
-            )
-            await conn.commit()
+        async with await self.connect(writing=True) as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    f'UPDATE {self.TABLE_NAME} SET cents = cents - ? '
+                    'WHERE guild_id=? AND user_id=?',
+                    cents, guild_id, user1
+                )
+                await conn.execute(
+                    f'UPDATE {self.TABLE_NAME} SET cents = cents + ? '
+                    'WHERE guild_id=? AND user_id=?',
+                    cents, guild_id, user2
+                )
 
     async def get_cents(self, guild_id: int, user_id: int) -> int:
         """Get a user's cents in a guild.
