@@ -51,6 +51,10 @@ class Informative(commands.Cog):
     }
 
     MESSAGECOUNT_BINS_PER_HOUR = 3
+    MESSAGECOUNT_DOWNTIME_BINS_PER_HOUR = 6
+    MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES = False
+    # If true, uses the uptime cog to filter downtimes
+    # shorter than UPTIME_ALLOWED_DOWNTIME
 
     def __init__(self, bot):
         self.bot = bot
@@ -301,12 +305,15 @@ This only counts channels that both you and the bot can see."""
 
 
 
-    def message_count_graph(self, cog, messages, now, cumulative=False):
+    def message_count_graph(
+            self, graphing_cog, uptime_cog, messages, now, cumulative=False):
         """Generate a histogram of when messages were sent.
         Assumes all messages were sent in the last day.
 
         Args:
-            cog (commands.Cog): The Graphing cog.
+            graphing_cog (commands.Cog): The Graphing cog.
+            uptime_cog (Optional[commands.Cog]): The Uptime cog.
+                Only required if intermittent downtimes should be filtered.
             messages (List[float]): A list of times in seconds since now
                 for each message that was sent.
             now (datetime.datetime): A timezone-aware datetime of now.
@@ -317,20 +324,32 @@ This only counts channels that both you and the bot can see."""
             """Convert a list of downtimes into a set of seconds denoting
             which hours have been affected by the downtime.
             """
+            n_bins = 24 * downtime_bins_per_hour
+            seconds_per_bin = day // n_bins
+            minimum_downtime = getattr(
+                uptime_cog, 'UPTIME_ALLOWED_DOWNTIME', None)
+
             affected_bins = set()
             for period in downtimes:
                 end = (now - period.end).total_seconds()
                 if end > day:
                     continue
+                elif (  minimum_downtime is not None
+                        and period.total_seconds() < minimum_downtime):
+                    # Ignore intermittent downtime periods
+                    continue
+
                 start = min(day, (now - period.start).total_seconds())
+
                 # Round the start and end to the nearest bin
                 start = math.ceil(start / seconds_per_bin)
                 end = int(end // seconds_per_bin)
+
                 # Add the bins inbetween the start and end
                 for b in range(end, start):
                     affected_bins.add(b * seconds_per_bin)
 
-            return affected_bins
+            return range(0, day + 1, seconds_per_bin), affected_bins
 
         def format_hours(seconds, pos):
             return seconds // hour
@@ -339,10 +358,12 @@ This only counts channels that both you and the bot can see."""
         bot_color = '#' + hex(utils.get_bot_color(self.bot))[2:]
         day, hour = 86400, 3600
         bins_per_hour = self.MESSAGECOUNT_BINS_PER_HOUR
+        downtime_bins_per_hour = self.MESSAGECOUNT_DOWNTIME_BINS_PER_HOUR
         n_bins = 24 * bins_per_hour
         seconds_per_bin = day // n_bins
         bin_edges = range(0, day + 1, seconds_per_bin)
-        downtime_bins = downtime_to_seconds(self.bot.uptime_downtimes)
+        downtime_edges, downtime_bins = downtime_to_seconds(
+            self.bot.uptime_downtimes)
 
         fig, ax = plt.subplots()
 
@@ -362,7 +383,7 @@ This only counts channels that both you and the bot can see."""
             # Plot downtime and include legend
             downtime_data = np.repeat(np.array(list(downtime_bins)), max(N))
             dtN, dtbins, dtpatches = ax.hist(
-                downtime_data, bins=bin_edges, hatch='//',
+                downtime_data, bins=downtime_edges, hatch='//',
                 facecolor='#00000000', edgecolor='#00000000'
             )
             # Workaround to color just the hatches since
@@ -405,7 +426,7 @@ This only counts channels that both you and the bot can see."""
         # Make background fully transparent
         fig.patch.set_facecolor('#00000000')
 
-        cog.set_axes_aspect(ax, 9 / 16, 'box')
+        graphing_cog.set_axes_aspect(ax, 9 / 16, 'box')
 
         f = io.BytesIO()
         fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0)
@@ -471,12 +492,14 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
         )
 
         graph = None
+        require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
         graphing_cog = ctx.bot.get_cog('Graphing')
-        if count and graphing_cog:
+        uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
+        if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
             # Generate graph
             f = await ctx.bot.loop.run_in_executor(
                 None, self.message_count_graph,
-                graphing_cog, messages, now, cumulative
+                graphing_cog, uptime_cog, messages, now, cumulative
             )
             graph = discord.File(f, filename='graph.png')
             embed.set_image(url='attachment://graph.png')
