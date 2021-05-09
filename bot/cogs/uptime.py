@@ -37,21 +37,25 @@ class Uptime(commands.Cog):
         """Record a period of downtime."""
         self.bot.uptime_downtimes.append(DowntimePeriod(start, end))
         if vacuum:
-            self.vacuum_downtimes(limit=20)
+            self.vacuum_downtimes(before=datetime.timedelta(days=1))
 
 
     def vacuum_downtimes(self, *, before=None, limit=None):
         """Remove the oldest downtime entries.
 
         Args:
-            before (Optional[datetime.datetime]):
-                Removes downtimes before this datetime.
+            before (Optional[Union[datetime.datetime, datetime.timedelta]]):
+                Removes downtimes before this datetime. If a timedelta
+                is given, it is subtracted from the current time.
             limit (Optional[int]): Removes datetimes until the
                 deque size is at most this.
 
         """
         def before_filter():
-            while downtimes[0].end < before:
+            before_dt = before
+            if isinstance(before_dt, datetime.timedelta):
+                before_dt = datetime.datetime.now().astimezone() - before_dt
+            while downtimes[0].end < before_dt:
                 del downtimes[0]
 
         def limit_filter():

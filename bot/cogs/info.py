@@ -52,7 +52,7 @@ class Informative(commands.Cog):
 
     MESSAGECOUNT_BINS_PER_HOUR = 3
     MESSAGECOUNT_DOWNTIME_BINS_PER_HOUR = 6
-    MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES = False
+    MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES = True
     # If true, uses the uptime cog to filter downtimes
     # shorter than UPTIME_ALLOWED_DOWNTIME
 
