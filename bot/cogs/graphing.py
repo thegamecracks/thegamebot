@@ -9,7 +9,6 @@ import decimal
 import functools
 import io
 import itertools
-##import multiprocessing
 from pathlib import Path
 import random
 import string
@@ -26,15 +25,6 @@ import numpy as np
 
 from bot import checks
 from bot import utils
-
-
-##def conn_wrapper(conn, func):
-##    @functools.wraps
-##    def wrapper(*args, **kwargs):
-##        output = func(*args, **kwargs)
-##        conn.send(output)
-##        return output
-##    return wrapper
 
 
 def format_dollars(dollars: decimal.Decimal):
@@ -367,9 +357,7 @@ periods: The number of compounding periods in each term."""
 
         await ctx.trigger_typing()
 
-        loop = asyncio.get_running_loop()
-
-        f, content = await loop.run_in_executor(
+        f, content = await ctx.bot.loop.run_in_executor(
             None, self.interest_stackplot, ctx,
             principal, rate, term, periods
         )
@@ -390,7 +378,6 @@ periods: The number of compounding periods in each term."""
 
 
 
-##    def frequency_analysis(self, conn, ctx, text):
     def frequency_analysis(self, ctx, text):
         """Create a frequency analysis graph of a given text.
 
@@ -454,7 +441,6 @@ periods: The number of compounding periods in each term."""
         f.seek(0)
 
         plt.close(fig)
-##        conn.send(f)
         return f
 
 
@@ -474,21 +460,7 @@ To see the different methods you can use to provide text, check the help message
 
         await ctx.trigger_typing()
 
-        loop = asyncio.get_running_loop()
-##
-##        parent_conn, child_conn = multiprocessing.Pipe()
-##        p = multiprocessing.Process(
-##            target=self.frequency_analysis,
-##            args=(child_conn, ctx, text)
-##        )
-##        p.start()
-##
-##        await loop.run_in_executor(None, p.join)
-##        f = parent_conn.recv()
-##        parent_conn.close()
-##        child_conn.close()
-
-        f = await loop.run_in_executor(
+        f = await ctx.bot.loop.run_in_executor(
             None, self.frequency_analysis, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Frequency Analysis.png'))
@@ -551,13 +523,13 @@ To see the different methods you can use to provide text, check the help message
         # Graph pie
         total_words = sum(words.values())
 
-##        if len(words) > len(top_words):
-##            # Words were left out; add an "other" size
-##            other_count = total_words - sum(count for word, count in top_words)
-##            sizes.append(other_count / total_words)
-##            labels.append(f'Other ({other_count})')
-##            # Use #808080 (grey)
-##            word_colors = np.append(word_colors, [[.5, .5, .5, 1]], 0)
+        # if len(words) > len(top_words):
+        #     # Words were left out; add an "other" size
+        #     other_count = total_words - sum(count for word, count in top_words)
+        #     sizes.append(other_count / total_words)
+        #     labels.append(f'Other ({other_count})')
+        #     # Use #808080 (grey)
+        #     word_colors = np.append(word_colors, [[.5, .5, .5, 1]], 0)
 
         patches, texts, autotexts = ax.pie(
             sizes, labels=labels, colors=word_colors, autopct='%1.2g%%',
@@ -623,9 +595,7 @@ To see the different methods you can use to provide text, check the help message
 
         await ctx.trigger_typing()
 
-        loop = asyncio.get_running_loop()
-
-        f = await loop.run_in_executor(
+        f = await ctx.bot.loop.run_in_executor(
             None, self.word_count_pie, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Word Count Pie Chart.png'))
@@ -715,9 +685,7 @@ To see the different methods you can use to provide text, check the help message
         """Generate a graph with some random data."""
         await ctx.trigger_typing()
 
-        loop = asyncio.get_running_loop()
-
-        f = await loop.run_in_executor(
+        f = await ctx.bot.loop.run_in_executor(
             None, self.test_bar_graphs_3d_image, elevation, azimuth)
 
         await ctx.send(file=discord.File(f, '3D Graph Test.png'))
@@ -789,8 +757,6 @@ To see the different methods you can use to provide text, check the help message
     async def client_test3dgraphanimation(
             self, ctx, frames: int = 30, duration: int = 3):
         """Generate an animating graph with some random data."""
-        loop = asyncio.get_running_loop()
-
         if duration < 1:
             return await ctx.send('Duration must be at least 1 second.')
         if frames < 1:
@@ -803,7 +769,7 @@ To see the different methods you can use to provide text, check the help message
         )
 
         with ctx.typing():
-            fp = await loop.run_in_executor(None, func)
+            fp = await ctx.bot.loop.run_in_executor(None, func)
 
         filesize_limit = (ctx.guild.filesize_limit if ctx.guild is not None
                           else 8_000_000)

@@ -186,8 +186,7 @@ text: The message to encode."""
                 s += ' Try lowering the error correction level.'
             return await ctx.send(s)
 
-        loop = asyncio.get_running_loop()
-        img = await loop.run_in_executor(None, qr.make_image)
+        img = await ctx.bot.loop.run_in_executor(None, qr.make_image)
 
         f = io.BytesIO()
         img.save(f, format='png')
@@ -291,9 +290,7 @@ Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
 
         await ctx.trigger_typing()
 
-        loop = asyncio.get_running_loop()
-
-        f = await loop.run_in_executor(
+        f = await ctx.bot.loop.run_in_executor(
             None, self.write_amongustext, ctx,
             text, transparent
         )

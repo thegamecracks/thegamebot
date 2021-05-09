@@ -216,8 +216,7 @@ async def main():
         await bot.wait_until_ready()
         bot.info_bootup_time = time.perf_counter() - start_time
 
-    loop = asyncio.get_running_loop()
-    loop.create_task(bootup_time(bot, start_time))
+    bot.loop.create_task(bootup_time(bot, start_time))
 
     await bot.start(token)
 
