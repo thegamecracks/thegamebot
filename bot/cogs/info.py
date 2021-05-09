@@ -81,8 +81,11 @@ Optional settings:
     -S --system: show system-related information about the bot."""
         embed = discord.Embed(
             title='About',
-            description=('I do random stuff, whatever <@153551102443257856> '
-                         'adds to me'),
+            description=(
+                'I do random stuff, whatever '
+                '[thegamecracks](https://github.com/thegamecracks/thegamebot) '
+                'adds to me.'
+            ),
             color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
             url=self.bot.user.avatar_url
