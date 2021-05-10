@@ -162,6 +162,7 @@ class EventHandlers(commands.Cog):
         commands.BotMissingPermissions: None,
         commands.BotMissingAnyRole: None,
         commands.BotMissingRole: None,
+        commands.CommandInvokeError: (1, 5, commands.BucketType.user),
         commands.CommandOnCooldown: None,
         commands.DisabledCommand: None,
         commands.MaxConcurrencyReached: None,
@@ -187,6 +188,10 @@ class EventHandlers(commands.Cog):
 
     def cog_unload(self):
         self.teardown_events()
+
+    def generate_error_code(self, ctx, error):
+        """Generate an error code for a command error."""
+        return ''.join(random.choices('0123456789ABCDEF', k=4))
 
     def setup_events(self):
         """Add the cog's custom event handlers to the bot."""
@@ -236,10 +241,11 @@ class EventHandlers(commands.Cog):
                 return
 
         # Print error
+        code = self.generate_error_code(ctx, error)
         if not isinstance(error, self.IGNORE_PRINTING_EXCEPTIONS):
             print(
-                'Command error ({}:{}:"{}")\n  {}: {}'.format(
-                    f'{ctx.guild}:{ctx.channel}' if ctx.guild else '<DM>',
+                'Command error {} ({}:{}:"{}")\n  {}: {}'.format(
+                    code, f'{ctx.guild}:{ctx.channel}' if ctx.guild else '<DM>',
                     ctx.author, ctx.invoked_with, type(error).__name__, error
                 )
             )
@@ -481,6 +487,22 @@ class EventHandlers(commands.Cog):
                            'disabled for this server.')
         elif isinstance(error_unpacked, errors.SettingsNotFound):
             await ctx.send('Fatal error: settings could not be loaded.')
+        elif isinstance(error, commands.CommandInvokeError):
+            embed = discord.Embed(
+                color=utils.get_bot_color(ctx.bot),
+                description='An error occurred while trying to run '
+                            'your command: ```py\n{}: {}``` Error '
+                            'code: **{}**'.format(
+                    type(error_unpacked).__name__,
+                    str(error_unpacked),
+                    code
+                )
+            ).set_author(
+                name=ctx.author.display_name,
+                icon_url=ctx.author.avatar_url
+            )
+            await ctx.send(embed=embed)
+            raise error
         elif not isinstance(error, self.IGNORE_EXCEPTIONS_AFTER):
             raise error
 
