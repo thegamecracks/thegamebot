@@ -81,8 +81,6 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
             ctx.command.reset_cooldown(ctx)
             return await ctx.send('An empty prefix is not allowed.')
 
-        await ctx.trigger_typing()
-
         current_prefix = (
             await db.get_prefix(ctx.guild.id)
         )

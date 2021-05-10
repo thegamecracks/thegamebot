@@ -355,12 +355,11 @@ periods: The number of compounding periods in each term."""
             return await ctx.send(
                 'The principal/term/periods are too large to calculate.')
 
-        await ctx.trigger_typing()
-
-        f, content = await ctx.bot.loop.run_in_executor(
-            None, self.interest_stackplot, ctx,
-            principal, rate, term, periods
-        )
+        with ctx.typing():
+            f, content = await ctx.bot.loop.run_in_executor(
+                None, self.interest_stackplot, ctx,
+                principal, rate, term, periods
+            )
 
         await ctx.send(
             content, file=discord.File(f, 'Word Count Pie Chart.png'))
@@ -458,10 +457,9 @@ To see the different methods you can use to provide text, check the help message
         if not success:
             return await ctx.send(text)
 
-        await ctx.trigger_typing()
-
-        f = await ctx.bot.loop.run_in_executor(
-            None, self.frequency_analysis, ctx, text)
+        with ctx.typing():
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.frequency_analysis, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Frequency Analysis.png'))
 
@@ -593,10 +591,9 @@ To see the different methods you can use to provide text, check the help message
         if not success:
             return await ctx.send(text)
 
-        await ctx.trigger_typing()
-
-        f = await ctx.bot.loop.run_in_executor(
-            None, self.word_count_pie, ctx, text)
+        with ctx.typing():
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.word_count_pie, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Word Count Pie Chart.png'))
 
@@ -683,10 +680,9 @@ To see the different methods you can use to provide text, check the help message
     async def client_test3dgraph(
             self, ctx, elevation: int = None, azimuth: int = None):
         """Generate a graph with some random data."""
-        await ctx.trigger_typing()
-
-        f = await ctx.bot.loop.run_in_executor(
-            None, self.test_bar_graphs_3d_image, elevation, azimuth)
+        with ctx.typing():
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.test_bar_graphs_3d_image, elevation, azimuth)
 
         await ctx.send(file=discord.File(f, '3D Graph Test.png'))
 

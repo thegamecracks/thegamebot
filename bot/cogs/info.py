@@ -106,8 +106,6 @@ Optional settings:
         start_time = await ctx.bot.localize_datetime(ctx.author.id, start_time)
         start_time = utils.strftime_zone(start_time)
 
-        await ctx.trigger_typing()
-
         field_statistics = [
             f"Bot started at: {start_time}"
         ]
@@ -342,7 +340,7 @@ This only counts channels that both you and the bot can see."""
                 if end > day:
                     continue
                 elif (  minimum_downtime is not None
-                        and period.total_seconds() < minimum_downtime):
+                        and period.total_seconds() <= minimum_downtime):
                     # Ignore intermittent downtime periods
                     continue
 
@@ -463,53 +461,51 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             return await ctx.send(
                 'The bot is currently not tracking message frequency.')
 
-        await ctx.trigger_typing()
-
-        now = datetime.datetime.utcnow().timestamp()
-        async with cog.connect() as conn:
-            async with conn.execute(
-                    'SELECT created_at FROM Messages '
-                    'WHERE guild_id = ? AND created_at > ?',
-                    ctx.guild.id, yesterday) as c:
-                messages = []
-                while m := await c.fetchone():
-                    dt = datetime.datetime.fromisoformat(m['created_at'])
-                    td = max(0, now - dt.timestamp())
-                    messages.append(td)
-
-        count = len(messages)
+        utcnow_timestamp = datetime.datetime.utcnow().timestamp()
         now = datetime.datetime.now().astimezone()
         start_time = datetime.datetime.fromtimestamp(
             self.process.create_time()).astimezone()
         start_hour = math.ceil((now - start_time).total_seconds() / 3600)
         hour_span = min(24, start_hour)
-
         plural = ctx.bot.inflector.plural
 
-        embed = discord.Embed(
-            title='Server Message Count',
-            description='{:,} {} {} been sent in the last {}.'.format(
-                count, plural('message', count), plural('has', count),
-                'hour' if hour_span == 1 else f'{hour_span} hours'
-            ),
-            colour=utils.get_bot_color(ctx.bot)
-        ).set_footer(
-            text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar_url
-        )
+        with ctx.typing():
+            messages = []
+            async with cog.connect() as conn:
+                async with conn.execute(
+                        'SELECT created_at FROM Messages '
+                        'WHERE guild_id = ? AND created_at > ?',
+                        ctx.guild.id, yesterday) as c:
+                    while m := await c.fetchone():
+                        dt = datetime.datetime.fromisoformat(m['created_at'])
+                        td = max(0, utcnow_timestamp - dt.timestamp())
+                        messages.append(td)
+            count = len(messages)
 
-        graph = None
-        require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
-        graphing_cog = ctx.bot.get_cog('Graphing')
-        uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
-        if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
-            # Generate graph
-            f = await ctx.bot.loop.run_in_executor(
-                None, self.message_count_graph,
-                graphing_cog, uptime_cog, messages, now, cumulative
+            embed = discord.Embed(
+                title='Server Message Count',
+                description='{:,} {} {} been sent in the last {}.'.format(
+                    count, plural('message', count), plural('has', count),
+                    'hour' if hour_span == 1 else f'{hour_span} hours'
+                ),
+                colour=utils.get_bot_color(ctx.bot)
+            ).set_footer(
+                text=f'Requested by {ctx.author.display_name}',
+                icon_url=ctx.author.avatar_url
             )
-            graph = discord.File(f, filename='graph.png')
-            embed.set_image(url='attachment://graph.png')
+
+            graph = None
+            require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
+            graphing_cog = ctx.bot.get_cog('Graphing')
+            uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
+            if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
+                # Generate graph
+                f = await ctx.bot.loop.run_in_executor(
+                    None, self.message_count_graph,
+                    graphing_cog, uptime_cog, messages, now, cumulative
+                )
+                graph = discord.File(f, filename='graph.png')
+                embed.set_image(url='attachment://graph.png')
 
         await ctx.send(file=graph, embed=embed)
 

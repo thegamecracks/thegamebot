@@ -264,8 +264,6 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
 
 If y is "low", calculates the lowest divisor of x other than itself.
 If y is "high", calculates the highest divisor of x other than itself."""
-        await ctx.channel.trigger_typing()
-
         if x > 1_000_000:
             await ctx.send('X must be below one million.')
         elif y == 'low' or y == 'high':
@@ -294,8 +292,6 @@ If y is "high", calculates the highest divisor of x other than itself."""
 n - The number to test.
 setting - low or high: Returns either the lowest or highest divisor
  other than 1 and itself."""
-        await ctx.channel.trigger_typing()
-
         if n < 2:
             return await ctx.send(f'{n} is not a prime number;\n'
                                   'all whole numbers below 3 are not prime.')
@@ -373,8 +369,6 @@ n - The number to test.
 The maximum number to check factors is 10000."""
         if n > 10000:
             return await ctx.send('N must be below ten thousand.')
-
-        await ctx.channel.trigger_typing()
 
         factors = self.factors(n)
 

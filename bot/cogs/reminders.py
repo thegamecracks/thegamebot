@@ -131,8 +131,6 @@ be used instead of UTC.
 
 Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
-        await ctx.channel.trigger_typing()
-
         total_reminders = len(await self.get_reminders(ctx.author.id))
 
         if total_reminders < 5:
@@ -197,8 +195,6 @@ You can have a maximum of 5 reminders."""
 
 To see a list of your reminders and their indices, use the showreminders command.
 To remove several reminders, use the removereminders command."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -223,8 +219,6 @@ To remove several reminders, use the removereminders command."""
 
 You can remove "all" of your reminders or remove only a section of it by specifying the start and end indices ("1-4").
 To remove only one reminder, use the removereminder command."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -257,8 +251,6 @@ To remove only one reminder, use the removereminder command."""
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_showreminder(self, ctx, index: int):
         """Show one of your reminders."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -299,8 +291,6 @@ To remove only one reminder, use the removereminder command."""
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_showreminders(self, ctx):
         """Show all of your reminders."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:

@@ -109,8 +109,6 @@ class Images(commands.Cog):
                 'Sorry, but the bot currently cannot query for a cat image.')
             return await asyncio.sleep(10)
 
-        await ctx.trigger_typing()
-
         try:
             cat = await query_thatapiguy(
                 ctx.bot.session, CAT_API_URL, CAT_API_KEY)
@@ -133,8 +131,6 @@ class Images(commands.Cog):
             await ctx.send(
                 'Sorry, but the bot currently cannot query for a dog image.')
             return await asyncio.sleep(10)
-
-        await ctx.trigger_typing()
 
         try:
             dog = await query_thatapiguy(
@@ -170,8 +166,6 @@ If not given, defaults to Level M.
 text: The message to encode."""
         if ec_level is None:
             ec_level = QRCodeECL.M
-
-        await ctx.trigger_typing()
 
         qr = qrcode.QRCode(
             version=version,
@@ -287,8 +281,6 @@ Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
                 "Your text is {s} plural('line', {s}) too long.".format(
                     s=size)
             ))
-
-        await ctx.trigger_typing()
 
         f = await ctx.bot.loop.run_in_executor(
             None, self.write_amongustext, ctx,

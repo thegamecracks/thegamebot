@@ -124,7 +124,6 @@ The index parameter allows several formats:
 3-8  # show notes 3 through 8
 If nothing is provided, all notes are shown."""
         index: Optional[Iterable[int]]
-        await ctx.channel.trigger_typing()
 
         note_list = await self.get_notes(ctx.author.id)
 
@@ -233,8 +232,6 @@ If nothing is provided, all notes are shown."""
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_notes_add(self, ctx, *, note):
         """Store a note."""
-        await ctx.channel.trigger_typing()
-
         total_notes = len(await self.get_notes(ctx.author.id))
 
         if total_notes < self.max_notes_user:
@@ -305,7 +302,6 @@ The index parameter allows several formats:
 3-8  # delete notes 3 through 8
 To see a list of your notes and their indices, use the "notes show" command."""
         index: Iterable[int]
-        await ctx.channel.trigger_typing()
 
         note_list = await self.get_notes(ctx.author.id)
 
