@@ -30,6 +30,8 @@ DISABLED_INTENTS = (
     'voice_states', 'typing'
 )
 
+logger = discordlogger.get_logger()
+
 
 class TheGameBot(BotDatabaseMixin, commands.Bot):
     EXT_LIST = [
@@ -170,8 +172,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
                 await super().start(*args, **kwargs)
             except KeyboardInterrupt:
                 logger.info('KeyboardInterrupt: closing bot')
-            except Exception:
-                logger.exception('Exception raised in bot')
             finally:
                 await self.close()
 
@@ -189,8 +189,6 @@ async def main():
                         help='Enable privileged presences intent.')
 
     args = parser.parse_args()
-
-    logger = discordlogger.get_logger()
 
     token = os.getenv('PyDiscordBotToken')
     if token is None:

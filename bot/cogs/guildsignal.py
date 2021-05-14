@@ -1,10 +1,21 @@
 import asyncio
 import datetime
+import logging
+from typing import Optional
 
 import discord
 from discord.ext import commands, tasks
 
 import abattlemetrics as abm
+
+abm_log = logging.getLogger('abattlemetrics')
+abm_log.setLevel(logging.INFO)
+if not abm_log.hasHandlers():
+    handler = logging.FileHandler(
+        'abattlemetrics.log', encoding='utf-8', mode='w')
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    abm_log.addHandler(handler)
 
 
 class SignalHill(commands.Cog):
@@ -33,10 +44,12 @@ class SignalHill(commands.Cog):
 
 
     @property
-    def partial_ina_status(self) -> discord.PartialMessage:
+    def partial_ina_status(self) -> Optional[discord.PartialMessage]:
         """Return a PartialMessage displaying the I&A status."""
-        ch, ms = self.INA_STATUS_MESSAGE_ID
-        return self.bot.get_channel(ch).get_partial_message(ms)
+        channel_id, message_id = self.INA_STATUS_MESSAGE_ID
+        channel = self.bot.get_channel(channel_id)
+        if channel:
+            return channel.get_partial_message(message_id)
 
 
     @staticmethod
