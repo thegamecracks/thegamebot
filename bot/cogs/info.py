@@ -87,7 +87,7 @@ Optional settings:
             title='About',
             description=(
                 'I do random stuff, whatever '
-                '[thegamecracks](https://github.com/thegamecracks/thegamebot) '
+                '[**thegamecracks**](https://github.com/thegamecracks/thegamebot) '
                 'adds to me.'
             ),
             color=utils.get_bot_color(ctx.bot)

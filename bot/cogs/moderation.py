@@ -52,6 +52,7 @@ class Moderation(commands.Cog):
 
     @commands.group(name='purge', invoke_without_command=True)
     @commands.cooldown(2, 10, commands.BucketType.channel)
+    @commands.guild_only()
     @commands.has_permissions(manage_messages=True)
     @commands.bot_has_permissions(
         manage_messages=True,
@@ -67,6 +68,7 @@ limit: The number of messages to look through. (range: 2-100)"""
 
     @client_purge.command(name='bot')
     @commands.cooldown(2, 10, commands.BucketType.channel)
+    @commands.guild_only()
     @commands.has_permissions(manage_messages=True)
     @commands.bot_has_permissions(
         manage_messages=True,
@@ -85,7 +87,11 @@ limit: The number of messages to look through. (range: 2-100)"""
 
     @client_purge.command(name='self')
     @commands.cooldown(2, 10, commands.BucketType.channel)
-    @commands.has_permissions(manage_messages=True)
+    @commands.guild_only()
+    @commands.check_any(
+        commands.has_permissions(manage_messages=True),
+        commands.is_owner()
+    )
     @commands.bot_has_permissions(read_message_history=True)
     async def client_purge_self(self, ctx, limit: PurgeLimitConverter):
         """Delete messages from me.

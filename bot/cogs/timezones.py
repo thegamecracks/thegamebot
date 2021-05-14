@@ -57,12 +57,17 @@ class Timezones(commands.Cog):
             hour, minute, noon = int(m['hour']), m['minute'], m['noon']
 
             if noon is not None:
-                hour += 12 * (noon.lower() == 'pm')
+                pm, is_twelve = noon.lower() == 'pm', hour == 12
+                # 12am and 12pm are special cases
+                if pm and not is_twelve:
+                    hour += 12
+                elif not pm and is_twelve:
+                    hour = 0
             elif minute is None:
-                # single/double digit number (4, 20)
+                # just a single/double digit number (4, 20)
                 continue
 
-            if not 1 <= hour < 24:
+            if not 0 <= hour < 24:
                 continue
             t = datetime.time(hour=hour)
 
@@ -119,30 +124,30 @@ class Timezones(commands.Cog):
         if tz is None:
             return
 
-        times = self.find_times(m.content, tz)
-        if times:
+        if self.find_times(m.content, tz):
             await m.add_reaction(self.bot.get_emoji(self.clock_emoji))
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Respond to someone that wants a timezone translated."""
-        if payload.emoji.id != self.clock_emoji:
-            return
-        elif payload.user_id == self.bot.user.id:
-            return
-        elif payload.user_id in self.bot.timezones_users_inputting:
+        if (    payload.emoji.id != self.clock_emoji
+                or payload.user_id == self.bot.user.id
+                or payload.user_id in self.bot.timezones_users_inputting):
             return
 
         c = self.bot.get_channel(payload.channel_id)
         m = await c.fetch_message(payload.message_id)
 
+        # Prevent author from translating their own timezone
         if payload.user_id == m.author.id:
             return
 
+        # Bot must have its own reaction on it too
         r = discord.utils.get(m.reactions, emoji__id=payload.emoji.id)
         if not r.me:
             return
 
+        # Check the author's timezone
         tz_in = await self.bot.dbusers.get_timezone(m.author.id)
         if tz_in is None:
             return
@@ -268,7 +273,7 @@ class Timezones(commands.Cog):
         channel: Union[discord.TextChannel, discord.User] = message.channel
         failed_channels = []
 
-        # Determine and timezones
+        # Ask user for timezone if needed
         asked_timezone = tz_out is None
         if asked_timezone:
             tz_out = await input_timezone()
