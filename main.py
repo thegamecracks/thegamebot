@@ -44,6 +44,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'games',
             'graphing',
             'guildirish',
+            'guildsignal',
             'images',
             'messagetracker',  # dependency of info
             'info',  # dependency of helpcommand
