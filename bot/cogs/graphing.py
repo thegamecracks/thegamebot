@@ -5,6 +5,7 @@
 import asyncio
 import collections
 import contextlib
+import datetime
 import decimal
 import functools
 import io
@@ -18,6 +19,7 @@ from discord.ext import commands
 import humanize
 import matplotlib
 import matplotlib.animation as animation
+from matplotlib import dates as mdates
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -92,6 +94,64 @@ or the last message that was sent."""
 
     def __init__(self, bot):
         self.bot = bot
+
+
+    def RelativeDateFormatter(
+            self, now=None, unit=None, when_absolute=None,
+            absolute_fmt='%Y-%m-d'):
+        """Format a matplotlib date as a relative time.
+
+        Args:
+            now (Optional[datetime.datetime]):
+                The current time. Works with timezones.
+            unit (Optional[str]): The unit of time to use for relative formatting.
+                Can be one of 'second', 'minute', 'hour', 'day', or None
+                to use automatic units (may result in duplicate tick labels).
+            when_absolute (Optional[int]): Formats datetimes as absolute when
+                the difference from now is greater than this number of seconds.
+            absolute_fmt (str): The format to use for absolute datetimes.
+
+        """
+        units_mapping = {
+            'day': 86400,
+            'hour': 3600,
+            'minute': 60,
+            'second': 1
+        }
+        now = now or datetime.datetime.now().astimezone(datetime.timezone.utc)
+        if now.tzinfo != datetime.timezone.utc:
+            now = now.astimezone(datetime.timezone.utc)
+
+        def actual_relative_formatter(x, pos):
+            def get_unit():
+                n = units_mapping.get(unit)
+                if n is not None:
+                    return unit, n
+
+                for name, n in units_mapping.items():
+                    if seconds // n:
+                        return name, n
+
+                return 'second', 1
+
+            def format_relative():
+                name, n = get_unit()
+                converted = int(seconds // n)
+                return '{:,d} {}{}\nago'.format(
+                    converted,
+                    name,
+                    's' if n != 1 else ''
+                )
+
+            dt = mdates.num2date(x)
+            seconds = (now - dt).total_seconds()
+
+            if when_absolute is not None and seconds > when_absolute:
+                return dt.strftime(absolute_fmt)
+
+            return format_relative()
+
+        return actual_relative_formatter
 
 
     async def get_text(self, ctx, text: str, *, message=None):
