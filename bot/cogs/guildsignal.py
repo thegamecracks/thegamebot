@@ -145,7 +145,7 @@ class SignalHill(commands.Cog):
         if server.status != 'online':
             description.append('Server is offline')
             embed.description = '\n'.join(description)
-            return server, embed
+            return embed
  
         description.append('Map: ' + server.details['map'])
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
