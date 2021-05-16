@@ -44,12 +44,16 @@ class SignalHill(commands.Cog):
         self.bot = bot
         self.bm_client = abm.BattleMetricsClient(self.bot.session)
         self.ina_status_enabled = True
-        self.ina_status_last = None
+        self.ina_status_last_server = None
+        # The last Server query from battlemetrics
         self.ina_status_cooldown = commands.Cooldown(
             1, self.INA_STATUS_EDIT_RATE, commands.BucketType.default)
+        # Cooldown for editing
         self.ina_status_graph_last = None
+        # Last message sent with graph
         self.ina_status_graph_cooldown = commands.Cooldown(
             1, self.INA_STATUS_GRAPH_RATE, commands.BucketType.default)
+        # Cooldown for graph generation
         self.ina_status_loop.start()
 
 
@@ -88,7 +92,7 @@ class SignalHill(commands.Cog):
 
 
     async def ina_status_fetch_server(self, *args, **kwargs):
-        """Fetch the I&A server and replace self.ina_status_last.
+        """Fetch the I&A server and replace self.ina_status_last_server.
 
         Args:
             *args
@@ -97,11 +101,11 @@ class SignalHill(commands.Cog):
         Returns:
             Tuple[abattlemetrics.Server, Optional[abattlemetrics.Server]]:
                 The server that was fetched and the previous value
-                or self.ina_status_last.
+                or self.ina_status_last_server.
 
         """
         server = await self.bm_client.get_server_info(*args, **kwargs)
-        old, self.ina_status_last = self.ina_status_last, server
+        old, self.ina_status_last_server = self.ina_status_last_server, server
         return server, old
 
 
@@ -176,7 +180,7 @@ class SignalHill(commands.Cog):
 
     async def ina_status_upload_graph(self, server, graphing_cog):
         """Generate the player count graph, upload it, and cache
-        the resulting attachment in self.ina_status_graph_last.
+        the resulting message in self.ina_status_graph_last.
 
         Args:
             server (abattlemetrics.Server): The Server object.
@@ -184,7 +188,7 @@ class SignalHill(commands.Cog):
             graphing_cog (commands.Cog): The Graphing cog.
 
         Returns:
-            discord.Attachment
+            discord.Message
 
         """
         stop = datetime.datetime.utcnow()
@@ -200,9 +204,10 @@ class SignalHill(commands.Cog):
         graph = discord.File(f, filename='graph.png')
 
         m = await self.bot.get_channel(self.INA_STATUS_GRAPH_DEST).send(file=graph)
-        a = m.attachments[0]
-        self.ina_status_graph_last = a
-        return a
+        if self.ina_status_graph_last:
+            await self.ina_status_graph_last.delete(delay=0)
+        self.ina_status_graph_last = m
+        return m
 
 
     async def ina_status_update(self):
@@ -212,11 +217,12 @@ class SignalHill(commands.Cog):
             Tuple[abattlemetrics.Server, discord.Embed]:
                 The server fetched from the API and the embed generated
                 from it.
-            Tuple[None, None]: On cooldown.
+            Tuple[float, None]: On cooldown.
 
         """
-        if self.ina_status_cooldown.update_rate_limit(None):
-            return None, None
+        retry_after = self.ina_status_cooldown.update_rate_limit(None)
+        if retry_after:
+            return retry_after, None
         # NOTE: a high cooldown period will help with preventing concurrent
         # updates but this by itself does not remove the potential
 
@@ -227,12 +233,12 @@ class SignalHill(commands.Cog):
 
         embed = self.ina_status_create_embed(server)
 
-        attachment = self.ina_status_graph_last
-        if not self.ina_status_graph_cooldown.update_rate_limit(None):
+        m = self.ina_status_graph_last
+        if not m or not self.ina_status_graph_cooldown.update_rate_limit(None):
             graphing_cog = self.bot.get_cog('Graphing')
             if graphing_cog:
-                attachment = await self.ina_status_upload_graph(
-                    server, graphing_cog)
+                m = await self.ina_status_upload_graph(server, graphing_cog)
+        attachment = m.attachments[0]
 
         if attachment:
             embed.set_image(url=attachment)
@@ -281,7 +287,7 @@ class SignalHill(commands.Cog):
         server, embed = await self.ina_status_update()
         # NOTE: loop could decide to update right after this
 
-        if server is not None:
+        if embed is not None:
             # Update was successful; remove reaction
             message = self.partial_ina_status
             try:
@@ -298,7 +304,9 @@ class SignalHill(commands.Cog):
         server, embed = await self.ina_status_update()
 
         next_period = 15
-        if server is None or server.status == 'online':
+        if isinstance(server, float):
+            next_period = server
+        elif server.status == 'online':
             next_period = self.get_next_period(self.INA_STATUS_SECONDS)
         await asyncio.sleep(next_period)
 
@@ -307,9 +315,12 @@ class SignalHill(commands.Cog):
     async def before_ina_status_loop(self):
         await self.bot.wait_until_ready()
 
+        # Clean up graph destination
+        graph_channel = self.bot.get_channel(self.INA_STATUS_GRAPH_DEST)
+        await graph_channel.purge(limit=2, check=lambda m: m.author == self.bot.user)
+
         # Sync to the next interval
-        next_period = self.get_next_period(
-            self.INA_STATUS_SECONDS, inclusive=True)
+        next_period = self.get_next_period(self.INA_STATUS_SECONDS, inclusive=True)
         await asyncio.sleep(next_period)
 
 
@@ -362,9 +373,9 @@ Turns back on when the bot connects."""
         line_color = '#F54F33'
         fig, ax = plt.subplots()
 
-        if any(None not in (d.min, d.max) for d in datapoints):
-            # Resolution is not raw; generate bar graph with error bars
-            pass
+        # if any(None not in (d.min, d.max) for d in datapoints):
+        #     # Resolution is not raw; generate bar graph with error bars
+        #     pass
 
         # Plot player counts
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
@@ -382,7 +393,7 @@ Turns back on when the bot connects."""
 
         # Set limits and fill under the line
         ax.set_xlim(x_min, x_max)
-        ax.set_ylim(0, server.max_players)
+        ax.set_ylim(0, server.max_players + 1)
         ax.fill_between(x_new, y_smooth, color=line_color + '55')
 
         # Set xticks to every two hours
@@ -433,7 +444,7 @@ Turns back on when the bot connects."""
         )
 
         graphing_cog = ctx.bot.get_cog('Graphing')
-        server = self.ina_status_last
+        server = self.ina_status_last_server
         if not server:
             server, old = await self.ina_status_fetch_server(self.INA_SERVER_ID)
 
