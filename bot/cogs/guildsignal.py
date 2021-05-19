@@ -18,7 +18,7 @@ from scipy.interpolate import make_interp_spline
 from bot import utils
 
 abm_log = logging.getLogger('abattlemetrics')
-abm_log.setLevel(logging.INFO)
+abm_log.setLevel(logging.DEBUG)
 if not abm_log.hasHandlers():
     handler = logging.FileHandler(
         'abattlemetrics.log', encoding='utf-8', mode='w')
@@ -278,10 +278,10 @@ class SignalHill(commands.Cog):
     async def ina_status_react(self, payload):
         """Update the I&A status manually with a reaction."""
         ch, msg = self.INA_STATUS_MESSAGE_ID
-        if (    self.ina_status_enabled
-                and payload.channel_id != ch or payload.message_id != msg
+        if (    not self.ina_status_enabled
+                or payload.channel_id != ch or payload.message_id != msg
                 or payload.emoji.name != self.REFRESH_EMOJI
-                or payload.member and payload.member.bot):
+                or getattr(payload.member, 'bot', False)):
             return
 
         server, embed = await self.ina_status_update()

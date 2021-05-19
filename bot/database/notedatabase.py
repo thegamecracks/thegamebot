@@ -23,7 +23,7 @@ class NoteDatabase(db.Database):
         user_id INTEGER NOT NULL,
         time_of_entry TIMESTAMP,
         content TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES Users(id)
+        FOREIGN KEY (user_id) REFERENCES Users(id)
             ON DELETE CASCADE
     );
     """

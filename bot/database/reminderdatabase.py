@@ -20,7 +20,7 @@ class ReminderDatabase(db.Database):
         user_id INTEGER NOT NULL,
         due TIMESTAMP,
         content TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES Users(id)
+        FOREIGN KEY (user_id) REFERENCES Users(id)
             ON DELETE CASCADE
     );
     """

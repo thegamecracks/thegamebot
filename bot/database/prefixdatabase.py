@@ -21,7 +21,7 @@ class PrefixDatabase(db.Database):
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         guild_id INTEGER PRIMARY KEY NOT NULL,
         prefix TEXT NOT NULL,
-        FOREIGN KEY(guild_id) REFERENCES Guilds(id)
+        FOREIGN KEY (guild_id) REFERENCES Guilds(id)
             ON DELETE CASCADE
     );
     """

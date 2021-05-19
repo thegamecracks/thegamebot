@@ -13,13 +13,32 @@ from bot import errors, utils
 
 
 class TagNameConverter(commands.Converter):
-    """Ensure a tag name is suitable."""
+    """Ensure a tag name is suitable.
+
+    Args:
+        param (str): The name of the parameter this converter
+            is being applied to. Used as part of the error messages.
+
+    """
+    TAG_CREATE_MAX_NAME_LENGTH = 50
+    def __init__(self, param: str):
+        self.param = param
+
     async def convert(self, ctx, arg):
+        diff = len(arg) - self.TAG_CREATE_MAX_NAME_LENGTH
+        if diff > 0:
+            raise errors.ErrorHandlerResponse(
+                f'Tag parameter `{self.param}` is {diff:,} '
+                'characters too long.'
+            )
+
         first_word, *_ = arg.split(None, 1)
         command = ctx.bot.get_command('tag')
         if first_word in command.all_commands:
             raise errors.ErrorHandlerResponse(
-                'The tag name cannot start with a reserved command name.')
+                f'Tag parameter `{self.param}` cannot start '
+                'with a reserved command name.'
+            )
 
         return arg
 
@@ -30,7 +49,6 @@ class Tags(commands.Cog):
 
     TAG_BY_MAX_DISPLAYED = 10
     TAG_LEADERBOARD_MAX_DISPLAYED = 10
-    TAG_CREATE_MAX_NAME_LENGTH = 50
 
     def __init__(self, bot):
         self.bot = bot
@@ -47,9 +65,9 @@ class Tags(commands.Cog):
 
     @commands.group(name='tag', aliases=('tags',), invoke_without_command=True)
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag(self, ctx, *, name: TagNameConverter):
+    async def client_tag(self, ctx, *, name: TagNameConverter('name')):
         """Show a tag."""
-        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name)
+        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
 
         if tag is None:
             return await ctx.send('This tag does not exist.')
@@ -57,109 +75,170 @@ class Tags(commands.Cog):
         await ctx.send(tag['content'])
 
         await ctx.bot.dbtags.edit_tag(
-            ctx.guild.id, name,
+            ctx.guild.id, tag['name'],
             uses=tag['uses'] + 1,
             record_time=False
         )
-                
+
+
+    @client_tag.command(name='alias')
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def client_tag_alias(
+            self, ctx, alias: TagNameConverter('alias'),
+            *, existing: TagNameConverter('existing')):
+        """Create an alias for a tag.
+These can be deleted in the same way as normal tags, however they cannot be edited.
+
+alias: The tag's alias. When using spaces, surround it with quotes as such:
+    `tag alias "my new name" my old name`
+existing: The name of an existing tag or even another alias."""
+        tag = await ctx.bot.dbtags.get_tag(
+            ctx.guild.id, existing, include_aliases=True)
+        if tag is None:
+            return await ctx.send('This tag does not exist.')
+
+        try:
+            await ctx.bot.dbtags.add_alias(
+                ctx.guild.id, alias, tag['name'], ctx.author.id)
+        except sqlite3.IntegrityError:
+            await ctx.send('A tag/alias with this name already exists!')
+        else:
+            await ctx.send('Created your new alias!')
 
 
     @client_tag.command(name='create')
-    @commands.cooldown(1, 2, commands.BucketType.user)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def client_tag_create(
-            self, ctx, name: TagNameConverter,
+            self, ctx, name: TagNameConverter('name'),
             *, content: commands.clean_content):
         """Create a tag.
 
 name: The name of the tag. When using spaces, surround it with quotes as such:
     `tag create "my tag name" content`
 content: The content of the tag."""
-        diff = len(name) - self.TAG_CREATE_MAX_NAME_LENGTH
-        if diff > 0:
-            return await ctx.send(
-                f'Your tag name is {diff:,} characters too long.')
-
         try:
             await ctx.bot.dbtags.add_tag(
                 ctx.guild.id, name, content, ctx.author.id)
-        except sqlite3.IntegrityError:
-            await ctx.send('A tag with this name already exists!')
+        except sqlite3.IntegrityError as e:
+            await ctx.send('A tag/alias with this name already exists!')
         else:
             await ctx.send('Created your new tag!')
 
 
-    @client_tag.command(name='delete')
+    @client_tag.command(name='delete', aliases=('remove',))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag_delete(self, ctx, *, name: TagNameConverter):
-        """Delete one of your tags."""
-        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name)
+    async def client_tag_delete(self, ctx, *, name: TagNameConverter('name')):
+        """Delete one of your tags or aliases.
+
+If you have Manage Server permissions you can also delete other people's tags."""
+        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
         if tag is None:
             return await ctx.send('That tag does not exist!')
-        elif tag['user_id'] != ctx.author.id:
+        elif tag['user_id'] != ctx.author.id and not ctx.author.permissions_in(
+                ctx.channel).manage_guild:
             return await ctx.send('Cannot delete a tag made by someone else.')
 
-        await ctx.bot.dbtags.delete_tag(ctx.guild.id, name)
-
-        await ctx.send(f'Deleted the given tag.')
+        is_alias = tag['name'] != name
+        if is_alias:
+            await ctx.bot.dbtags.delete_alias(ctx.guild.id, name)
+            await ctx.send(f'Deleted the given alias.')
+        else:
+            await ctx.bot.dbtags.delete_tag(ctx.guild.id, name)
+            await ctx.send(f'Deleted the given tag.')
 
 
     @client_tag.command(name='edit')
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_tag_edit(
-            self, ctx, name: TagNameConverter,
+            self, ctx, name: TagNameConverter('name'),
             *, content: commands.clean_content):
         """Edit one of your tags.
 
-name: The name of the tag. For names with multiple spaces, use quotes as such:
+name: The name of the tag (aliases allowed). For names with multiple spaces, use quotes as such:
     `tag edit "my tag name" new content`
 content: The new content to use."""
-        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name)
+        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
         if tag is None:
             return await ctx.send('That tag does not exist!')
         elif tag['user_id'] != ctx.author.id:
             return await ctx.send('Cannot edit a tag made by someone else.')
 
-        await ctx.bot.dbtags.edit_tag(ctx.guild.id, name, content)
+        await ctx.bot.dbtags.edit_tag(ctx.guild.id, tag['name'], content)
 
         await ctx.send('Edited your tag!')
 
 
     @client_tag.command(name='info')
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag_info(self, ctx, *, name: TagNameConverter):
+    async def client_tag_info(self, ctx, *, name: TagNameConverter('name')):
         """Get info about a tag."""
-        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name)
+        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
         if tag is None:
             return await ctx.send('That tag does not exist!')
 
-        created_at = datetime.datetime.fromisoformat(tag['created_at'])
-        created_at = await ctx.bot.localize_datetime(ctx.author.id, created_at)
-
         embed = discord.Embed(
-            color=utils.get_bot_color(ctx.bot),
-            title=tag['name']
-        ).add_field(
-            name='Owner',
-            value=f"<@{tag['user_id']}>"
-        ).add_field(
-            name='Uses',
-            value=format(tag['uses'], ',')
-        ).add_field(
-            name='Time of Creation',
-            value=utils.strftime_zone(created_at),
-            inline=False
+            color=utils.get_bot_color(ctx.bot)
         )
-        if tag['edited_at'] is not None:
-            edited_at = datetime.datetime.fromisoformat(tag['created_at'])
-            edited_at = await ctx.bot.localize_datetime(
-                ctx.author.id, edited_at)
+
+        is_alias = tag['name'] != name
+
+        if is_alias:
+            alias = await ctx.bot.dbtags.get_alias(ctx.guild.id, name)
+            created_at = datetime.datetime.fromisoformat(alias['created_at'])
+            created_at = await ctx.bot.localize_datetime(ctx.author.id, created_at)
+
+            embed.title = alias['alias']
             embed.add_field(
-                name='Last Edited',
-                value=utils.strftime_zone(edited_at),
+                name='Owner',
+                value=f"<@{alias['user_id']}>"
+            ).add_field(
+                name='Original',
+                value=alias['name']
+            ).add_field(
+                name='Time of Creation',
+                value=utils.strftime_zone(created_at),
                 inline=False
             )
+
+            footer = 'Alias requested by {}'
+        else:
+            created_at = datetime.datetime.fromisoformat(tag['created_at'])
+            created_at = await ctx.bot.localize_datetime(ctx.author.id, created_at)
+
+            embed.title = tag['name']
+            embed.add_field(
+                name='Owner',
+                value=f"<@{tag['user_id']}>"
+            ).add_field(
+                name='Uses',
+                value=format(tag['uses'], ',')
+            ).add_field(
+                name='Time of Creation',
+                value=utils.strftime_zone(created_at),
+                inline=False
+            )
+
+            aliases = await ctx.bot.dbtags.get_aliases(ctx.guild.id, name)
+            if aliases:
+                embed.add_field(
+                    name='Aliases',
+                    value=', '.join([r['alias'] for r in aliases])
+                )
+
+            if tag['edited_at'] is not None:
+                edited_at = datetime.datetime.fromisoformat(tag['edited_at'])
+                edited_at = await ctx.bot.localize_datetime(
+                    ctx.author.id, edited_at)
+                embed.add_field(
+                    name='Last Edited',
+                    value=utils.strftime_zone(edited_at),
+                    inline=False
+                )
+
+            footer = 'Tag requested by {}'
+
         embed.set_footer(
-            text=f'Requested by {ctx.author.display_name}',
+            text=footer.format(ctx.author.display_name),
             icon_url=ctx.author.avatar_url
         )
 
