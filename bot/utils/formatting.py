@@ -58,6 +58,12 @@ def format_table(
     return '\n'.join(render)
 
 
+def paginate_message(message: str, max_size: int = 2000) -> str:
+    """Paginate a string by max_size and yield each string."""
+    for i in range(0, len(message), max_size):
+        yield message[i:i + max_size]
+
+
 def truncate_message(
         message: str, max_size: int = 2000, max_lines: Optional[int] = None,
         placeholder: str = '[...]') -> str:

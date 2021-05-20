@@ -307,6 +307,20 @@ content: The new content to use."""
         await ctx.send(embed=embed)
 
 
+    @client_tag.command(name='raw')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def client_tag_raw(self, ctx, *, name: TagNameConverter('name')):
+        """Show a tag in its raw form.
+Useful for copy pasting any of the tag's markdown."""
+        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
+        if tag is None:
+            return await ctx.send('This tag does not exist.')
+
+        escaped = discord.utils.escape_markdown(tag['content'])
+        for content in utils.paginate_message(escaped):
+            await ctx.send(content)
+
+
     @client_tag.command(name='reset')
     @commands.cooldown(1, 60, commands.BucketType.guild)
     @commands.guild_only()
