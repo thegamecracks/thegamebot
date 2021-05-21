@@ -146,7 +146,9 @@ class SignalHill(commands.Cog):
             description.append('Server is offline')
             embed.description = '\n'.join(description)
             return embed
- 
+
+        embed.set_author(name=f'Rank #{server.rank:,}')
+
         description.append('Map: ' + server.details['map'])
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
         # Generate list of player names with their playtime
