@@ -95,8 +95,10 @@ class Reminders(commands.Cog):
         # Determine timezone
         # Check string for timezone, then look in database, and fallback to UTC
         date_string, tz = dateparser.timezone_parser.pop_tz_offset_from_string(date_string)
-        tz: datetime.tzinfo = tz or await ctx.bot.dbusers.get_timezone(
-            ctx.author.id) or pytz.UTC
+        if not tz:
+            user_row = await ctx.bot.dbusers.get_user(ctx.author.id)
+            tz = await ctx.bot.dbusers.convert_timezone(user_row) or pytz.UTC
+        tz: datetime.tzinfo
 
         # Make times relative to the timezone
         settings = self.DATEPARSER_SETTINGS.copy()
@@ -395,11 +397,7 @@ To remove only one reminder, use the removereminder command."""
             remove_task()
             return
 
-        when = await self.bot.localize_datetime(
-            user.id,
-            utcwhen
-        )
-        when_str = when.strftime('%c %Z')
+        when_str = await self.bot.strftime_user(user.id, utcwhen, aware='%c %Z')
 
         if seconds == 0:
             title = f'Late reminder for {when_str}'

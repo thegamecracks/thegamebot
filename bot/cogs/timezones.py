@@ -120,7 +120,8 @@ class Timezones(commands.Cog):
         if not perms.add_reactions:
             return
 
-        tz = await self.bot.dbusers.get_timezone(m.author.id)
+        author_row = await self.bot.dbusers.get_user(m.author.id)
+        tz = await self.bot.dbusers.convert_timezone(author_row)
         if tz is None:
             return
 
@@ -148,7 +149,8 @@ class Timezones(commands.Cog):
             return
 
         # Check the author's timezone
-        tz_in = await self.bot.dbusers.get_timezone(m.author.id)
+        user_in_row = await self.bot.dbusers.get_user(m.author.id)
+        tz_in = await self.bot.dbusers.convert_timezone(user_in_row)
         if tz_in is None:
             return
 
@@ -156,18 +158,24 @@ class Timezones(commands.Cog):
         if not times:
             return
 
-        tz_out = await self.bot.dbusers.get_timezone(payload.user_id)
+        user_out_row = await self.bot.dbusers.get_user(payload.user_id)
+        tz_out = await self.bot.dbusers.convert_timezone(user_out_row)
         user = await self.bot.try_user(payload.user_id)
 
         if not self.translate_timezone_cooldown.update_rate_limit(
                 MockMessage(user, channel=c, guild=c.guild)):
             # not rate limited; start translation
-            await self.translate_timezone(user, m, times, tz_in, tz_out)
+            await self.translate_timezone(
+                user, m, times,
+                tz_in, user_in_row,
+                tz_out, user_out_row
+            )
 
     async def translate_timezone(
             self, user: discord.User, message: discord.Message,
             times: List[Tuple[str, datetime.datetime, str]],
-            tz_in: pytz.BaseTzInfo, tz_out: pytz.BaseTzInfo):
+            tz_in: pytz.BaseTzInfo, user_in_row,
+            tz_out: pytz.BaseTzInfo, user_out_row):
         """Start translating a timezone for a user."""
         def get_bot_permissions(c):
             if isinstance(c, (discord.User, discord.DMChannel)):
@@ -302,9 +310,11 @@ class Timezones(commands.Cog):
         )
 
         # Convert times
+        tz_in_str = str(tz_in) if user_in_row['timezone_public'] else 'Hidden'
+        tz_out_str = str(tz_out) if user_out_row['timezone_public'] else 'Hidden'
         description = [
             f'{message.author.mention} in {message.channel.mention} sent these times:',
-            f'{tz_in} -> **{tz_out}**'
+            f'{tz_in_str} -> **{tz_out_str}**'
         ]
         for s, dt, form in times:
             dt_out = dt.astimezone(tz_out).strftime(form).lstrip('0')
@@ -325,18 +335,23 @@ class Timezones(commands.Cog):
 This command uses the IANA timezone database.
 You can find the timezone names using this [Time Zone Map](https://kevinnovak.github.io/Time-Zone-Picker/)."""
         # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
-        timezone = timezone or await ctx.bot.dbusers.get_timezone(ctx.author.id)
-        if timezone is None:
-            return await ctx.send(
-                'You do not have a timezone set. Please specify a timezone or '
-                'set your own timezone using "timezone set".'
-            )
-        timezone: pytz.BaseTzInfo
+        utcnow = datetime.datetime.utcnow()
 
-        UTC = pytz.utc
-        utcnow = UTC.localize(datetime.datetime.utcnow())
-        tznow = utcnow.astimezone(timezone)
-        await ctx.send(utils.strftime_zone(tznow))
+        if timezone is None:
+            row = await ctx.bot.dbusers.get_user(ctx.author.id)
+            if row['timezone'] is None:
+                return await ctx.send(
+                    'You do not have a timezone set. Please specify a timezone '
+                    'or set your own timezone using "timezone set".'
+                )
+            s = await ctx.bot.strftime_user(
+                row, utcnow, respect_settings=bool(ctx.guild))
+        else:
+            timezone: pytz.BaseTzInfo
+            tznow = utcnow.astimezone(timezone)
+            s = utils.strftime_zone(tznow)
+
+        await ctx.send(s)
 
 
     @client_timezone.command(name='set')
@@ -350,20 +365,48 @@ If you want to remove your timezone, use this command with no arguments."""
         if ctx.author.id in ctx.bot.timezones_users_inputting:
             return await ctx.send('You are already being asked to input a timezone.')
 
-        curr_timezone = await ctx.bot.dbusers.get_timezone(ctx.author.id)
-        if not (timezone or curr_timezone):
+        author_row = await ctx.bot.dbusers.get_user(ctx.author.id)
+        curr_timezone = await ctx.bot.dbusers.convert_timezone(author_row)
+        if not timezone and not curr_timezone:
             return await ctx.send('You already have no timezone set.')
 
         await self.set_user_timezone(ctx.author.id, timezone)
 
         description = 'Removed your timezone!'
         if timezone:
-            description = f'Updated your timezone to {timezone.zone}!'
+            if author_row['timezone_public']:
+                description = f'Updated your timezone to {timezone.zone}!'
+            else:
+                description = 'Updated your timezone!'
+                await ctx.message.delete(delay=0)
         embed = discord.Embed(
             description=description,
             color=utils.get_bot_color(ctx.bot)
         )
         await ctx.send(embed=embed)
+
+
+    @client_timezone.command(name='visibility', aliases=('visible', 'show'))
+    @commands.cooldown(2, 60, commands.BucketType.user)
+    async def client_timezone_visibility(self, ctx, mode: bool):
+        """Set your timezone visibility on or off.
+This hides the name and abbreviation of your timezone whenever it needs to be shown.
+By default, your timezone is hidden."""
+        row = await ctx.bot.dbusers.get_user(ctx.author.id)
+        curr_visibility = row['timezone_public']
+
+        if mode and curr_visibility:
+            return await ctx.send('Your timezone visibility is already set to on!')
+        elif not mode and not curr_visibility:
+            return await ctx.send('Your timezone visibility is already set to off!')
+
+        await ctx.bot.dbusers.update_rows(
+            ctx.bot.dbusers.TABLE_NAME,
+            {'timezone_public': mode},
+            where={'id': ctx.author.id}
+        )
+
+        await ctx.send('Updated your timezone visibility!')
 
 
 

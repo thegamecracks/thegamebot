@@ -112,7 +112,8 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         return (await super().is_owner(user)
                 or user.id in self.get_cog('Settings').get('owner_ids'))
 
-    async def localize_datetime(self, user_id, dt, prefer_utc=True):
+    async def localize_datetime(
+            self, user, dt, prefer_utc=True, return_row=False):
         """Localize a datetime to the user's region from the database,
         if they have one assigned.
 
@@ -122,19 +123,30 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         Always returns an aware timezone.
 
         Args:
-            user_id (int): The ID of the user to localize the datetime to.
+            user (Union[int, sqlite3.Row]):
+                Either the ID of the user or their database entry.
+                Technically the database entry could be any object so long
+                as the "id" and "timezone" keys exist.
             dt (datetime.datetime): The datetime to localize.
             prefer_utc (bool): If the datetime has a timezone,
                 localize to UTC first before going to their timezone.
                 This results in datetimes always being UTC if the user
                 does not have a timezone set.
+            return_row (bool): If true, return the user's database
+                entry along with the datetime.
+                If `user` is not an integer, this will return the same object.
 
         Returns:
-            datetime.datetime
+            datetime.datetime: The localized datetime.
+            Tuple[datetime.datetime, sqlite3.Row]:
+                The localized datetime along with the user's database entry
+                if return_row is True.
 
         """
         # Resource: https://medium.com/swlh/making-sense-of-timezones-in-python-16d8ae210c1c
-        timezone = await self.dbusers.get_timezone(user_id)
+        if isinstance(user, int):
+            user = await self.dbusers.get_user(user)
+        timezone = await self.dbusers.convert_timezone(user)
 
         if dt.tzinfo is None:
             dt = pytz.UTC.localize(dt)
@@ -144,6 +156,8 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         if timezone is not None:
             dt = dt.astimezone(timezone)
 
+        if return_row:
+            return dt, user
         return dt
 
     async def restart(self):
@@ -174,6 +188,42 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
                 logger.info('KeyboardInterrupt: closing bot')
             finally:
                 await self.close()
+
+    async def strftime_user(
+            self, user, dt: datetime.datetime, *args,
+            return_row=False, respect_settings=True, **kwargs):
+        """A version of utils.strftime_zone() that automatically
+        localizes a datetime to a given user and censors the
+        timezone info if needed.
+
+        Extra arguments are passed into utils.strftime_zone().
+
+        Args:
+            user (Union[int, sqlite3.Row]):
+                Either the ID of the user or their database entry.
+                Technically the database entry could be any object so long
+                as the "id", "timezone", and "timezone_public" keys exist.
+            dt (datetime.datetime): The datetime to localize.
+            return_row (bool): If true, return the user's database
+                entry along with the datetime.
+                If `user` is not an integer, this will return the same object.
+            respect_settings (bool): If False, this will skip censoring
+                the timezone even if their settings ask for it.
+
+        Returns:
+            str
+
+        """
+        dt, user = await self.localize_datetime(user, dt, return_row=True)
+
+        if respect_settings and not user['timezone_public']:
+            dt = dt.replace(tzinfo=None)
+
+        s = utils.strftime_zone(dt, *args, **kwargs)
+
+        if return_row:
+            return s, user
+        return s
 
     async def try_user(self, id):
         return self.get_user(id) or await self.fetch_user(id)

@@ -103,8 +103,7 @@ Optional settings:
 
         start_time = datetime.datetime.fromtimestamp(
             self.process.create_time()).astimezone()
-        start_time = await ctx.bot.localize_datetime(ctx.author.id, start_time)
-        start_time = utils.strftime_zone(start_time)
+        start_time = await ctx.bot.strftime_user(ctx.author.id, start_time)
 
         field_statistics = [
             f"Bot started at: {start_time}"
@@ -632,10 +631,7 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            utils.strftime_zone(
-                await ctx.bot.localize_datetime(
-                    ctx.author.id, guild.created_at)
-            )
+            await ctx.bot.strftime_user(ctx.author.id, guild.created_at)
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -712,9 +708,8 @@ Format referenced from the Ayana bot."""
         )
         diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
-        uptime = await ctx.bot.localize_datetime(
+        uptime_string = await ctx.bot.strftime_user(
             ctx.author.id, ctx.bot.uptime_last_connect)
-        uptime_string = utils.strftime_zone(uptime)
 
         await ctx.send(embed=discord.Embed(
             title='Uptime',
@@ -781,10 +776,7 @@ Format referenced from the Ayana bot."""
                     **self.DATETIME_DIFFERENCE_PRECISION,
                     inflector=ctx.bot.inflector
                 ),
-                utils.strftime_zone(
-                    await ctx.bot.localize_datetime(
-                        ctx.author.id, user.joined_at)
-                )
+                await ctx.bot.strftime_user(ctx.author.id, user.joined_at)
             )
             nickname = user.nick
             roles = user.roles
@@ -824,10 +816,7 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            utils.strftime_zone(
-                await ctx.bot.localize_datetime(
-                    ctx.author.id, user.created_at)
-            )
+            await ctx.bot.strftime_user(ctx.author.id, user.created_at)
         )
 
         embed = discord.Embed(
