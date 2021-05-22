@@ -36,6 +36,7 @@ class SignalHill(commands.Cog):
     INA_STATUS_MESSAGE_ID = (819632332896993360, 842228691077431296)
     INA_STATUS_SECONDS = 60
     INA_STATUS_EDIT_RATE = 10
+    INA_STATUS_FALSE_EDIT_RATE = 5
     INA_STATUS_GRAPH_DEST = 842924251954151464
     INA_STATUS_GRAPH_RATE = 60 * 30
     REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
@@ -45,15 +46,19 @@ class SignalHill(commands.Cog):
         self.bm_client = abm.BattleMetricsClient(self.bot.session)
         self.ina_status_enabled = True
         self.ina_status_last_server = None
-        # The last Server query from battlemetrics
+        # Cooldown for editing
         self.ina_status_cooldown = commands.Cooldown(
             1, self.INA_STATUS_EDIT_RATE, commands.BucketType.default)
-        # Cooldown for editing
-        self.ina_status_graph_last = None
+        # Cooldown for clearing reaction without actually updating
+        # (improves button response without actually making more queries)
+        self.ina_status_reaction_cooldown = commands.Cooldown(
+            1, self.INA_STATUS_FALSE_EDIT_RATE, commands.BucketType.default)
         # Last message sent with graph
+        self.ina_status_graph_last = None
+        # Cooldown for graph generation
         self.ina_status_graph_cooldown = commands.Cooldown(
             1, self.INA_STATUS_GRAPH_RATE, commands.BucketType.default)
-        # Cooldown for graph generation
+
         self.ina_status_loop.start()
 
 
@@ -68,27 +73,6 @@ class SignalHill(commands.Cog):
         channel = self.bot.get_channel(channel_id)
         if channel:
             return channel.get_partial_message(message_id)
-
-
-    @staticmethod
-    def ina_status_should_update(old, new):
-        """Compare particular attributes of two Server objects to see
-        if the status should be updated."""
-        def player_set(s):
-            return set((p.id, p.playtime) for p in s.players)
-
-        attrs = ('player_count', 'status', 'max_players', 'name')
-
-        # Check uptime, do not update if old and new are both offline
-        if new.status != 'online' and old.status != 'online':
-            return False
-
-        # Check basic attributes
-        if any(getattr(old, a) != getattr(new, a) for a in attrs):
-            return True
-
-        # Check players
-        return player_set(old) != player_set(new)
 
 
     async def ina_status_fetch_server(self, *args, **kwargs):
@@ -289,8 +273,9 @@ class SignalHill(commands.Cog):
         server, embed = await self.ina_status_update()
         # NOTE: loop could decide to update right after this
 
-        if embed is not None:
-            # Update was successful; remove reaction
+        reaction_cooldown = self.ina_status_reaction_cooldown
+        if embed is not None or not reaction_cooldown.update_rate_limit(None):
+            # Update was successful or able to make a false update
             message = self.partial_ina_status
             try:
                 await message.clear_reaction(self.REFRESH_EMOJI)
