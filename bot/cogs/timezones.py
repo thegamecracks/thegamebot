@@ -134,6 +134,10 @@ class Timezones(commands.Cog):
             return
 
         author_row = await self.bot.dbusers.get_user(m.author.id)
+
+        if not author_row['timezone_watch']:
+            return
+
         tz = await self.bot.dbusers.convert_timezone(author_row)
         if tz is None:
             return
@@ -426,6 +430,30 @@ By default, your timezone is hidden."""
         )
 
         await ctx.send('Updated your timezone visibility!')
+
+
+    @client_timezone.command(name='translation', aliases=('listen', 'watch'))
+    @commands.cooldown(2, 60, commands.BucketType.user)
+    async def client_timezone_watch(self, ctx, enabled: bool):
+        """Toggle timezone translations offered for your messages.
+If you have a timezone set and you send a time in your message, i.e. "8pm" or "15:30", the bot will react with a clock to allow other users to have the timezone translated for them.
+By default, this is enabled."""
+        row = await ctx.bot.dbusers.get_user(ctx.author.id)
+        curr_watch = row['timezone_watch']
+
+        if enabled and curr_watch:
+            return await ctx.send('Your timezone translation is already set to on!')
+        elif not enabled and not curr_watch:
+            return await ctx.send('Your timezone translation is already set to off!')
+
+        await ctx.bot.dbusers.update_rows(
+            ctx.bot.dbusers.TABLE_NAME,
+            {'timezone_watch': enabled},
+            where={'id': ctx.author.id}
+        )
+
+        action = 'Enabled' if enabled else 'Disabled'
+        await ctx.send(f'{action} timezone translation for your messages!')
 
 
 

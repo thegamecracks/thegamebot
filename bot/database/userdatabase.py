@@ -22,7 +22,8 @@ class UserDatabase(db.Database):
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         id INTEGER PRIMARY KEY NOT NULL,
         timezone TEXT,
-        timezone_public BOOLEAN NOT NULL DEFAULT false
+        timezone_public BOOLEAN NOT NULL DEFAULT false,
+        timezone_watch BOOLEAN NOT NULL DEFAULT true
     );
     """
 
