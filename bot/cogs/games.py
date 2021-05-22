@@ -325,7 +325,6 @@ size: (optional) The size of the deck to use in the session.
 
             if results.done:
                 if size == 2:
-                    await self.bot.dbusers.add_user(ctx.author.id)
                     await self.bot.dbgames.blackjack.change(
                         'played', results.last_player.id, 1)
                     if results.player.maximum == 21:
@@ -364,7 +363,6 @@ size: (optional) The size of the deck to use in the session.
     @commands.cooldown(2, 15, commands.BucketType.user)
     async def client_blackjack_stats(self, ctx):
         """View your blackjack stats."""
-        await self.bot.dbusers.add_user(ctx.author.id)
         row = await self.bot.dbgames.blackjack.get_blackjack_row(ctx.author.id)
         blackjacks = row['blackjacks']
         losses = row['losses']

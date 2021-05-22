@@ -32,6 +32,8 @@ class NoteDatabase(db.Database):
                        content: str):
         """Add a note to the Notes table.
 
+        Note that the user should be in the database beforehand.
+
         Args:
             user_id (int)
             time_of_entry (datetime.datetime)

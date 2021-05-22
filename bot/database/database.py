@@ -128,13 +128,16 @@ class Database:
     async def setup_table(self, conn):
         await conn.executescript(self.TABLE_SETUP)
 
-    async def add_row(self, table: str, row: dict) -> int:
+    async def add_row(self, table: str, row: dict, *, ignore=False) -> int:
         """Add a row to a table.
 
         Args:
             table (str): The table name to insert into.
                 Should only come from a programmatic source.
             row (dict): A dictionary of values to add.
+            ignore (bool): If True, any conflicts that occur when
+                inserting will be ignored. Note that the lastrowid
+                will not be updated if it is ignored.
 
         Returns:
             int: The last row id.
@@ -143,8 +146,9 @@ class Database:
         keys, placeholders, values = self.placeholder_insert(row)
         async with await self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
+                insert = 'INSERT' + ' OR IGNORE' * ignore
                 await c.execute(
-                    f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
+                    f'{insert} INTO {table} ({keys}) VALUES ({placeholders})',
                     *values
                 )
                 return c._cursor.lastrowid

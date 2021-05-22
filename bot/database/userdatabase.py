@@ -77,11 +77,31 @@ class UserDatabase(db.Database):
                                    where={'id': row['id']})
             raise
 
-    async def get_user(self, user_id: int):
+    async def get_user(self, user_id: int, *, add=True):
         """Get a user record from the database.
 
-        If the user is not found, returns None.
+        Args:
+            user_id (int): The user's ID.
+            add (bool): If True, automatically inserts a row
+                if the user isn't in the database. Otherwise
+                this could return None.
+
+        Returns:
+            sqlite3.Row
+            None: The user was not found.
 
         """
         user_id = int(user_id)
-        return await self.get_one(self.TABLE_NAME, where={'id': user_id})
+
+        async with await self.connect(writing=bool(add)) as conn:
+            async with conn.cursor(transaction=True) as c:
+                if add:
+                    await c.execute(
+                        f'INSERT OR IGNORE INTO {self.TABLE_NAME} '
+                        '(id) VALUES (?)', user_id
+                    )
+                await c.execute(
+                    f'SELECT * FROM {self.TABLE_NAME} WHERE id = ?',
+                    user_id
+                )
+                return await c.fetchone()

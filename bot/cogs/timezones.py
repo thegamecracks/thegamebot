@@ -7,7 +7,7 @@ import datetime
 import re
 from typing import List, Optional, Tuple, Union
 
-# import dateparser.search
+import dateparser
 import discord
 from discord.ext import commands
 import pytz
@@ -40,7 +40,7 @@ class Timezones(commands.Cog):
 
     # regex_twelve = re.compile(r'(?P<hour>\d{1,2})(:(?P<minute>\d{2}))?[ap]m', re.I)
     # regex_twenty = re.compile(r'(?P<hour>\d{2}):(?P<minute>\d{2})(?![ap]m)', re.I)
-    regex_12_24 = re.compile(r'(?<!\w)(?P<hour>\d{1,2})(:(?P<minute>\d{2}))?(?P<noon>[ap]m)?(?!\w)', re.I)
+    regex_12_24 = re.compile(r'(?<!\w)(?P<hour>\d{1,2})(:(?P<minute>\d{2}))?(?P<noon>[ap]m)?(?P<tz>\W[a-zA-Z/]+)?', re.I)
 
     clock_emoji = 828494826155802624
 
@@ -79,13 +79,26 @@ class Timezones(commands.Cog):
             # else hour and noon (8am, 3pm)
 
             dt = datetime.datetime.combine(datetime.date.today(), t)
-            dt = tz.localize(dt)
+
+            # Try parsing timezone if string has one
+            given_tz = None
+            if m['tz']:
+                _, given_tz = dateparser.timezone_parser.pop_tz_offset_from_string(m[0])
+                if not given_tz:
+                    try:
+                        given_tz = pytz.timezone(m['tz'].lstrip())
+                    except pytz.UnknownTimeZoneError:
+                        pass
+
+            dt = (given_tz or tz).localize(dt)
             form = '{}{}{}'.format(
                 '%I' if noon else '%H',
                 ':%M' * (minute is not None),
                 '%p' * (noon is not None)
             )
-            matches.append((m.string[slice(*m.span())], dt, form))
+            # Include timezone in string only if it was parsed correctly
+            s = m[0] if given_tz else m[0][:m.start('tz')] if m['tz'] else m[0]
+            matches.append((s, dt, form))
 
             if i == limit:
                 break
