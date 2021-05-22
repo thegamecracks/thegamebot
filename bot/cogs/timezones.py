@@ -97,7 +97,7 @@ class Timezones(commands.Cog):
                 '%p' * (noon is not None)
             )
             # Include timezone in string only if it was parsed correctly
-            s = m[0] if given_tz else m[0][:m.start('tz')] if m['tz'] else m[0]
+            s = m[0] if not m['tz'] or given_tz else m[0][:m.start('tz') - m.start()]
             matches.append((s, dt, form))
 
             if i == limit:

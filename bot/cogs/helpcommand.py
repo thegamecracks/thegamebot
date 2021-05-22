@@ -22,7 +22,7 @@ class HelpCommand(commands.HelpCommand):
 
     help_cog_commands_per_page = 9  # Max of 25 fields
 
-    help_message_length_threshold = 300
+    help_message_length_threshold = 500
     # Maximum allowed characters in a help message before it is sent via DM
 
     no_category = 'No Category'
