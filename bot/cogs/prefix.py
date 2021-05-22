@@ -97,9 +97,9 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
     @client_changeprefix.error
     async def client_changeprefix_error(self, ctx, error):
         error = getattr(error, 'original', error)
-        if isinstance(error, ValueError):
-            # Prefix is too long
+        if isinstance(error, ValueError):  # Prefix is too long
             await ctx.send(str(error))
+            ctx.handled = True
 
 
 

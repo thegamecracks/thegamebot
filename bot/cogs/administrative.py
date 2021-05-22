@@ -337,6 +337,7 @@ title: The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
+                ctx.handled = True
 
 
     @client_presence.command(name='playing')
@@ -360,6 +361,7 @@ title: The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
+                ctx.handled = True
 
 
     @client_presence.command(name='streaming')
@@ -387,6 +389,7 @@ https://www.twitch.tv/thegamecracks ."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
+                ctx.handled = True
 
 
     @client_presence.command(name='listening')
@@ -411,6 +414,7 @@ title: The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
+                ctx.handled = True
 
 
     @client_presence.command(name='watching')
@@ -435,6 +439,7 @@ title: The title to show."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
+                ctx.handled = True
 
 
     @client_presence.command(name='status')
@@ -456,6 +461,7 @@ This removes any activity the bot currently has."""
         if isinstance(error, commands.BadArgument):
             if 'parse_status' in str(error):
                 await ctx.send('Unknown status given.')
+                ctx.handled = True
 
 
 
@@ -596,8 +602,10 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         if isinstance(error, AttributeError):
             if "'NoneType' object has no attribute" in str(error):
                 await ctx.send('I cannot find the given channel.')
+                ctx.handled = True
         elif isinstance(error, discord.Forbidden):
             await ctx.send('I cannot access this given channel.')
+            ctx.handled = True
 
 
 

@@ -430,8 +430,8 @@ periods: The number of compounding periods in each term."""
         error = getattr(error, 'original', error)
 
         if isinstance(error, decimal.InvalidOperation):
-            return await ctx.send(
-                'The calculations were too large to handle.')
+            await ctx.send('The calculations were too large to handle.')
+            ctx.handled = True
 
 
 

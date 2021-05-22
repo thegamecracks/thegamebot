@@ -233,7 +233,9 @@ class EventHandlers(commands.Cog):
 
     async def on_command_error(self, ctx, error):
         error_unpacked = getattr(error, 'original', error)
-        if isinstance(error, self.IGNORE_EXCEPTIONS):
+        if getattr(ctx, 'handled', False):
+            return
+        elif isinstance(error, self.IGNORE_EXCEPTIONS):
             return
         elif isinstance(error_unpacked, self.ERRORS_TO_LIMIT):
             if self.command_error_limiter.check_user(ctx, error_unpacked):

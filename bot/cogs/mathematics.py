@@ -34,10 +34,16 @@ class Mathematics(commands.Cog):
 
     async def cog_command_error(self, ctx, error):
         error = getattr(error, 'original', error)
-        if isinstance(error, OverflowError):
+        handled = True
+        if getattr(ctx, 'handled', False):
+            return
+        elif isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
         elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -174,6 +180,7 @@ To reveal the evaluation of your expression, add --debug to your expression."""
     @client_evaluate.error
     async def client_evaluate_error(self, ctx, error):
         error = getattr(error, 'original', error)
+        handled = True
         if isinstance(error, SyntaxError):
             await ctx.send(f'Undefined Syntax Error occurred: {error}')
         elif isinstance(error, ValueError):
@@ -182,6 +189,9 @@ To reveal the evaluation of your expression, add --debug to your expression."""
             await ctx.send(str(error))
         elif isinstance(error, decimal.Overflow):
             await ctx.send('Could not calculate due to overflow.')
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -249,6 +259,7 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):
             await ctx.send(str(error))
+            ctx.handled = True
 
 
 
@@ -382,10 +393,14 @@ The maximum number to check factors is 10000."""
     @client_factors.error
     async def client_factors_error(self, ctx, error):
         error = getattr(error, 'original', error)
+        handled = True
         if isinstance(error, ValueError):
             await ctx.send(str(error))
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -503,6 +518,7 @@ n: The number to convert."""
     @client_numberbase.error
     async def client_numberbase_error(self, ctx, error):
         error = getattr(error, 'original', error)
+        handled = True
         if isinstance(error, ValueError):
             msg = str(error)
             if msg == 'substring not found':
@@ -516,6 +532,9 @@ n: The number to convert."""
             await ctx.send(msg)
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
