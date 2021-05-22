@@ -209,6 +209,12 @@ class Timezones(commands.Cog):
             and a variable amount of positional and keyword arguments.
             This should do the actual message sending and return a Message.
 
+            Args:
+                first (discord.abc.Messageable): The first channel to try.
+                second (Union[discord.abc.Messageable, None, True]):
+                    Messageable: The second channel to try.
+                    None: 
+
             """
             async def default_send_func(c, *args, **kwargs):
                 return await c.send(*args, **kwargs)
@@ -217,7 +223,7 @@ class Timezones(commands.Cog):
                 raise ValueError('no channel passed')
             elif first in failed_channels:
                 if second is None:
-                    return
+                    return None, None
                 return await send_backup(second, None, send_func, *args, **kwargs)
 
             send_func = send_func or default_send_func
@@ -232,9 +238,9 @@ class Timezones(commands.Cog):
             if not can_send:
                 failed_channels.append(first)
                 if second is True:  # Pick an alternative
-                    second = user if first != user else message.channel
+                    second = message.channel if first == user else user
                 elif second is None:
-                    return
+                    return None, None
                 return await send_backup(second, None, send_func, *args, **kwargs)
 
         async def send_func_reference(c, *args, embed, **kwargs):
@@ -258,7 +264,7 @@ class Timezones(commands.Cog):
                 'https://kevinnovak.github.io/Time-Zone-Picker/\n'
                 'You have **3 minutes** to complete this form.'
             )
-            channel, m = await send_backup(user, channel, None, form)
+            channel, m = await send_backup(user, True, None, form)
 
             # Wait for response
             def check(m):
@@ -291,7 +297,7 @@ class Timezones(commands.Cog):
                 )
                 return
 
-        channel: Union[discord.TextChannel, discord.User] = message.channel
+        channel: Union[discord.TextChannel, discord.User] = user
         failed_channels = []
 
         # Ask user for timezone if needed
@@ -310,11 +316,11 @@ class Timezones(commands.Cog):
         jump_to = f'\n[Jump to message]({message.jump_url})'
         if tz_in == tz_out:
             embed.description = f'You are both in the same timezone!'
-            c, m = await send_backup(
+            channel, m = await send_backup(
                 user, message.channel, send_func_reference,
                 embed=embed
             )
-            if c != user:
+            if channel != user:
                 await m.delete(delay=10)
             return
 
