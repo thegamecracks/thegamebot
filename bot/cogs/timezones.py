@@ -261,10 +261,8 @@ class Timezones(commands.Cog):
             nonlocal channel
             # Decide whether to get input in DMs or same channel
             form = (
-                'I do not know what timezone you are in! '
-                "Let's do that now; please __type in your timezone__.\n"
-                'If you do not know what timezone name you are in, '
-                'please use this Time Zone Map to find out: '
+                'To convert timezones, I need to know what timezone you are in! '
+                'Please type in your timezone as given by this timezone map:\n'
                 'https://kevinnovak.github.io/Time-Zone-Picker/\n'
                 'You have **3 minutes** to complete this form.'
             )
