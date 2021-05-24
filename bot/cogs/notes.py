@@ -153,8 +153,7 @@ If nothing is provided, all notes are shown."""
                 title=f'Note #{index+1:,}',
                 description=note['content'],
                 color=color,
-                timestamp=datetime.datetime.fromisoformat(
-                    note['time_of_entry'])
+                timestamp=note['time_of_entry']
             )
             return await ctx.send(embed=embed)
 

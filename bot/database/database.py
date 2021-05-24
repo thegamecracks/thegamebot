@@ -5,6 +5,7 @@
 import asyncio
 import dataclasses
 import os.path
+import sqlite3
 from typing import Tuple
 
 import asqlite
@@ -68,7 +69,15 @@ class ConnectionPool:
         conn_lock = self._connections.get(path)
         if conn_lock is None:
             conn_lock = (
-                await asqlite.connect(path),
+                await asqlite.connect(
+                    # detect_types will allow custom data types to be converted
+                    # such as DATE and TIMESTAMP
+                    # https://docs.python.org/3/library/sqlite3.html#default-adapters-and-converters
+                    path, detect_types=(
+                        sqlite3.PARSE_DECLTYPES
+                        | sqlite3.PARSE_COLNAMES
+                    )
+                ),
                 asyncio.Lock()
             )
             self._connections[path] = conn_lock

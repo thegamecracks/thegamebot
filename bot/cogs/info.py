@@ -476,7 +476,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                         'WHERE guild_id = ? AND created_at > ?',
                         ctx.guild.id, yesterday) as c:
                     while m := await c.fetchone():
-                        dt = datetime.datetime.fromisoformat(m['created_at'])
+                        dt = m['created_at']
                         td = max(0, utcnow_timestamp - dt.timestamp())
                         messages.append(td)
             count = len(messages)

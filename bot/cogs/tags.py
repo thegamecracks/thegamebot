@@ -184,8 +184,8 @@ content: The new content to use."""
 
         if is_alias:
             alias = await ctx.bot.dbtags.get_alias(ctx.guild.id, name)
-            created_at = datetime.datetime.fromisoformat(alias['created_at'])
-            created_at = await ctx.bot.localize_datetime(ctx.author.id, created_at)
+            created_at = await ctx.bot.localize_datetime(
+                ctx.author.id, tag['created_at'])
 
             embed.title = alias['alias']
             embed.add_field(
@@ -202,8 +202,8 @@ content: The new content to use."""
 
             footer = 'Alias requested by {}'
         else:
-            created_at = datetime.datetime.fromisoformat(tag['created_at'])
-            created_at = await ctx.bot.localize_datetime(ctx.author.id, created_at)
+            created_at = await ctx.bot.localize_datetime(
+                ctx.author.id, tag['created_at'])
 
             embed.title = tag['name']
             embed.add_field(
@@ -226,9 +226,8 @@ content: The new content to use."""
                 )
 
             if tag['edited_at'] is not None:
-                edited_at = datetime.datetime.fromisoformat(tag['edited_at'])
                 edited_at = await ctx.bot.localize_datetime(
-                    ctx.author.id, edited_at)
+                    ctx.author.id, tag['edited_at'])
                 embed.add_field(
                     name='Last Edited',
                     value=utils.strftime_zone(edited_at),

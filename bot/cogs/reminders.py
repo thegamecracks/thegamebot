@@ -266,7 +266,7 @@ To remove only one reminder, use the removereminder command."""
         except IndexError:
             await ctx.send('That index does not exist.')
         else:
-            utcdue = datetime.datetime.fromisoformat(reminder['due'])
+            utcdue = reminder['due']
             embed = discord.Embed(
                 title=f'Reminder #{index:,}',
                 description=reminder['content'],
@@ -439,11 +439,9 @@ To remove only one reminder, use the removereminder command."""
         utcnow = datetime.datetime.utcnow()
 
         async for entry in db.yield_rows(db.TABLE_NAME):
-            utcwhen = datetime.datetime.fromisoformat(entry['due'])
-
             self.check_to_create_reminder(
                 entry['reminder_id'], entry['user_id'],
-                entry['content'], utcwhen, utcnow
+                entry['content'], entry['due'], utcnow
             )
 
     @send_reminders.before_loop
