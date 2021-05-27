@@ -4,6 +4,8 @@ import io
 import itertools
 import logging
 import math
+import os
+import re
 from typing import Optional
 
 import abattlemetrics as abm
@@ -15,16 +17,24 @@ from matplotlib import ticker
 import numpy as np
 from scipy.interpolate import make_interp_spline
 
-from bot import utils
+from bot import checks, utils
 
 abm_log = logging.getLogger('abattlemetrics')
-abm_log.setLevel(logging.DEBUG)
+abm_log.setLevel(logging.INFO)
 if not abm_log.hasHandlers():
     handler = logging.FileHandler(
         'abattlemetrics.log', encoding='utf-8', mode='w')
     handler.setFormatter(logging.Formatter(
         '%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
     abm_log.addHandler(handler)
+
+
+class SteamIDConverter(commands.Converter):
+    """Do basic checks on an integer to see if it may be a valid steam64ID."""
+    async def convert(self, ctx, arg):
+        if not re.match('\d{17}', arg):
+            raise commands.BadArgument('Could not parse Steam64ID.')
+        return int(arg)
 
 
 class SignalHill(commands.Cog):
@@ -40,10 +50,14 @@ class SignalHill(commands.Cog):
     INA_STATUS_GRAPH_DEST = 842924251954151464
     INA_STATUS_GRAPH_RATE = 60 * 30
     REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
+    GUILD_ID = 811415496036843550
 
     def __init__(self, bot):
         self.bot = bot
-        self.bm_client = abm.BattleMetricsClient(self.bot.session)
+        self.bm_client = abm.BattleMetricsClient(
+            self.bot.session,
+            token=os.getenv('PyDiscordBotBMToken')
+        )
         self.ina_status_enabled = True
         self.ina_status_last_server = None
         # Cooldown for editing
@@ -64,6 +78,11 @@ class SignalHill(commands.Cog):
 
     def cog_unload(self):
         self.ina_status_loop.cancel()
+
+
+    @property
+    def guild(self):
+        return self.bot.get_guild(self.GUILD_ID)
 
 
     @property
@@ -332,6 +351,7 @@ class SignalHill(commands.Cog):
 
 
     @commands.command(name='togglesignalstatus', aliases=('tss',))
+    @commands.max_concurrency(1)
     @commands.is_owner()
     async def client_toggle_ina_status(self, ctx):
         """Toggle the Signal Hill I&A status message.
@@ -421,6 +441,7 @@ Turns back on when the bot connects."""
 
 
     @commands.command(name='history')
+    @commands.max_concurrency(1)
     @commands.is_owner()
     async def client_player_count_history(self, ctx):
         """Render the player count history graph."""
@@ -443,6 +464,39 @@ Turns back on when the bot connects."""
         graph = discord.File(f, filename='graph.png')
 
         await ctx.send(embed=embed, file=graph)
+
+
+
+
+
+    @commands.command(name='playtime')
+    @commands.has_role('Staff')
+    @checks.used_in_guild(GUILD_ID)
+    async def client_playtime(self, ctx, steam_id: SteamIDConverter):
+        """Get someone's server playtime in the last month."""
+        async with ctx.typing():
+            player_id = await self.bm_client.match_player(
+                steam_id, abm.IdentifierType.STEAM_ID)
+
+            if player_id is None:
+                return await ctx.send('Could not find a user with that steam ID!')
+
+            player = await self.bm_client.get_player_info(player_id)
+
+            stop = datetime.datetime.utcnow()
+            start = stop - datetime.timedelta(days=30)
+            datapoints = await self.bm_client.get_player_time_played_history(
+                player_id, self.INA_SERVER_ID, start=start, stop=stop)
+
+        total_playtime = sum(dp.value for dp in datapoints)
+        m, s = divmod(total_playtime, 60)
+        h, m = divmod(m, 60)
+
+        await ctx.send(
+            'Player: {}\nPlaytime in the last month: {}:{:02d}h'.format(
+                player.name, h, m
+            )
+        )
 
 
 

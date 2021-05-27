@@ -399,8 +399,6 @@ class EventHandlers(commands.Cog):
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
         elif isinstance(error, commands.DisabledCommand):
             await ctx.send('This command is currently disabled.')
-        elif isinstance(error, errors.DollarInputError):
-            await ctx.send(str(error))
         elif isinstance(error, commands.EmojiNotFound):
             await ctx.send(f'I cannot find the given emoji "{error.argument}"')
         elif isinstance(error, commands.ExpectedClosingQuoteError):

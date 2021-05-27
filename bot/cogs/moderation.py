@@ -104,11 +104,14 @@ limit: The number of messages to look through. (range: 2-100)"""
     @commands.bot_has_permissions(read_message_history=True)
     async def client_purge_self(self, ctx, limit: PurgeLimitConverter):
         """Delete messages from me.
-This will also remove messages that appear to be invoking one of my commands.
+This will also remove messages that appear to be invoking one of my commands if I have Manage Messages permission.
 
 limit: The number of messages to look through. (range: 2-100)"""
         def check(m):
-            return m.author == ctx.me or m.content.startswith(prefixes)
+            return (
+                m.author == ctx.me
+                or perms.manage_messages and m.content.startswith(prefixes)
+            )
 
         perms = ctx.me.permissions_in(ctx.channel)
         prefixes = ()
