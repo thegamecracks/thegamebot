@@ -30,9 +30,7 @@ class HelpCommand(commands.HelpCommand):
     def __init__(self):
         super().__init__(
             command_attrs={
-                # This is the command.help string
                 'help': 'Shows help about the bot, a command, or a category',
-                # this is a custom attribute passed to the help command
                 'cooldown': commands.Cooldown(2, 3, commands.BucketType.user)
             }
         )

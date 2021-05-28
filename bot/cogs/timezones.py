@@ -375,6 +375,49 @@ You can find the timezone names using this [Time Zone Map](https://kevinnovak.gi
         await ctx.send(s)
 
 
+    @client_timezone.command(name='ignore')
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def client_timezone_ignore_translation(
+            self, ctx, *, message: discord.Message = None):
+        """Remove my timezone translation emoji from a given message.
+This only works on your own messages unless you also have Manage Messages permission.
+
+message: The message to remove a reaction from. If not provided, checks the last 10 messages for a message you sent that has the reaction."""
+        def get_my_emoji(m):
+            return discord.utils.get(m.reactions, emoji=clock)
+
+        def valid_author_message(m):
+            return m.author == ctx.author and get_my_emoji(m)
+
+        clock = self.bot.get_emoji(self.clock_emoji)
+        response = '\N{WHITE HEAVY CHECK MARK}'
+
+        if message is None:
+            async for m in ctx.history(limit=10, before=ctx.message):
+                if valid_author_message(m):
+                    message = m
+                    break
+
+        if message is None:
+            response = '\N{BLACK QUESTION MARK ORNAMENT}'
+        elif (  message.author != ctx.author
+                and not ctx.author.permissions_in(
+                    message.channel).manage_messages):
+            response = '\N{CROSS MARK}'
+        elif not getattr(get_my_emoji(message), 'me', False):
+            response = '\N{BLACK QUESTION MARK ORNAMENT}'
+        else:
+            await message.remove_reaction(clock, ctx.me)
+
+        # Delete message if successful and message is in same channel
+        if response == '\N{WHITE HEAVY CHECK MARK}':
+            me_perms = ctx.me.permissions_in(ctx.channel)
+            if ctx.channel == message.channel and me_perms.manage_messages:
+                return await ctx.message.delete()
+
+        return await ctx.message.add_reaction(response)
+
+
     @client_timezone.command(name='set')
     @commands.cooldown(2, 60, commands.BucketType.user)
     async def client_timezone_set(self, ctx, *, timezone: TimezoneConverter = None):
