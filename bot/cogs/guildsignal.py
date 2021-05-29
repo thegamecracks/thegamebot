@@ -222,7 +222,8 @@ class SignalHill(commands.Cog):
             Tuple[abattlemetrics.Server, discord.Embed]:
                 The server fetched from the API and the embed generated
                 from it.
-            Tuple[float, None]: On cooldown.
+            Tuple[float, None]: Either on cooldown or failed to fetch
+                the server due to a 5xx response.
 
         """
         retry_after = self.ina_status_cooldown.update_rate_limit(None)
@@ -233,8 +234,12 @@ class SignalHill(commands.Cog):
 
         message = self.partial_ina_status
 
-        server, old = await self.ina_status_fetch_server(
-            self.INA_SERVER_ID, include_players=True)
+        try:
+            server, old = await self.ina_status_fetch_server(
+                self.INA_SERVER_ID, include_players=True)
+        except abm.HTTPException as e:
+            if e.status >= 500:
+                return 30.0, None
 
         embed = self.ina_status_create_embed(server)
 

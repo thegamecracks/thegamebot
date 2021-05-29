@@ -42,10 +42,10 @@ def format_table(
 
     widths = [max(len(r[col]) for r in rows) for col in range(len(rows[0]))]
 
-    render = [render_row(r) for r in rows]
-
     if strip_trailing:
-        render = [r.rstrip() for r in render]
+        render = [render_row(r).rstrip() for r in rows]
+    else:
+        render = [render_row(r) for r in rows]
 
     if divs:
         length = max(len(r) for r in render)

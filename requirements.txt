@@ -1,4 +1,4 @@
-abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@0.0.3
+abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@v0.1.0
 aiohttp==3.7.3
 asqlite @ git+https://github.com/thegamecracks/asqlite/@1d0b7da105679eab891df927f1fc230775194fe4
 astunparse==1.6.3

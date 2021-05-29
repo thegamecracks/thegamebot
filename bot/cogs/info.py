@@ -762,7 +762,7 @@ Format referenced from the Ayana bot."""
 
         # Extract attributes based on whether its a Member or User
         if isinstance(user, discord.Member):
-            description = None
+            description = ''
             activity = user.activity
             # If presences or members intent are disabled, d.py returns
             # None for activity
@@ -771,7 +771,7 @@ Format referenced from the Ayana bot."""
                 utils.timedelta_string(
                     relativedelta(
                         datetime.datetime.utcnow(),
-                        user.created_at
+                        user.joined_at
                     ),
                     **self.DATETIME_DIFFERENCE_PRECISION,
                     inflector=ctx.bot.inflector
@@ -796,8 +796,7 @@ Format referenced from the Ayana bot."""
                 if status == 'Dnd':
                     status = 'Do Not Disturb'
         else:
-            description = '*For more information, ' \
-                          'use this command in a server.*'
+            description = '*For more information, use this command in a server.*'
             activity = None
             guild = None
             joined = None

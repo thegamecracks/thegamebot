@@ -50,7 +50,7 @@ class TagDatabase(db.Database):
     );
     CREATE INDEX IF NOT EXISTS ix_tags_name_to_aliases
         ON {TABLE_ALIASES_NAME}(guild_id, name);
-    -- Ensure both alias and name don't both exist together
+    -- Ensure alias and name don't both exist together
     CREATE TRIGGER IF NOT EXISTS no_tag_alias_if_name
         AFTER INSERT ON {TABLE_ALIASES_NAME}
         WHEN EXISTS (SELECT * FROM {TABLE_NAME} WHERE name=NEW.alias)
