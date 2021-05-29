@@ -4,6 +4,7 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import asyncio
 import datetime
+import enum
 import re
 from typing import List, Optional, Tuple, Union
 
@@ -14,6 +15,16 @@ import pytz
 
 from bot.converters import TimezoneConverter
 from bot import utils
+
+
+class TranslationCheck(enum.IntEnum):
+    SUCCESS = 0
+    NO_GUILD = enum.auto()
+    UN_REACTABLE = enum.auto()
+    ALREADY_REACTED = enum.auto()
+    NO_TIMES = enum.auto()
+    DISABLED = enum.auto()
+    NO_TIMEZONE = enum.auto()
 
 
 class MockMessage:
@@ -50,8 +61,24 @@ class Timezones(commands.Cog):
             1, 15, commands.BucketType.user)
 
     @classmethod
-    def find_times(cls, s, tz, limit=5) -> List[Tuple[str, datetime.datetime, str]]:
-        """Find times in a string with a given timezone."""
+    def find_times(cls, s, tz=pytz.UTC, limit=5) -> List[Tuple[str, datetime.datetime, str]]:
+        """Find times in a string with a given timezone.
+
+        Args:
+            s (s): The string to process.
+            tz (datetime.tzinfo):
+                The timezone for localizing each timezone found.
+                Times that have a timezone offset next to them will be
+                preferred over this.
+            limit (int): The maximum number of times to convert in the message.
+
+        Returns:
+            List[Tuple[str, datetime.datetime, str]]:
+                Each tuple stores the time string that was found,
+                the resulting datetime, and the format that
+                the time string was in.
+
+        """
         matches = []
         for i, m in enumerate(cls.regex_12_24.finditer(s), start=1):
             hour, minute, noon = int(m['hour']), m['minute'], m['noon']
@@ -106,6 +133,54 @@ class Timezones(commands.Cog):
         return matches
         # return [m[1] for m in dateparser.search.search_dates(s, languages=['en'])]
 
+    def get_clock_reaction(self, m: discord.Message) -> Optional[discord.Reaction]:
+        clock = self.bot.get_emoji(self.clock_emoji)
+        return discord.utils.get(m.reactions, emoji=clock)
+
+    async def provide_translation(
+            self, m: discord.Message, *, bypass_settings=False
+        ) -> TranslationCheck:
+        """React with the clock emoji for a given message if it
+        meets the conditions.
+
+        Args:
+            m (discord.Message): The message to check.
+            bypass_settings (bool): If True, this skips checking
+                if the user has disabled this feature.
+
+        Returns:
+            TranslationCheck: an enum denoting the result.
+        """
+        if m.guild is None:
+            return TranslationCheck.NO_GUILD
+
+        perms = m.channel.permissions_for(m.guild.me)
+        reaction = self.get_clock_reaction(m)
+        if not perms.add_reactions and reaction is None:
+            return TranslationCheck.UN_REACTABLE
+        elif reaction is not None and reaction.me:
+            return TranslationCheck.ALREADY_REACTED
+        elif not self.find_times(m.content):
+            return TranslationCheck.NO_TIMES
+
+        author_row = await self.bot.dbusers.get_user(m.author.id)
+
+        if not bypass_settings and not author_row['timezone_watch']:
+            return TranslationCheck.DISABLED
+
+        tz = await self.bot.dbusers.convert_timezone(author_row)
+        if tz is None:
+            return TranslationCheck.NO_TIMEZONE
+
+        try:
+            await m.add_reaction(self.bot.get_emoji(self.clock_emoji))
+        except discord.HTTPException:
+            # Race condition: permissions may have changed or another user
+            # removed their reaction
+            return TranslationCheck.UN_REACTABLE
+        else:
+            return TranslationCheck.SUCCESS
+
     async def set_user_timezone(
             self, user_id: int, timezone: pytz.BaseTzInfo = None):
         """Add a timezone for a user."""
@@ -126,24 +201,7 @@ class Timezones(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, m: discord.Message):
         """Detect times sent in messages."""
-        if m.guild is None:
-            return
-
-        perms = m.channel.permissions_for(m.guild.me)
-        if not perms.add_reactions:
-            return
-
-        author_row = await self.bot.dbusers.get_user(m.author.id)
-
-        if not author_row['timezone_watch']:
-            return
-
-        tz = await self.bot.dbusers.convert_timezone(author_row)
-        if tz is None:
-            return
-
-        if self.find_times(m.content, tz):
-            await m.add_reaction(self.bot.get_emoji(self.clock_emoji))
+        await self.provide_translation(m)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -383,9 +441,6 @@ You can find the timezone names using this [Time Zone Map](https://kevinnovak.gi
 This only works on your own messages unless you also have Manage Messages permission.
 
 message: The message to remove a reaction from. If not provided, checks the last 10 messages for a message you sent that has the reaction."""
-        def get_my_emoji(m):
-            return discord.utils.get(m.reactions, emoji=clock)
-
         def valid_author_message(m):
             return m.author == ctx.author and get_my_emoji(m)
 
@@ -404,7 +459,7 @@ message: The message to remove a reaction from. If not provided, checks the last
                 and not ctx.author.permissions_in(
                     message.channel).manage_messages):
             response = '\N{CROSS MARK}'
-        elif not getattr(get_my_emoji(message), 'me', False):
+        elif not getattr(self.get_clock_reaction(message), 'me', False):
             response = '\N{BLACK QUESTION MARK ORNAMENT}'
         else:
             await message.remove_reaction(clock, ctx.me)
@@ -476,8 +531,8 @@ By default, your timezone is hidden."""
     @client_timezone.command(name='translation', aliases=('listen', 'watch'))
     @commands.cooldown(2, 60, commands.BucketType.user)
     async def client_timezone_watch(self, ctx, enabled: bool):
-        """Toggle timezone translations offered for your messages.
-If you have a timezone set and you send a time in your message, i.e. "8pm" or "15:30", the bot will react with a clock to allow other users to have the timezone translated for them.
+        """Toggle automatic timezone translations for your messages.
+If you have a timezone set and you send a time in your message, i.e. "8pm" or "15:30 UTC", the bot will react with a clock to allow other users to have the timezone translated for them.
 By default, this is enabled."""
         row = await ctx.bot.dbusers.get_user(ctx.author.id)
         curr_watch = row['timezone_watch']
@@ -495,6 +550,37 @@ By default, this is enabled."""
 
         action = 'Enabled' if enabled else 'Disabled'
         await ctx.send(f'{action} timezone translation for your messages!')
+
+
+    @client_timezone.command(name='check')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    @commands.guild_only()
+    async def client_timezone_check(self, ctx, message: discord.Message):
+        """Check if a message has times to translate.
+This is useful if you have automatic timezone translation disabled but want it for a particular message.
+This can only be used on your messages unless you also have Manage Messages permission.
+The sender must have a timezone set to use this."""
+        perms = ctx.author.permissions_in(ctx.channel)
+        if message.guild != ctx.guild:
+            return await ctx.reply('The message must be in the same guild!')
+        elif message.author.bot:
+            return await ctx.reply('This feature is disabled for bot messages.')
+        elif message.author != ctx.author and not perms.manage_messages:
+            return await ctx.reply('You cannot use this on other people!')
+
+        result = await self.provide_translation(message, bypass_settings=True)
+
+        if result in (TranslationCheck.SUCCESS, TranslationCheck.ALREADY_REACTED):
+            await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
+        elif result == TranslationCheck.UN_REACTABLE:
+            await ctx.reply('I cannot react to the given message!')
+        elif result == TranslationCheck.NO_TIMES:
+            await ctx.reply("I can't find any times in this message!")
+        elif result == TranslationCheck.NO_TIMEZONE:
+            response = 'You need to have a timezone set!'
+            if message.author != ctx.author:
+                response = 'The sender needs to have a timezone set!'
+            await ctx.reply(response)
 
 
 
