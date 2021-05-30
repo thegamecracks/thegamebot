@@ -41,7 +41,7 @@ class TagNameConverter(commands.Converter):
                 'with a reserved command name.'
             )
 
-        return arg
+        return arg.casefold()
 
 
 class TagPageSource(menus.AsyncIteratorPageSource):
