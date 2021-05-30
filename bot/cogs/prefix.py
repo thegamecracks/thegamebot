@@ -81,8 +81,6 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
             ctx.command.reset_cooldown(ctx)
             return await ctx.send('An empty prefix is not allowed.')
 
-        await ctx.trigger_typing()
-
         current_prefix = (
             await db.get_prefix(ctx.guild.id)
         )
@@ -99,9 +97,9 @@ For prefixes ending with a space or multi-word prefixes, specify it with double 
     @client_changeprefix.error
     async def client_changeprefix_error(self, ctx, error):
         error = getattr(error, 'original', error)
-        if isinstance(error, ValueError):
-            # Prefix is too long
+        if isinstance(error, ValueError):  # Prefix is too long
             await ctx.send(str(error))
+            ctx.handled = True
 
 
 

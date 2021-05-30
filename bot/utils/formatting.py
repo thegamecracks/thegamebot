@@ -42,10 +42,10 @@ def format_table(
 
     widths = [max(len(r[col]) for r in rows) for col in range(len(rows[0]))]
 
-    render = [render_row(r) for r in rows]
-
     if strip_trailing:
-        render = [r.rstrip() for r in render]
+        render = [render_row(r).rstrip() for r in rows]
+    else:
+        render = [render_row(r) for r in rows]
 
     if divs:
         length = max(len(r) for r in render)
@@ -56,6 +56,12 @@ def format_table(
             done_divs.append(i)
 
     return '\n'.join(render)
+
+
+def paginate_message(message: str, max_size: int = 2000) -> str:
+    """Paginate a string by max_size and yield each string."""
+    for i in range(0, len(message), max_size):
+        yield message[i:i + max_size]
 
 
 def truncate_message(

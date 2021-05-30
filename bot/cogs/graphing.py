@@ -5,11 +5,11 @@
 import asyncio
 import collections
 import contextlib
+import datetime
 import decimal
 import functools
 import io
 import itertools
-##import multiprocessing
 from pathlib import Path
 import random
 import string
@@ -19,6 +19,7 @@ from discord.ext import commands
 import humanize
 import matplotlib
 import matplotlib.animation as animation
+from matplotlib import dates as mdates
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -26,15 +27,6 @@ import numpy as np
 
 from bot import checks
 from bot import utils
-
-
-##def conn_wrapper(conn, func):
-##    @functools.wraps
-##    def wrapper(*args, **kwargs):
-##        output = func(*args, **kwargs)
-##        conn.send(output)
-##        return output
-##    return wrapper
 
 
 def format_dollars(dollars: decimal.Decimal):
@@ -102,6 +94,64 @@ or the last message that was sent."""
 
     def __init__(self, bot):
         self.bot = bot
+
+
+    def RelativeDateFormatter(
+            self, now=None, unit=None, when_absolute=None,
+            absolute_fmt='%Y-%m-d'):
+        """Format a matplotlib date as a relative time.
+
+        Args:
+            now (Optional[datetime.datetime]):
+                The current time. Works with timezones.
+            unit (Optional[str]): The unit of time to use for relative formatting.
+                Can be one of 'second', 'minute', 'hour', 'day', or None
+                to use automatic units (may result in duplicate tick labels).
+            when_absolute (Optional[int]): Formats datetimes as absolute when
+                the difference from now is greater than this number of seconds.
+            absolute_fmt (str): The format to use for absolute datetimes.
+
+        """
+        units_mapping = {
+            'day': 86400,
+            'hour': 3600,
+            'minute': 60,
+            'second': 1
+        }
+        now = now or datetime.datetime.now().astimezone(datetime.timezone.utc)
+        if now.tzinfo != datetime.timezone.utc:
+            now = now.astimezone(datetime.timezone.utc)
+
+        def actual_relative_formatter(x, pos):
+            def get_unit():
+                n = units_mapping.get(unit)
+                if n is not None:
+                    return unit, n
+
+                for name, n in units_mapping.items():
+                    if seconds // n:
+                        return name, n
+
+                return 'second', 1
+
+            def format_relative():
+                name, n = get_unit()
+                converted = int(seconds // n)
+                return '{:,d} {}{}\nago'.format(
+                    converted,
+                    name,
+                    's' if n != 1 else ''
+                )
+
+            dt = mdates.num2date(x)
+            seconds = (now - dt).total_seconds()
+
+            if when_absolute is not None and seconds > when_absolute:
+                return dt.strftime(absolute_fmt)
+
+            return format_relative()
+
+        return actual_relative_formatter
 
 
     async def get_text(self, ctx, text: str, *, message=None):
@@ -365,14 +415,11 @@ periods: The number of compounding periods in each term."""
             return await ctx.send(
                 'The principal/term/periods are too large to calculate.')
 
-        await ctx.trigger_typing()
-
-        loop = asyncio.get_running_loop()
-
-        f, content = await loop.run_in_executor(
-            None, self.interest_stackplot, ctx,
-            principal, rate, term, periods
-        )
+        with ctx.typing():
+            f, content = await ctx.bot.loop.run_in_executor(
+                None, self.interest_stackplot, ctx,
+                principal, rate, term, periods
+            )
 
         await ctx.send(
             content, file=discord.File(f, 'Word Count Pie Chart.png'))
@@ -383,14 +430,13 @@ periods: The number of compounding periods in each term."""
         error = getattr(error, 'original', error)
 
         if isinstance(error, decimal.InvalidOperation):
-            return await ctx.send(
-                'The calculations were too large to handle.')
+            await ctx.send('The calculations were too large to handle.')
+            ctx.handled = True
 
 
 
 
 
-##    def frequency_analysis(self, conn, ctx, text):
     def frequency_analysis(self, ctx, text):
         """Create a frequency analysis graph of a given text.
 
@@ -454,7 +500,6 @@ periods: The number of compounding periods in each term."""
         f.seek(0)
 
         plt.close(fig)
-##        conn.send(f)
         return f
 
 
@@ -472,24 +517,9 @@ To see the different methods you can use to provide text, check the help message
         if not success:
             return await ctx.send(text)
 
-        await ctx.trigger_typing()
-
-        loop = asyncio.get_running_loop()
-##
-##        parent_conn, child_conn = multiprocessing.Pipe()
-##        p = multiprocessing.Process(
-##            target=self.frequency_analysis,
-##            args=(child_conn, ctx, text)
-##        )
-##        p.start()
-##
-##        await loop.run_in_executor(None, p.join)
-##        f = parent_conn.recv()
-##        parent_conn.close()
-##        child_conn.close()
-
-        f = await loop.run_in_executor(
-            None, self.frequency_analysis, ctx, text)
+        with ctx.typing():
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.frequency_analysis, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Frequency Analysis.png'))
 
@@ -551,13 +581,13 @@ To see the different methods you can use to provide text, check the help message
         # Graph pie
         total_words = sum(words.values())
 
-##        if len(words) > len(top_words):
-##            # Words were left out; add an "other" size
-##            other_count = total_words - sum(count for word, count in top_words)
-##            sizes.append(other_count / total_words)
-##            labels.append(f'Other ({other_count})')
-##            # Use #808080 (grey)
-##            word_colors = np.append(word_colors, [[.5, .5, .5, 1]], 0)
+        # if len(words) > len(top_words):
+        #     # Words were left out; add an "other" size
+        #     other_count = total_words - sum(count for word, count in top_words)
+        #     sizes.append(other_count / total_words)
+        #     labels.append(f'Other ({other_count})')
+        #     # Use #808080 (grey)
+        #     word_colors = np.append(word_colors, [[.5, .5, .5, 1]], 0)
 
         patches, texts, autotexts = ax.pie(
             sizes, labels=labels, colors=word_colors, autopct='%1.2g%%',
@@ -621,12 +651,9 @@ To see the different methods you can use to provide text, check the help message
         if not success:
             return await ctx.send(text)
 
-        await ctx.trigger_typing()
-
-        loop = asyncio.get_running_loop()
-
-        f = await loop.run_in_executor(
-            None, self.word_count_pie, ctx, text)
+        with ctx.typing():
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.word_count_pie, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Word Count Pie Chart.png'))
 
@@ -713,12 +740,9 @@ To see the different methods you can use to provide text, check the help message
     async def client_test3dgraph(
             self, ctx, elevation: int = None, azimuth: int = None):
         """Generate a graph with some random data."""
-        await ctx.trigger_typing()
-
-        loop = asyncio.get_running_loop()
-
-        f = await loop.run_in_executor(
-            None, self.test_bar_graphs_3d_image, elevation, azimuth)
+        with ctx.typing():
+            f = await ctx.bot.loop.run_in_executor(
+                None, self.test_bar_graphs_3d_image, elevation, azimuth)
 
         await ctx.send(file=discord.File(f, '3D Graph Test.png'))
 
@@ -789,8 +813,6 @@ To see the different methods you can use to provide text, check the help message
     async def client_test3dgraphanimation(
             self, ctx, frames: int = 30, duration: int = 3):
         """Generate an animating graph with some random data."""
-        loop = asyncio.get_running_loop()
-
         if duration < 1:
             return await ctx.send('Duration must be at least 1 second.')
         if frames < 1:
@@ -803,7 +825,7 @@ To see the different methods you can use to provide text, check the help message
         )
 
         with ctx.typing():
-            fp = await loop.run_in_executor(None, func)
+            fp = await ctx.bot.loop.run_in_executor(None, func)
 
         filesize_limit = (ctx.guild.filesize_limit if ctx.guild is not None
                           else 8_000_000)

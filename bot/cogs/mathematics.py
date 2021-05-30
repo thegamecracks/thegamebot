@@ -34,10 +34,16 @@ class Mathematics(commands.Cog):
 
     async def cog_command_error(self, ctx, error):
         error = getattr(error, 'original', error)
-        if isinstance(error, OverflowError):
+        handled = True
+        if getattr(ctx, 'handled', False):
+            return
+        elif isinstance(error, OverflowError):
             await ctx.send(error.args[1] + '.')
         elif isinstance(error, ZeroDivisionError):
             await ctx.send('Division by Zero occurred.')
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -174,6 +180,7 @@ To reveal the evaluation of your expression, add --debug to your expression."""
     @client_evaluate.error
     async def client_evaluate_error(self, ctx, error):
         error = getattr(error, 'original', error)
+        handled = True
         if isinstance(error, SyntaxError):
             await ctx.send(f'Undefined Syntax Error occurred: {error}')
         elif isinstance(error, ValueError):
@@ -182,6 +189,9 @@ To reveal the evaluation of your expression, add --debug to your expression."""
             await ctx.send(str(error))
         elif isinstance(error, decimal.Overflow):
             await ctx.send('Could not calculate due to overflow.')
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -249,6 +259,7 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
         error = getattr(error, 'original', error)
         if isinstance(error, ValueError):
             await ctx.send(str(error))
+            ctx.handled = True
 
 
 
@@ -264,8 +275,6 @@ m: Second number. If this is provided, returns n to m fibonacci numbers."""
 
 If y is "low", calculates the lowest divisor of x other than itself.
 If y is "high", calculates the highest divisor of x other than itself."""
-        await ctx.channel.trigger_typing()
-
         if x > 1_000_000:
             await ctx.send('X must be below one million.')
         elif y == 'low' or y == 'high':
@@ -294,8 +303,6 @@ If y is "high", calculates the highest divisor of x other than itself."""
 n - The number to test.
 setting - low or high: Returns either the lowest or highest divisor
  other than 1 and itself."""
-        await ctx.channel.trigger_typing()
-
         if n < 2:
             return await ctx.send(f'{n} is not a prime number;\n'
                                   'all whole numbers below 3 are not prime.')
@@ -374,8 +381,6 @@ The maximum number to check factors is 10000."""
         if n > 10000:
             return await ctx.send('N must be below ten thousand.')
 
-        await ctx.channel.trigger_typing()
-
         factors = self.factors(n)
 
         if not factors:
@@ -388,10 +393,14 @@ The maximum number to check factors is 10000."""
     @client_factors.error
     async def client_factors_error(self, ctx, error):
         error = getattr(error, 'original', error)
+        handled = True
         if isinstance(error, ValueError):
             await ctx.send(str(error))
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -509,6 +518,7 @@ n: The number to convert."""
     @client_numberbase.error
     async def client_numberbase_error(self, ctx, error):
         error = getattr(error, 'original', error)
+        handled = True
         if isinstance(error, ValueError):
             msg = str(error)
             if msg == 'substring not found':
@@ -522,6 +532,9 @@ n: The number to convert."""
             await ctx.send(msg)
         elif isinstance(error, TypeError):
             await ctx.send(str(error))
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 

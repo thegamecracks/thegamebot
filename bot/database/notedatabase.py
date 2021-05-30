@@ -23,7 +23,7 @@ class NoteDatabase(db.Database):
         user_id INTEGER NOT NULL,
         time_of_entry TIMESTAMP,
         content TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES Users(id)
+        FOREIGN KEY (user_id) REFERENCES Users(id)
             ON DELETE CASCADE
     );
     """
@@ -31,6 +31,8 @@ class NoteDatabase(db.Database):
     async def add_note(self, user_id: int, time_of_entry: datetime.datetime,
                        content: str):
         """Add a note to the Notes table.
+
+        Note that the user should be in the database beforehand.
 
         Args:
             user_id (int)

@@ -36,8 +36,7 @@ class MessageTracker(commands.Cog):
         """Cancel running tasks and close the database."""
         self.vacuum.cancel()
         if self._conn:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._conn.close())
+            self.bot.loop.create_task(self._conn.close())
 
     @commands.Cog.listener()
     async def on_message(self, m):

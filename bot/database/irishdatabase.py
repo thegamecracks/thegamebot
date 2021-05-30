@@ -18,7 +18,7 @@ class ChargeDatabase(db.Database):
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         user_id INTEGER PRIMARY KEY NOT NULL,
         amount INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY(user_id) REFERENCES Users(id)
+        FOREIGN KEY (user_id) REFERENCES Users(id)
             ON DELETE CASCADE
     );
     """

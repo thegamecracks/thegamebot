@@ -56,7 +56,7 @@ class Informative(commands.Cog):
 
     MESSAGECOUNT_BINS_PER_HOUR = 3
     MESSAGECOUNT_DOWNTIME_BINS_PER_HOUR = 6
-    MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES = False
+    MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES = True
     # If true, uses the uptime cog to filter downtimes
     # shorter than UPTIME_ALLOWED_DOWNTIME
 
@@ -85,8 +85,11 @@ Optional settings:
     -S --system: show system-related information about the bot."""
         embed = discord.Embed(
             title='About',
-            description=('I do random stuff, whatever <@153551102443257856> '
-                         'adds to me'),
+            description=(
+                'I do random stuff, whatever '
+                '[**thegamecracks**](https://github.com/thegamecracks/thegamebot) '
+                'adds to me.'
+            ),
             color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
             url=self.bot.user.avatar_url
@@ -100,10 +103,7 @@ Optional settings:
 
         start_time = datetime.datetime.fromtimestamp(
             self.process.create_time()).astimezone()
-        start_time = await ctx.bot.localize_datetime(ctx.author.id, start_time)
-        start_time = utils.strftime_zone(start_time)
-
-        await ctx.trigger_typing()
+        start_time = await ctx.bot.strftime_user(ctx.author.id, start_time)
 
         field_statistics = [
             f"Bot started at: {start_time}"
@@ -339,7 +339,7 @@ This only counts channels that both you and the bot can see."""
                 if end > day:
                     continue
                 elif (  minimum_downtime is not None
-                        and period.total_seconds() < minimum_downtime):
+                        and period.total_seconds() <= minimum_downtime):
                     # Ignore intermittent downtime periods
                     continue
 
@@ -460,53 +460,51 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             return await ctx.send(
                 'The bot is currently not tracking message frequency.')
 
-        await ctx.trigger_typing()
-
-        now = datetime.datetime.utcnow().timestamp()
-        async with cog.connect() as conn:
-            async with conn.execute(
-                    'SELECT created_at FROM Messages '
-                    'WHERE guild_id = ? AND created_at > ?',
-                    ctx.guild.id, yesterday) as c:
-                messages = []
-                while m := await c.fetchone():
-                    dt = datetime.datetime.fromisoformat(m['created_at'])
-                    td = max(0, now - dt.timestamp())
-                    messages.append(td)
-
-        count = len(messages)
+        utcnow_timestamp = datetime.datetime.utcnow().timestamp()
         now = datetime.datetime.now().astimezone()
         start_time = datetime.datetime.fromtimestamp(
             self.process.create_time()).astimezone()
         start_hour = math.ceil((now - start_time).total_seconds() / 3600)
         hour_span = min(24, start_hour)
-
         plural = ctx.bot.inflector.plural
 
-        embed = discord.Embed(
-            title='Server Message Count',
-            description='{:,} {} {} been sent in the last {}.'.format(
-                count, plural('message', count), plural('has', count),
-                'hour' if hour_span == 1 else f'{hour_span} hours'
-            ),
-            colour=utils.get_bot_color(ctx.bot)
-        ).set_footer(
-            text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar_url
-        )
+        with ctx.typing():
+            messages = []
+            async with cog.connect() as conn:
+                async with conn.execute(
+                        'SELECT created_at FROM Messages '
+                        'WHERE guild_id = ? AND created_at > ?',
+                        ctx.guild.id, yesterday) as c:
+                    while m := await c.fetchone():
+                        dt = m['created_at']
+                        td = max(0, utcnow_timestamp - dt.timestamp())
+                        messages.append(td)
+            count = len(messages)
 
-        graph = None
-        require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
-        graphing_cog = ctx.bot.get_cog('Graphing')
-        uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
-        if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
-            # Generate graph
-            f = await ctx.bot.loop.run_in_executor(
-                None, self.message_count_graph,
-                graphing_cog, uptime_cog, messages, now, cumulative
+            embed = discord.Embed(
+                title='Server Message Count',
+                description='{:,} {} {} been sent in the last {}.'.format(
+                    count, plural('message', count), plural('has', count),
+                    'hour' if hour_span == 1 else f'{hour_span} hours'
+                ),
+                colour=utils.get_bot_color(ctx.bot)
+            ).set_footer(
+                text=f'Requested by {ctx.author.display_name}',
+                icon_url=ctx.author.avatar_url
             )
-            graph = discord.File(f, filename='graph.png')
-            embed.set_image(url='attachment://graph.png')
+
+            graph = None
+            require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
+            graphing_cog = ctx.bot.get_cog('Graphing')
+            uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
+            if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
+                # Generate graph
+                f = await ctx.bot.loop.run_in_executor(
+                    None, self.message_count_graph,
+                    graphing_cog, uptime_cog, messages, now, cumulative
+                )
+                graph = discord.File(f, filename='graph.png')
+                embed.set_image(url='attachment://graph.png')
 
         await ctx.send(file=graph, embed=embed)
 
@@ -633,10 +631,7 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            utils.strftime_zone(
-                await ctx.bot.localize_datetime(
-                    ctx.author.id, guild.created_at)
-            )
+            await ctx.bot.strftime_user(ctx.author.id, guild.created_at)
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -713,9 +708,8 @@ Format referenced from the Ayana bot."""
         )
         diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
-        uptime = await ctx.bot.localize_datetime(
+        uptime_string = await ctx.bot.strftime_user(
             ctx.author.id, ctx.bot.uptime_last_connect)
-        uptime_string = utils.strftime_zone(uptime)
 
         await ctx.send(embed=discord.Embed(
             title='Uptime',
@@ -768,7 +762,7 @@ Format referenced from the Ayana bot."""
 
         # Extract attributes based on whether its a Member or User
         if isinstance(user, discord.Member):
-            description = None
+            description = ''
             activity = user.activity
             # If presences or members intent are disabled, d.py returns
             # None for activity
@@ -777,15 +771,12 @@ Format referenced from the Ayana bot."""
                 utils.timedelta_string(
                     relativedelta(
                         datetime.datetime.utcnow(),
-                        user.created_at
+                        user.joined_at
                     ),
                     **self.DATETIME_DIFFERENCE_PRECISION,
                     inflector=ctx.bot.inflector
                 ),
-                utils.strftime_zone(
-                    await ctx.bot.localize_datetime(
-                        ctx.author.id, user.joined_at)
-                )
+                await ctx.bot.strftime_user(ctx.author.id, user.joined_at)
             )
             nickname = user.nick
             roles = user.roles
@@ -805,8 +796,7 @@ Format referenced from the Ayana bot."""
                 if status == 'Dnd':
                     status = 'Do Not Disturb'
         else:
-            description = '*For more information, ' \
-                          'use this command in a server.*'
+            description = '*For more information, use this command in a server.*'
             activity = None
             guild = None
             joined = None
@@ -825,10 +815,7 @@ Format referenced from the Ayana bot."""
                 **self.DATETIME_DIFFERENCE_PRECISION,
                 inflector=ctx.bot.inflector
             ),
-            utils.strftime_zone(
-                await ctx.bot.localize_datetime(
-                    ctx.author.id, user.created_at)
-            )
+            await ctx.bot.strftime_user(ctx.author.id, user.created_at)
         )
 
         embed = discord.Embed(

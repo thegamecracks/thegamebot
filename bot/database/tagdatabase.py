@@ -9,6 +9,7 @@ Table dependencies:
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
+from typing import Optional
 
 from . import database as db
 
@@ -17,6 +18,7 @@ class TagDatabase(db.Database):
     """Provide an interface to the Tags table."""
 
     TABLE_NAME = 'Tags'
+    TABLE_ALIASES_NAME = 'TagAliases'
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         guild_id INTEGER NOT NULL,
@@ -27,24 +29,76 @@ class TagDatabase(db.Database):
         created_at TIMESTAMP NOT NULL,
         edited_at TIMESTAMP,
         PRIMARY KEY (guild_id, name),
-        FOREIGN KEY(guild_id) REFERENCES Guilds(id)
+        FOREIGN KEY (guild_id) REFERENCES Guilds(id)
             ON DELETE CASCADE,
-        FOREIGN KEY(user_id) REFERENCES Users(id)
+        FOREIGN KEY (user_id) REFERENCES Users(id)
     );
     CREATE INDEX IF NOT EXISTS ix_tags_guilds ON {TABLE_NAME}(guild_id);
     CREATE INDEX IF NOT EXISTS ix_tags_users
         ON {TABLE_NAME}(guild_id, user_id);
+    CREATE TABLE IF NOT EXISTS {TABLE_ALIASES_NAME} (
+        guild_id INTEGER NOT NULL,
+        alias VARCHAR(50) NOT NULL,
+        name VARCHAR(50) NOT NULL,
+        user_id INTEGER NOT NULL,
+        created_at TIMESTAMP NOT NULL,
+        PRIMARY KEY (guild_id, alias),
+        FOREIGN KEY (guild_id) REFERENCES Guilds(id)
+            ON DELETE CASCADE,
+        FOREIGN KEY (guild_id, name) REFERENCES {TABLE_NAME}
+            ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES Users(id)
+    );
+    CREATE INDEX IF NOT EXISTS ix_tags_name_to_aliases
+        ON {TABLE_ALIASES_NAME}(guild_id, name);
+    -- Ensure alias and name don't both exist together
+    CREATE TRIGGER IF NOT EXISTS no_tag_alias_if_name
+        AFTER INSERT ON {TABLE_ALIASES_NAME}
+        WHEN EXISTS (SELECT * FROM {TABLE_NAME} WHERE name=NEW.alias)
+        BEGIN
+            SELECT RAISE(ABORT, "a tag with the same name already exists");
+        END;
+    CREATE TRIGGER IF NOT EXISTS no_tag_name_if_alias
+        AFTER INSERT ON {TABLE_NAME}
+        WHEN EXISTS (SELECT * FROM {TABLE_ALIASES_NAME} WHERE alias=NEW.name)
+        BEGIN
+            SELECT RAISE(ABORT, "an alias with the same name already exists");
+        END;
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__cache = {}
+        self.__cache = {}  # (guild_id, name): sqlite3.Row
+        self.__alias_cache = {}
+        # (guild_id, alias): (name, sqlite3.Row)
+
+    async def add_alias(
+            self, guild_id: int, alias: str, name: str, user_id: int) -> None:
+        """Add an alias for a tag and return the added row.
+
+        Raises:
+            sqlite3.IntegrityError: likely a tag with the same name
+                already exists.
+
+        """
+        guild_id, name = int(guild_id), str(name)
+        alias, user_id = str(alias), int(user_id)
+
+        d = {'guild_id': guild_id, 'name': name, 'alias': alias,
+             'user_id': user_id, 'created_at': datetime.datetime.utcnow()}
+
+        await self.add_row(self.TABLE_ALIASES_NAME, d)
+        return await self.get_alias(guild_id, alias)
 
     async def add_tag(
             self, guild_id: int, name: str, content: str, user_id: int):
         """Add a tag and return the added row.
 
         This also adds a user entry if needed.
+
+        Raises:
+            sqlite3.IntegrityError:
+                likely a tag or an alias with the same name already exists.
 
         """
         guild_id, user_id = int(guild_id), int(user_id)
@@ -57,6 +111,16 @@ class TagDatabase(db.Database):
         await self.add_row(self.TABLE_NAME, d)
         return await self.get_tag(guild_id, name)
 
+    async def delete_alias(self, guild_id: int, alias: str) -> None:
+        """Delete an alias."""
+        guild_id, alias = int(guild_id), str(alias)
+
+        # Update cache
+        self.__alias_cache.pop((guild_id, alias), None)
+
+        d = {'guild_id': guild_id, 'alias': alias}
+        await self.delete_rows(self.TABLE_ALIASES_NAME, d)
+
     async def delete_tag(self, guild_id: int, name: str):
         """Delete a tag and return the deleted rows.
 
@@ -67,10 +131,15 @@ class TagDatabase(db.Database):
         guild_id, name = int(guild_id), str(name)
 
         # Invalidate cache
-        self.__cache.pop((guild_id, name), None)
+        key = (guild_id, name)
+        self.__cache.pop(key, None)
+        aliases_to_remove = [
+            k for k, (orig, r) in list(self.__alias_cache.items()) if orig == name]
+        for k in aliases_to_remove:
+            del self.__alias_cache[k]
 
         d = {'guild_id': guild_id, 'name': name}
-        return await self.delete_rows(self.TABLE_NAME, d, pop=True)
+        rows = await self.delete_rows(self.TABLE_NAME, d, pop=True)
 
     async def edit_tag(self, guild_id: int, name: str,
                        content: str = None, uses: int = None,
@@ -105,17 +174,83 @@ class TagDatabase(db.Database):
         self.__cache.pop(key, None)
         return await self.get_tag(guild_id, name)
 
-    async def get_tag(self, guild_id: int, name: str):
-        """Get a tag from a guild."""
+    async def get_alias(self, guild_id: int, alias: str):
+        """Get a specific alias."""
+        guild_id, alias = int(guild_id), str(alias)
+
+        name_and_alias = self.__alias_cache.get((guild_id, alias))
+        if name_and_alias:
+            return name_and_alias[1]
+
+        d = {'guild_id': guild_id, 'alias': alias}
+        r = await self.get_one(self.TABLE_ALIASES_NAME, where=d)
+
+        if r:
+            self.__alias_cache[(guild_id, r['alias'])] = (r['name'], r)
+
+        return r
+
+    async def get_aliases(self, guild_id: int, name: str):
+        """Get all of a tag's aliases as a list of rows.
+
+        This will always do a database lookup, as the cache may only be
+        partially complete from some get_alias calls which is
+        indistinguishable from an actually complete cache of aliases.
+
+        Returns:
+            List[sqlite3.Row]
+
+        """
+        guild_id, name = int(guild_id), str(name)
+
+        aliases = await self.get_rows(
+            self.TABLE_ALIASES_NAME, where={
+                'guild_id': guild_id,
+                'name': name
+            }
+        )
+
+        for r in aliases:
+            self.__alias_cache[(guild_id, r['alias'])] = (name, r)
+
+        return aliases
+
+    async def get_tag(
+            self, guild_id: int, name: str, *, include_aliases=False):
+        """Get a tag from a guild.
+
+        NOTE: the number of columns in the row returned may vary
+        depending on caching. If include_aliases is True and the tag
+        was not cached, i.e. there wasn't a query where
+        include_aliases=False was successful, then a successful
+        fetch will return a row with columns from the aliases table being
+        included, which may be None if it matched the tag's name directly.
+
+        """
         guild_id, name = int(guild_id), str(name)
 
         key = (guild_id, name)
         tag = self.__cache.get(key)
+        if tag is None and include_aliases:
+            tag = self.__cache.get(self.__alias_cache.get(key))
         if tag is not None:
             return tag
 
-        d = {'guild_id': guild_id, 'name': name}
-        tag = await self.get_one(self.TABLE_NAME, where=d)
+        if include_aliases:
+            async with await self.connect() as conn:
+                async with conn.cursor() as c:
+                    t, t_aliases = self.TABLE_NAME, self.TABLE_ALIASES_NAME
+                    await c.execute(f"""
+                        SELECT * FROM {t} LEFT JOIN {t_aliases}
+                            ON {t}.name = {t_aliases}.name
+                        WHERE {t}.name = ? OR {t_aliases}.alias = ?
+                    """, name, name)
+                    tag = await c.fetchone()
+                    if tag:
+                        key = (guild_id, tag['name'])
+        else:
+            d = {'guild_id': guild_id, 'name': name}
+            tag = await self.get_one(self.TABLE_NAME, where=d)
         self.__cache[key] = tag
 
         return tag
@@ -123,3 +258,48 @@ class TagDatabase(db.Database):
     async def wipe(self, guild_id: int):
         """Wipe all tags from a guild."""
         await self.delete_rows(self.TABLE_NAME, {'guild_id': int(guild_id)})
+
+    async def yield_tags_ordered(
+            self, guild_id: int, *, column: Optional[str] = None,
+            where: Optional[dict] = None, reverse=False):
+        """Yield all tags in a guild ordered by a given column.
+
+        Note that `column` and the keys of `where` are not escaped.
+
+        Args:
+            guild_id (int): The guild to get tags from.
+            column (Optional[str]):
+                The name of the column to sort the tags by.
+            where (Optional[dict]):
+                A dictionary mapping SQL expressions with placeholders
+                to their values.
+                Only shows tags where all the given expressions evaluate
+                to true.
+                Example:
+                    {'user_id = ?': 1234,
+                     'created_at > ?': datetime.datetime.utcnow()
+                                       - datetime.timedelta(hours=1)}
+            reverse (bool): If True, yields the tags in descending order.
+                Unapplicable if `column` is unspecified.
+
+        """
+        guild_id = int(guild_id)
+
+        if where is None:
+            where = {}
+        where['guild_id = ?'] = guild_id
+        keys, values = zip(*where.items())
+        conditions = ' AND '.join(keys)
+
+        order = ''
+        if column:
+            order = ' ORDER BY {} {}'.format(column, 'DESC' if reverse else 'ASC')
+
+        async with await self.connect() as conn:
+            async with conn.execute(
+                    f'SELECT * FROM {self.TABLE_NAME} '
+                    f'WHERE {conditions}{order}',
+                    *values) as c:
+                while tag := await c.fetchone():
+                    self.__cache[(guild_id, tag['name'])] = tag
+                    yield tag

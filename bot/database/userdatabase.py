@@ -21,7 +21,9 @@ class UserDatabase(db.Database):
     TABLE_SETUP = f"""
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         id INTEGER PRIMARY KEY NOT NULL,
-        timezone TEXT
+        timezone TEXT,
+        timezone_public BOOLEAN NOT NULL DEFAULT false,
+        timezone_watch BOOLEAN NOT NULL DEFAULT true
     );
     """
 
@@ -52,25 +54,20 @@ class UserDatabase(db.Database):
         user_id = int(user_id)
         return await self.delete_rows(self.TABLE_NAME, {'id': user_id})
 
-    async def get_timezone(self, user_id: int) -> Optional[pytz.BaseTzInfo]:
-        """Get the timezone of a given user.
+    async def convert_timezone(self, row) -> Optional[pytz.BaseTzInfo]:
+        """Get the timezone of a given user from a row provided
+        by get_user().
 
         In the case that an invalid timezone is inserted into the database,
-        this will nullify it before propagating the exception.
+        this will nullify it and then propagate the exception.
 
-        If the user entry does not exist, this will return None
-        without adding a new row.
+        Args:
+            row (sqlite3.Row): The user row to produce the timezone from.
+                Technically this could be any object, so long as
+                the "timezone" and "id" keys exist.
 
         """
-        user_id = int(user_id)
-
-        async with await self.connect() as conn:
-            async with conn.execute(
-                    f'SELECT timezone FROM {self.TABLE_NAME} WHERE id=?',
-                    user_id) as c:
-                row = await c.fetchone()
-
-        timezone = row['timezone'] if row is not None else None
+        timezone = row['timezone']
         if timezone is None:
             return
 
@@ -78,14 +75,34 @@ class UserDatabase(db.Database):
             return pytz.timezone(timezone)
         except pytz.UnknownTimeZoneError:
             await self.update_rows(self.TABLE_NAME, {'timezone': None},
-                                   where={'id': user_id})
+                                   where={'id': row['id']})
             raise
 
-    async def get_user(self, user_id: int):
+    async def get_user(self, user_id: int, *, add=True):
         """Get a user record from the database.
 
-        If the user is not found, returns None.
+        Args:
+            user_id (int): The user's ID.
+            add (bool): If True, automatically inserts a row
+                if the user isn't in the database. Otherwise
+                this could return None.
+
+        Returns:
+            sqlite3.Row
+            None: The user was not found.
 
         """
         user_id = int(user_id)
-        return await self.get_one(self.TABLE_NAME, where={'id': user_id})
+
+        async with await self.connect(writing=bool(add)) as conn:
+            async with conn.cursor(transaction=True) as c:
+                if add:
+                    await c.execute(
+                        f'INSERT OR IGNORE INTO {self.TABLE_NAME} '
+                        '(id) VALUES (?)', user_id
+                    )
+                await c.execute(
+                    f'SELECT * FROM {self.TABLE_NAME} WHERE id = ?',
+                    user_id
+                )
+                return await c.fetchone()

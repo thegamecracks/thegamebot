@@ -5,6 +5,7 @@
 import asyncio
 import dataclasses
 import os.path
+import sqlite3
 from typing import Tuple
 
 import asqlite
@@ -68,7 +69,15 @@ class ConnectionPool:
         conn_lock = self._connections.get(path)
         if conn_lock is None:
             conn_lock = (
-                await asqlite.connect(path),
+                await asqlite.connect(
+                    # detect_types will allow custom data types to be converted
+                    # such as DATE and TIMESTAMP
+                    # https://docs.python.org/3/library/sqlite3.html#default-adapters-and-converters
+                    path, detect_types=(
+                        sqlite3.PARSE_DECLTYPES
+                        | sqlite3.PARSE_COLNAMES
+                    )
+                ),
                 asyncio.Lock()
             )
             self._connections[path] = conn_lock
@@ -128,13 +137,16 @@ class Database:
     async def setup_table(self, conn):
         await conn.executescript(self.TABLE_SETUP)
 
-    async def add_row(self, table: str, row: dict) -> int:
+    async def add_row(self, table: str, row: dict, *, ignore=False) -> int:
         """Add a row to a table.
 
         Args:
             table (str): The table name to insert into.
                 Should only come from a programmatic source.
             row (dict): A dictionary of values to add.
+            ignore (bool): If True, any conflicts that occur when
+                inserting will be ignored. Note that the lastrowid
+                will not be updated if it is ignored.
 
         Returns:
             int: The last row id.
@@ -143,8 +155,9 @@ class Database:
         keys, placeholders, values = self.placeholder_insert(row)
         async with await self.connect(writing=True) as conn:
             async with conn.cursor(transaction=True) as c:
+                insert = 'INSERT' + ' OR IGNORE' * ignore
                 await c.execute(
-                    f'INSERT INTO {table} ({keys}) VALUES ({placeholders})',
+                    f'{insert} INTO {table} ({keys}) VALUES ({placeholders})',
                     *values
                 )
                 return c._cursor.lastrowid
@@ -177,27 +190,26 @@ class Database:
         return rows
 
     def _get_rows_query(
-            self, table: str, *columns: str, where: dict = None, one=False):
+            self, table: str, *columns: str,
+            where: dict = None, limit: int = 0):
         column_keys = ', '.join(columns) if columns else '*'
 
         keys, values = self.escape_row(where or {}, ' AND ')
         where_str = f' WHERE {keys}' * bool(keys)
-        limit = ' LIMIT 1' * bool(one)
+        limit = f' LIMIT {limit:d}' * bool(limit)
 
         query = f'SELECT {column_keys} FROM {table}{where_str}{limit}'
 
         return query, values
 
     async def _get_rows(
-            self, table: str, *columns: str, where: dict = None, one=False):
+            self, table: str, *columns: str,
+            where: dict = None, limit: int = 0):
         query, values = self._get_rows_query(
-            table, *columns, where=where, one=one)
+            table, *columns, where=where, limit=limit)
 
         async with await self.connect() as conn:
-            async with conn.cursor() as c:
-                await c.execute(query, *values)
-                if one:
-                    return await c.fetchone()
+            async with conn.execute(query, *values) as c:
                 return await c.fetchall()
 
     async def get_rows(self, table: str, *columns: str, where: dict = None):
@@ -236,7 +248,8 @@ class Database:
             None
 
         """
-        return await self._get_rows(table, *columns, where=where, one=True)
+        rows = await self._get_rows(table, *columns, where=where, limit=1)
+        return rows[0] if rows else None
 
     async def update_rows(self, table: str, row: dict, *, where: dict, pop=False):
         """Update rows with new values.

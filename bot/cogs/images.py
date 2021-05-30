@@ -109,8 +109,6 @@ class Images(commands.Cog):
                 'Sorry, but the bot currently cannot query for a cat image.')
             return await asyncio.sleep(10)
 
-        await ctx.trigger_typing()
-
         try:
             cat = await query_thatapiguy(
                 ctx.bot.session, CAT_API_URL, CAT_API_KEY)
@@ -133,8 +131,6 @@ class Images(commands.Cog):
             await ctx.send(
                 'Sorry, but the bot currently cannot query for a dog image.')
             return await asyncio.sleep(10)
-
-        await ctx.trigger_typing()
 
         try:
             dog = await query_thatapiguy(
@@ -171,8 +167,6 @@ text: The message to encode."""
         if ec_level is None:
             ec_level = QRCodeECL.M
 
-        await ctx.trigger_typing()
-
         qr = qrcode.QRCode(
             version=version,
             error_correction=ec_level
@@ -186,8 +180,7 @@ text: The message to encode."""
                 s += ' Try lowering the error correction level.'
             return await ctx.send(s)
 
-        loop = asyncio.get_running_loop()
-        img = await loop.run_in_executor(None, qr.make_image)
+        img = await ctx.bot.loop.run_in_executor(None, qr.make_image)
 
         f = io.BytesIO()
         img.save(f, format='png')
@@ -289,11 +282,7 @@ Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
                     s=size)
             ))
 
-        await ctx.trigger_typing()
-
-        loop = asyncio.get_running_loop()
-
-        f = await loop.run_in_executor(
+        f = await ctx.bot.loop.run_in_executor(
             None, self.write_amongustext, ctx,
             text, transparent
         )

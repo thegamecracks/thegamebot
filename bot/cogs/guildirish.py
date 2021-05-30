@@ -64,8 +64,6 @@ class IrishSquad(commands.Cog):
 
         db = self.bot.dbirish.charges
 
-        await ctx.channel.trigger_typing()
-
         await db.change_charges(ctx.author.id, number)
         new_charges = await db.get_charges(ctx.author.id)
 
@@ -90,8 +88,6 @@ class IrishSquad(commands.Cog):
             return await ctx.send('You must remove at least one charge.')
 
         db = self.bot.dbirish.charges
-
-        await ctx.channel.trigger_typing()
 
         charges = await db.get_charges(ctx.author.id)
         new_charges = charges - number
@@ -122,7 +118,6 @@ class IrishSquad(commands.Cog):
     async def client_charges_number(self, ctx, *, user: discord.User = None):
         """Show the number of charges you or someone else has."""
         db = self.bot.dbirish.charges
-        await ctx.channel.trigger_typing()
 
         if user is None:
             user = ctx.author
@@ -153,7 +148,6 @@ class IrishSquad(commands.Cog):
     async def client_charges_guildtotal(self, ctx):
         """Show the squad's total charges."""
         db = self.bot.dbirish.charges
-        await ctx.channel.trigger_typing()
 
         async with await db.connect() as conn:
             async with conn.cursor(transaction=True) as c:
@@ -207,9 +201,8 @@ This requires a confirmation."""
 
         if confirmed:
             db = ctx.bot.dbirish.charges
-            async with await db.connect()(writing=True) as conn:
+            async with await db.connect(writing=True) as conn:
                 await conn.execute(f'DELETE FROM {db.TABLE_NAME}')
-                await conn.commit()
 
             await prompt.update('Completed charge wipe!',
                                 prompt.emoji_yes.color)
@@ -243,7 +236,7 @@ This requires a confirmation."""
 
         invalid_users = []
 
-        async with await db.connect()(writing=True) as conn:
+        async with await db.connect(writing=True) as conn:
             async with await conn.execute('SELECT id FROM Users') as c:
                 # Remove all IDs from the Users table if they are
                 # not in the guild
@@ -263,7 +256,6 @@ This requires a confirmation."""
                     ', '.join([str(user_id) for user_id in invalid_users])
                 )
                 await conn.execute(query)
-                await conn.commit()
 
         # Execute vacuum
         await db.vacuum()

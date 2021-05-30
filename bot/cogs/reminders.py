@@ -95,8 +95,10 @@ class Reminders(commands.Cog):
         # Determine timezone
         # Check string for timezone, then look in database, and fallback to UTC
         date_string, tz = dateparser.timezone_parser.pop_tz_offset_from_string(date_string)
-        tz: datetime.tzinfo = tz or await ctx.bot.dbusers.get_timezone(
-            ctx.author.id) or pytz.UTC
+        if not tz:
+            user_row = await ctx.bot.dbusers.get_user(ctx.author.id)
+            tz = await ctx.bot.dbusers.convert_timezone(user_row) or pytz.UTC
+        tz: datetime.tzinfo
 
         # Make times relative to the timezone
         settings = self.DATEPARSER_SETTINGS.copy()
@@ -131,8 +133,6 @@ be used instead of UTC.
 
 Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
-        await ctx.channel.trigger_typing()
-
         total_reminders = len(await self.get_reminders(ctx.author.id))
 
         if total_reminders < 5:
@@ -197,8 +197,6 @@ You can have a maximum of 5 reminders."""
 
 To see a list of your reminders and their indices, use the showreminders command.
 To remove several reminders, use the removereminders command."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -223,8 +221,6 @@ To remove several reminders, use the removereminders command."""
 
 You can remove "all" of your reminders or remove only a section of it by specifying the start and end indices ("1-4").
 To remove only one reminder, use the removereminder command."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -257,8 +253,6 @@ To remove only one reminder, use the removereminder command."""
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def client_showreminder(self, ctx, index: int):
         """Show one of your reminders."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -272,7 +266,7 @@ To remove only one reminder, use the removereminder command."""
         except IndexError:
             await ctx.send('That index does not exist.')
         else:
-            utcdue = datetime.datetime.fromisoformat(reminder['due'])
+            utcdue = reminder['due']
             embed = discord.Embed(
                 title=f'Reminder #{index:,}',
                 description=reminder['content'],
@@ -299,8 +293,6 @@ To remove only one reminder, use the removereminder command."""
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def client_showreminders(self, ctx):
         """Show all of your reminders."""
-        await ctx.channel.trigger_typing()
-
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if len(reminder_list) == 0:
@@ -405,11 +397,7 @@ To remove only one reminder, use the removereminder command."""
             remove_task()
             return
 
-        when = await self.bot.localize_datetime(
-            user.id,
-            utcwhen
-        )
-        when_str = when.strftime('%c %Z')
+        when_str = await self.bot.strftime_user(user.id, utcwhen, aware='%c %Z')
 
         if seconds == 0:
             title = f'Late reminder for {when_str}'
@@ -451,11 +439,9 @@ To remove only one reminder, use the removereminder command."""
         utcnow = datetime.datetime.utcnow()
 
         async for entry in db.yield_rows(db.TABLE_NAME):
-            utcwhen = datetime.datetime.fromisoformat(entry['due'])
-
             self.check_to_create_reminder(
                 entry['reminder_id'], entry['user_id'],
-                entry['content'], utcwhen, utcnow
+                entry['content'], entry['due'], utcnow
             )
 
     @send_reminders.before_loop
