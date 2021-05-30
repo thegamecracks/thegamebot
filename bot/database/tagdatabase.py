@@ -9,6 +9,7 @@ Table dependencies:
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
+from typing import Optional
 
 from . import database as db
 
@@ -245,7 +246,6 @@ class TagDatabase(db.Database):
                         WHERE {t}.name = ? OR {t_aliases}.alias = ?
                     """, name, name)
                     tag = await c.fetchone()
-                    # Correct key to not use potential alias
                     if tag:
                         key = (guild_id, tag['name'])
         else:
@@ -258,3 +258,48 @@ class TagDatabase(db.Database):
     async def wipe(self, guild_id: int):
         """Wipe all tags from a guild."""
         await self.delete_rows(self.TABLE_NAME, {'guild_id': int(guild_id)})
+
+    async def yield_tags_ordered(
+            self, guild_id: int, *, column: Optional[str] = None,
+            where: Optional[dict] = None, reverse=False):
+        """Yield all tags in a guild ordered by a given column.
+
+        Note that `column` and the keys of `where` are not escaped.
+
+        Args:
+            guild_id (int): The guild to get tags from.
+            column (Optional[str]):
+                The name of the column to sort the tags by.
+            where (Optional[dict]):
+                A dictionary mapping SQL expressions with placeholders
+                to their values.
+                Only shows tags where all the given expressions evaluate
+                to true.
+                Example:
+                    {'user_id = ?': 1234,
+                     'created_at > ?': datetime.datetime.utcnow()
+                                       - datetime.timedelta(hours=1)}
+            reverse (bool): If True, yields the tags in descending order.
+                Unapplicable if `column` is unspecified.
+
+        """
+        guild_id = int(guild_id)
+
+        if where is None:
+            where = {}
+        where['guild_id = ?'] = guild_id
+        keys, values = zip(*where.items())
+        conditions = ' AND '.join(keys)
+
+        order = ''
+        if column:
+            order = ' ORDER BY {} {}'.format(column, 'DESC' if reverse else 'ASC')
+
+        async with await self.connect() as conn:
+            async with conn.execute(
+                    f'SELECT * FROM {self.TABLE_NAME} '
+                    f'WHERE {conditions}{order}',
+                    *values) as c:
+                while tag := await c.fetchone():
+                    self.__cache[(guild_id, tag['name'])] = tag
+                    yield tag

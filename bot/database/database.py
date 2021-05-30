@@ -190,27 +190,26 @@ class Database:
         return rows
 
     def _get_rows_query(
-            self, table: str, *columns: str, where: dict = None, one=False):
+            self, table: str, *columns: str,
+            where: dict = None, limit: int = 0):
         column_keys = ', '.join(columns) if columns else '*'
 
         keys, values = self.escape_row(where or {}, ' AND ')
         where_str = f' WHERE {keys}' * bool(keys)
-        limit = ' LIMIT 1' * bool(one)
+        limit = f' LIMIT {limit:d}' * bool(limit)
 
         query = f'SELECT {column_keys} FROM {table}{where_str}{limit}'
 
         return query, values
 
     async def _get_rows(
-            self, table: str, *columns: str, where: dict = None, one=False):
+            self, table: str, *columns: str,
+            where: dict = None, limit: int = 0):
         query, values = self._get_rows_query(
-            table, *columns, where=where, one=one)
+            table, *columns, where=where, limit=limit)
 
         async with await self.connect() as conn:
-            async with conn.cursor() as c:
-                await c.execute(query, *values)
-                if one:
-                    return await c.fetchone()
+            async with conn.execute(query, *values) as c:
                 return await c.fetchall()
 
     async def get_rows(self, table: str, *columns: str, where: dict = None):
@@ -249,7 +248,8 @@ class Database:
             None
 
         """
-        return await self._get_rows(table, *columns, where=where, one=True)
+        rows = await self._get_rows(table, *columns, where=where, limit=1)
+        return rows[0] if rows else None
 
     async def update_rows(self, table: str, row: dict, *, where: dict, pop=False):
         """Update rows with new values.

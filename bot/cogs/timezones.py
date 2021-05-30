@@ -17,7 +17,7 @@ from bot.converters import TimezoneConverter
 from bot import utils
 
 
-class TranslationCheck(enum.IntEnum):
+class TranslationCheck(enum.Enum):
     SUCCESS = 0
     NO_GUILD = enum.auto()
     UN_REACTABLE = enum.auto()

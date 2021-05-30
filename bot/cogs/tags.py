@@ -4,9 +4,10 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
 import sqlite3
+from typing import Optional
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, menus
 
 from bot.classes.confirmation import AdaptiveConfirmation
 from bot import errors, utils
@@ -43,6 +44,56 @@ class TagNameConverter(commands.Converter):
         return arg
 
 
+class TagPageSource(menus.AsyncIteratorPageSource):
+    def __init__(
+            self, bot, guild_id: int, *, column: str,
+            where: dict = None, reverse=False,
+            format: str, **kwargs):
+        """Create an page source for tags.
+
+        Args:
+            bot (commands.Bot): The bot.
+            guild_id (int): The guild to get tags from.
+            column (Optional[str]):
+                The name of the column to sort the tags by.
+            where (Optional[dict]):
+                A dictionary mapping SQL expressions with placeholders
+                to their values.
+                Only shows tags where all the given expressions evaluate
+                to true.
+                Example:
+                    {'user_id = ?': 1234,
+                     'created_at > ?': datetime.datetime.utcnow()
+                                       - datetime.timedelta(hours=1)}
+            reverse (bool): If True, yields the tags in descending order.
+                Unapplicable if `column` is unspecified.
+            format (str): The string to use when formatting each tag.
+                These values are provided:
+                    i: The current index starting at 1.
+                    **tag: All columns available in the tag.
+            **kwargs: Passed into AsyncIteratorPageSource.
+
+        """
+        super().__init__(
+            bot.dbtags.yield_tags_ordered(
+                guild_id, column=column, reverse=reverse
+            ),
+            **kwargs
+        )
+        self.bot = bot
+        self.format = format
+
+    async def format_page(self, menu, entries):
+        start = menu.current_page * self.per_page
+        return discord.Embed(
+            color=utils.get_bot_color(self.bot),
+            description=f'\n'.join([
+                self.format.format(i=i, **v)
+                for i, v in enumerate(entries, start=start + 1)
+            ])
+        )
+
+
 class Tags(commands.Cog):
     """Store and use guild-specific tags."""
     qualified_name = 'Tags'
@@ -58,6 +109,30 @@ class Tags(commands.Cog):
         if ctx.guild is None:
             raise commands.NoPrivateMessage()
         return True
+
+
+    async def try_delete_message(self, ctx, m=None) -> bool:
+        """Try deleting the given message.
+        Returns True if successful.
+        """
+        m = m or ctx.message
+        can_delete = (
+            m.author == ctx.me
+            or ctx.me.permissions_in(m.channel).manage_messages
+        )
+
+        if can_delete:
+            await m.delete()
+
+        return can_delete
+
+
+    async def delete_and_reply(self, ctx, content='', *args, **kwargs):
+        """Try deleting the author's message and reply/mention."""
+        if await self.try_delete_message(ctx):
+            await ctx.send(f'{ctx.author.mention} {content}', *args, **kwargs)
+        else:
+            await ctx.reply(content, *args, **kwargs)
 
 
 
@@ -122,7 +197,7 @@ content: The content of the tag."""
         except sqlite3.IntegrityError as e:
             await ctx.send('A tag/alias with this name already exists!')
         else:
-            await ctx.send('Created your new tag!')
+            await self.delete_and_reply(ctx, f'Created tag "{name}"!')
 
 
     @client_tag.command(name='delete', aliases=('remove',))
@@ -165,7 +240,7 @@ content: The new content to use."""
 
         await ctx.bot.dbtags.edit_tag(ctx.guild.id, tag['name'], content)
 
-        await ctx.send('Edited your tag!')
+        await self.delete_and_reply(ctx, f'Edited tag "{name}"!')
 
 
     @client_tag.command(name='info')
@@ -245,65 +320,47 @@ content: The new content to use."""
 
 
     @client_tag.command(name='leaderboard')
-    @commands.cooldown(1, 2, commands.BucketType.user)
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.member)
     async def client_tag_leaderboard(self, ctx):
         """Get a list of the top tags used in this server."""
-        db = ctx.bot.dbtags
-        async with await db.connect() as conn:
-            async with conn.execute(
-                    f'SELECT name, user_id, uses FROM {db.TABLE_NAME} '
-                    'WHERE guild_id = ? ORDER BY uses DESC '
-                    f'LIMIT {self.TAG_LEADERBOARD_MAX_DISPLAYED}',
-                    ctx.guild.id) as c:
-                rows = await c.fetchall()
-
-        if not rows:
-            return await ctx.send('This server currently has no tags.')
-
-        description = [
-            f"**{i:,}.** {r['name']} : <@{r['user_id']}> : {r['uses']:,}"
-            for i, r in enumerate(rows, start=1)
-        ]
-        description = '\n'.join(description)
-
-        embed = discord.Embed(
-            color=utils.get_bot_color(ctx.bot),
-            description=description,
-            timestamp=datetime.datetime.utcnow()
+        menu = menus.MenuPages(
+            TagPageSource(
+                ctx.bot, ctx.guild.id, column='uses', reverse=True,
+                format='**{i:,}.** {name} : {uses:,} : <@{user_id}>',
+                per_page=self.TAG_LEADERBOARD_MAX_DISPLAYED
+            ),
+            clear_reactions_after=True
         )
-
-        await ctx.send(embed=embed)
+        try:
+            await menu.start(ctx, wait=True)
+        except IndexError:
+            await ctx.send('This server currently has no tags to list.')
 
 
     @client_tag.command(name='list')
-    @commands.cooldown(1, 2, commands.BucketType.user)
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.member)
     async def client_tag_list(self, ctx, *, user: discord.Member = None):
         """Get a list of the top tags you or someone else owns."""
         user = user or ctx.author
 
-        db = ctx.bot.dbtags
-        async with await db.connect() as conn:
-            async with conn.execute(
-                    f'SELECT name, uses FROM {db.TABLE_NAME} '
-                    'WHERE guild_id = ? AND user_id = ? ORDER BY uses DESC '
-                    f'LIMIT {self.TAG_BY_MAX_DISPLAYED}',
-                    ctx.guild.id, user.id) as c:
-                rows = await c.fetchall()
-
-        if not rows:
-            return await ctx.send('This server currently has no tags.')
-
-        description = [f"**{i:,}.** {r['name']} : {r['uses']:,}"
-                       for i, r in enumerate(rows, start=1)]
-        description = '\n'.join(description)
-
-        embed = discord.Embed(
-            color=utils.get_bot_color(ctx.bot),
-            description=description,
-            timestamp=datetime.datetime.utcnow()
+        menu = menus.MenuPages(
+            TagPageSource(
+                ctx.bot, ctx.guild.id, column='uses',
+                where={'user_id = ?': user.id}, reverse=True,
+                format='**{i:,}.** {name} : {uses:,}',
+                per_page=self.TAG_LEADERBOARD_MAX_DISPLAYED
+            ),
+            clear_reactions_after=True
         )
-
-        await ctx.send(embed=embed)
+        try:
+            await menu.start(ctx, wait=True)
+        except IndexError:
+            response = 'This user currently has no tags to list.'
+            if user == ctx.author:
+                response = 'You do not have any tags to list.'
+            await ctx.send(response)
 
 
     @client_tag.command(name='raw')
