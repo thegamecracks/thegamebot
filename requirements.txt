@@ -1,5 +1,5 @@
 abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@v0.1.0
-aiohttp==3.7.3
+aiohttp==3.7.4
 asqlite @ git+https://github.com/thegamecracks/asqlite/@1d0b7da105679eab891df927f1fc230775194fe4
 astunparse==1.6.3
 async-timeout==3.0.1
@@ -24,7 +24,7 @@ matplotlib==3.4.2
 multidict==4.7.6
 numpy==1.19.4
 packaging==20.4
-Pillow==8.0.1
+Pillow==8.2.0
 Pint==0.16.1
 prettify.py @ git+https://github.com/ShineyDev/prettify.py@735d007b72f06256b3c4dfc4692f32a1011315db
 psutil==5.8.0
