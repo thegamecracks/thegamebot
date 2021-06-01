@@ -1,6 +1,6 @@
 abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@v0.1.0
 aiohttp==3.7.4
-asqlite @ git+https://github.com/thegamecracks/asqlite/@1d0b7da105679eab891df927f1fc230775194fe4
+asqlite @ git+https://github.com/Rapptz/asqlite@43fbf58097adf1d9cc62040ec4c49e5bcc3a5320
 astunparse==1.6.3
 async-timeout==3.0.1
 attrs==19.3.0
@@ -10,7 +10,7 @@ colorama==0.4.4
 cycler==0.10.0
 dateparser==1.0.0
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@309c70222eec33acacb8c21bbb0fbe9bc57de661
-discord-py-slash-command==1.1.1
+discord-py-slash-command==1.2.0
 discord.py==1.7.2
 disputils==0.1.3
 emoji==1.2.0
