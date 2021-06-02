@@ -56,7 +56,7 @@ class SignalHill(commands.Cog):
         self.bot = bot
         self.bm_client = abm.BattleMetricsClient(
             self.bot.session,
-            token=os.getenv('PyDiscordBotBMToken')
+            token=os.getenv('BattlemetricsToken')
         )
         self.ina_status_enabled = True
         self.ina_status_last_server = None

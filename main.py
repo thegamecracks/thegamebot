@@ -14,6 +14,7 @@ import aiohttp
 import discord
 from discord.ext import commands
 import discord_slash as dslash
+from dotenv import load_dotenv
 import inflect
 import matplotlib
 import matplotlib.pyplot as plt
@@ -230,6 +231,8 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
 
 async def main():
+    load_dotenv()
+
     start_time = time.perf_counter()
 
     parser = argparse.ArgumentParser()
@@ -240,7 +243,7 @@ async def main():
 
     args = parser.parse_args()
 
-    token = os.getenv('PyDiscordBotToken')
+    token = os.getenv('BotToken')
     if token is None:
         s = 'Could not get token from environment.'
         logger.error(s)

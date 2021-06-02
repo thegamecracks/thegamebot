@@ -30,6 +30,7 @@ prettify.py @ git+https://github.com/ShineyDev/prettify.py@735d007b72f06256b3c4d
 psutil==5.8.0
 pyparsing==2.4.7
 python-dateutil==2.8.1
+python-dotenv==0.17.1
 pytz==2021.1
 qrcode==6.1
 regex==2021.3.17

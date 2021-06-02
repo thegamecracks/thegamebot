@@ -18,9 +18,9 @@ import qrcode.exceptions
 from bot import utils
 
 CAT_API_URL = 'https://api.thecatapi.com/'
-CAT_API_KEY = os.getenv('PyDiscordBotAPICatKey')
+CAT_API_KEY = os.getenv('CatAPIKey')
 DOG_API_URL = 'https://api.thedogapi.com/'
-DOG_API_KEY = os.getenv('PyDiscordBotAPIDogKey')
+DOG_API_KEY = os.getenv('DogAPIKey')
 
 
 async def query_thatapiguy(session, url, key):
