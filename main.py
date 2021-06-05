@@ -231,7 +231,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
 
 async def main():
-    load_dotenv()
+    load_dotenv(override=True)
 
     start_time = time.perf_counter()
 
