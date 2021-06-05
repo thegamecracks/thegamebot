@@ -201,7 +201,9 @@ class Timezones(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, m: discord.Message):
         """Detect times sent in messages."""
-        await self.provide_translation(m)
+        ctx = await self.bot.get_context(m)
+        if not ctx.valid:
+            await self.provide_translation(m)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
