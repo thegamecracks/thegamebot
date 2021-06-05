@@ -15,7 +15,6 @@ from matplotlib import dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import numpy as np
-from scipy.interpolate import make_interp_spline
 
 from bot import checks, utils
 
@@ -73,6 +72,7 @@ class SignalHill(commands.Cog):
         self.ina_status_graph_cooldown = commands.Cooldown(
             1, self.INA_STATUS_GRAPH_RATE, commands.BucketType.default)
 
+        self.ina_status_loop.add_exception_type(discord.DiscordServerError)
         self.ina_status_loop.start()
 
 
@@ -391,22 +391,13 @@ Turns back on when the bot connects."""
 
         # Plot player counts
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
-        # Generate smoother curve with 300 points
-        x = np.array([mdates.date2num(dt) for dt in x])
-        x_min, x_max = x.min(), x.max()
-        n_points = 300
-        spl = make_interp_spline(x, y, k=2)
-        x_new = np.linspace(x_min, x_max, n_points)
-        y_smooth = spl(x_new)
-        # # Estimate where the actual datapoints are to mark them
-        # x_to_marker_ratio = (n_points - 1) / (x_max - x_min)
-        # markers = [int((n - x_min) * x_to_marker_ratio) for n in x]
-        lines = ax.plot_date(x_new, y_smooth, line_color)  # , marker='.', markevery=markers)
+        x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
+        lines = ax.plot(x, y, line_color)  # , marker='.')
 
         # Set limits and fill under the line
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, server.max_players + 1)
-        ax.fill_between(x_new, y_smooth, color=line_color + '55')
+        ax.fill_between(x, y, color=line_color + '55')
 
         # Set xticks to every two hours
         step = 1 / 12
