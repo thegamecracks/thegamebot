@@ -41,6 +41,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'administrative',
             'background',
             'ciphers',
+            'dbevents',
             'economy',
             'eh',
             'embedding',

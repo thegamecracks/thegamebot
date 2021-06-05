@@ -24,7 +24,7 @@ class TagDatabase(db.Database):
         guild_id INTEGER NOT NULL,
         name VARCHAR(50) NOT NULL,
         content VARCHAR(2000) NOT NULL,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
         uses INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL,
         edited_at TIMESTAMP,
@@ -32,6 +32,7 @@ class TagDatabase(db.Database):
         FOREIGN KEY (guild_id) REFERENCES Guilds(id)
             ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES Users(id)
+            ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS ix_tags_guilds ON {TABLE_NAME}(guild_id);
     CREATE INDEX IF NOT EXISTS ix_tags_users
@@ -40,7 +41,7 @@ class TagDatabase(db.Database):
         guild_id INTEGER NOT NULL,
         alias VARCHAR(50) NOT NULL,
         name VARCHAR(50) NOT NULL,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
         created_at TIMESTAMP NOT NULL,
         PRIMARY KEY (guild_id, alias),
         FOREIGN KEY (guild_id) REFERENCES Guilds(id)
@@ -48,9 +49,12 @@ class TagDatabase(db.Database):
         FOREIGN KEY (guild_id, name) REFERENCES {TABLE_NAME}
             ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES Users(id)
+            ON DELETE SET NULL
     );
     CREATE INDEX IF NOT EXISTS ix_tags_name_to_aliases
         ON {TABLE_ALIASES_NAME}(guild_id, name);
+    CREATE INDEX IF NOT EXISTS ix_tags_user_to_aliases
+        ON {TABLE_ALIASES_NAME}(guild_id, user_id);
     -- Ensure alias and name don't both exist together
     CREATE TRIGGER IF NOT EXISTS no_tag_alias_if_name
         AFTER INSERT ON {TABLE_ALIASES_NAME}
@@ -71,6 +75,39 @@ class TagDatabase(db.Database):
         self.__cache = {}  # (guild_id, name): sqlite3.Row
         self.__alias_cache = {}
         # (guild_id, alias): (name, sqlite3.Row)
+
+    def _cache_delete_alias(self, guild_id: int, alias: str):
+        self.__alias_cache.pop((guild_id, alias), None)
+
+    async def _cache_delete_aliases_by_name(self, guild_id: int, name: str):
+        async with await self.connect() as conn:
+            async with conn.execute(
+                    f'SELECT alias FROM {self.TABLE_ALIASES_NAME} '
+                    'WHERE guild_id = ? AND name = ?',
+                    guild_id, name) as c:
+                while row := await c.fetchone():
+                    self._cache_delete_alias(guild_id, row['alias'])
+
+    async def _cache_delete_aliases_by_user(self, guild_id: int, user_id: int):
+        async with await self.connect() as conn:
+            async with conn.execute(
+                    f'SELECT alias FROM {self.TABLE_ALIASES_NAME} '
+                    'WHERE guild_id = ? AND user_id = ?',
+                    guild_id, user_id) as c:
+                while row := await c.fetchone():
+                    self._cache_delete_alias(guild_id, row['alias'])
+
+    def _cache_delete_tag(self, guild_id: int, name: str):
+        self.__cache.pop((guild_id, name), None)
+
+    async def _cache_delete_tags_by_user(self, guild_id: int, user_id: int):
+        async with await self.connect() as conn:
+            async with conn.execute(
+                    f'SELECT name FROM {self.TABLE_NAME} '
+                    'WHERE guild_id = ? AND user_id = ?',
+                    guild_id, user_id) as c:
+                while row := await c.fetchone():
+                    self._cache_delete_tag(guild_id, row['name'])
 
     async def add_alias(
             self, guild_id: int, alias: str, name: str, user_id: int) -> None:
@@ -115,8 +152,7 @@ class TagDatabase(db.Database):
         """Delete an alias."""
         guild_id, alias = int(guild_id), str(alias)
 
-        # Update cache
-        self.__alias_cache.pop((guild_id, alias), None)
+        self._cache_delete_alias(guild_id, alias)
 
         d = {'guild_id': guild_id, 'alias': alias}
         await self.delete_rows(self.TABLE_ALIASES_NAME, d)
@@ -130,13 +166,8 @@ class TagDatabase(db.Database):
         """
         guild_id, name = int(guild_id), str(name)
 
-        # Invalidate cache
-        key = (guild_id, name)
-        self.__cache.pop(key, None)
-        aliases_to_remove = [
-            k for k, (orig, r) in list(self.__alias_cache.items()) if orig == name]
-        for k in aliases_to_remove:
-            del self.__alias_cache[k]
+        self._cache_delete_tag(guild_id, name)
+        await self._cache_delete_aliases_by_name(guild_id, name)
 
         d = {'guild_id': guild_id, 'name': name}
         rows = await self.delete_rows(self.TABLE_NAME, d, pop=True)
@@ -254,6 +285,70 @@ class TagDatabase(db.Database):
         self.__cache[key] = tag
 
         return tag
+
+    async def set_alias_author(
+            self, guild_id: int, alias: str, user_id: Optional[int]):
+        """Set the author of an alias.
+        user_id may be None to remove the author.
+        """
+        guild_id, alias = int(guild_id), str(alias)
+
+        if user_id is not None:
+            user_id = int(user_id)
+
+        self._cache_delete_alias(guild_id, alias)
+
+        async with await self.connect(writing=True) as conn:
+            await conn.execute(
+                f'UPDATE {self.TABLE_ALIASES_NAME} SET user_id = ? '
+                'WHERE guild_id = ? AND alias = ?',
+                user_id, guild_id, alias
+            )
+
+    async def set_tag_author(
+            self, guild_id: int, name: str, user_id: Optional[int]):
+        """Set the author of a tag.
+        user_id may be None to remove the author.
+        """
+        guild_id, name = int(guild_id), str(name)
+
+        if user_id is not None:
+            user_id = int(user_id)
+
+        self._cache_delete_tag(guild_id, name)
+
+        async with await self.connect(writing=True) as conn:
+            await conn.execute(
+                f'UPDATE {self.TABLE_NAME} SET user_id = ? '
+                'WHERE guild_id = ? AND name = ?',
+                user_id, guild_id, name
+            )
+
+    async def unauthor_aliases(self, guild_id: int, user_id: int):
+        """Remove an author's info from their aliases in a guild."""
+        guild_id, user_id = int(guild_id), int(user_id)
+
+        await self._cache_delete_aliases_by_user(guild_id, user_id)
+
+        async with await self.connect(writing=True) as conn:
+            await conn.execute(
+                f'UPDATE {self.TABLE_ALIASES_NAME} SET user_id = NULL '
+                'WHERE guild_id = ? AND user_id = ?',
+                guild_id, user_id
+            )
+
+    async def unauthor_tags(self, guild_id: int, user_id: int):
+        """Remove an author's info from their tags in a guild."""
+        guild_id, user_id = int(guild_id), int(user_id)
+
+        await self._cache_delete_tags_by_user(guild_id, user_id)
+
+        async with await self.connect(writing=True) as conn:
+            await conn.execute(
+                f'UPDATE {self.TABLE_NAME} SET user_id = NULL '
+                'WHERE guild_id = ? AND user_id = ?',
+                guild_id, user_id
+            )
 
     async def wipe(self, guild_id: int):
         """Wipe all tags from a guild."""
