@@ -36,7 +36,7 @@ logger = discordlogger.get_logger()
 
 class TheGameBot(BotDatabaseMixin, commands.Bot):
     EXT_LIST = [
-        f'bot.cogs.{c}' for c in (
+        'bot.cogs.' + c for c in (
             'settings',  # dependency of a lot of things
             'administrative',
             'background',
@@ -260,7 +260,7 @@ async def main():
     for attr in DISABLED_INTENTS:
         setattr(intents, attr, False)
 
-    bot = TheGameBot(intents=intents)
+    bot = TheGameBot(intents=intents, strip_after_prefix=True)
     await bot.setup()
 
     async def bootup_time(bot, start_time):
