@@ -87,7 +87,7 @@ Optional settings:
             title='About',
             description=(
                 'I do random stuff, whatever '
-                '[**thegamecracks**](https://github.com/thegamecracks/thegamebot) '
+                '[**thegamecracks**](https://github.com/thegamecracks/thegamebot "This bot\'s GitHub repository") '
                 'adds to me.'
             ),
             color=utils.get_bot_color(ctx.bot)
@@ -512,8 +512,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
 
 
 
-    def get_invite_link(self, perms: Optional[discord.Permissions] = None,
-                        slash_commands=True):
+    def get_invite_link(self, perms: Optional[discord.Permissions] = None):
         if perms is None:
             perms = discord.Permissions(
                 add_reactions=True,
@@ -528,12 +527,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                 speak=True
             )
 
-        link = discord.utils.oauth_url(self.bot.user.id, perms)
-
-        if slash_commands:
-            link = link.replace('scope=bot', 'scope=bot%20applications.commands')
-
-        return link
+        return discord.utils.oauth_url(self.bot.user.id, perms)
 
 
     @commands.command(name='invite')
@@ -542,10 +536,8 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
         """Get the bot's invite link."""
         link = self.get_invite_link()
         embed = discord.Embed(
+            description=link,
             color=utils.get_bot_color(ctx.bot)
-        ).set_author(
-            name=f'—> Invitation link <—',
-            url=link
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
             icon_url=ctx.author.avatar_url
@@ -559,7 +551,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
         """Get the invite link for the bot."""
         link = self.get_invite_link()
 
-        await ctx.send(content=f'[Invitation link]({link})', hidden=True)
+        await ctx.send(content=link, hidden=True)
 
 
 

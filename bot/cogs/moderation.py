@@ -67,7 +67,7 @@ class Moderation(commands.Cog):
     async def client_purge(self, ctx, limit: PurgeLimitConverter):
         """Bulk delete messages in the current channel.
 
-limit: The number of messages to look through. (range: 2-100)"""
+limit: The number of messages to look through. (max: 100)"""
         messages = await ctx.channel.purge(limit=limit, before=ctx.message)
         await self.send_purged(ctx, messages)
 
@@ -83,7 +83,7 @@ limit: The number of messages to look through. (range: 2-100)"""
     async def client_purge_bot(self, ctx, limit: PurgeLimitConverter):
         """Delete messages from bots.
 
-limit: The number of messages to look through. (range: 2-100)"""
+limit: The number of messages to look through. (max: 100)"""
         def check(m):
             return m.author.bot
 
@@ -106,7 +106,7 @@ limit: The number of messages to look through. (range: 2-100)"""
         """Delete messages from me.
 This will also remove messages that appear to be invoking one of my commands if I have Manage Messages permission.
 
-limit: The number of messages to look through. (range: 2-100)"""
+limit: The number of messages to look through. (max: 100)"""
         def check(m):
             return (
                 m.author == ctx.me
