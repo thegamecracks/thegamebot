@@ -232,7 +232,10 @@ To remove only one reminder, use the removereminder command."""
             await ctx.send('Reminders successfully deleted!')
 
         else:
-            start, end = [int(n) for n in indices.split('-')]
+            try:
+                start, end = [int(n) for n in indices.split('-')]
+            except ValueError:
+                return await ctx.send_help(ctx.command)
             start -= 1
             if start < 0:
                 return await ctx.send('Start must be 1 or greater.')
