@@ -62,6 +62,7 @@ class EventHandlers(commands.Cog):
         commands.DisabledCommand,
         commands.MaxConcurrencyReached,
         commands.UserInputError,
+        errors.ErrorHandlerResponse
     )
     # Prevents printing simplified command errors.
     IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
