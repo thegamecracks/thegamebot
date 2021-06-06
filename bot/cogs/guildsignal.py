@@ -1,10 +1,12 @@
 import asyncio
 import datetime
+import enum
 import io
 import itertools
 import logging
 import math
 import os
+import random
 import re
 from typing import Optional
 
@@ -36,6 +38,13 @@ class SteamIDConverter(commands.Converter):
         return int(arg)
 
 
+class GiveawayStatus(enum.Enum):
+    RUNNING = 0
+    CANCELED = 1
+    FINISHED = 2
+    UNKNOWN = 3
+
+
 class SignalHill(commands.Cog):
     """Stuff for the Signal Hill server."""
 
@@ -48,7 +57,10 @@ class SignalHill(commands.Cog):
     INA_STATUS_FALSE_EDIT_RATE = 5
     INA_STATUS_GRAPH_DEST = 842924251954151464
     INA_STATUS_GRAPH_RATE = 60 * 30
+    INA_STATUS_LINE_COLOR = '#F54F33'
     REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
+    GIVEAWAY_CHANNEL_ID = 850953633671020576
+    GIVEAWAY_EMOJI_ID = 340900129114423296  # 815804214470770728
     GUILD_ID = 811415496036843550
 
     def __init__(self, bot):
@@ -79,6 +91,13 @@ class SignalHill(commands.Cog):
     def cog_unload(self):
         self.ina_status_loop.cancel()
 
+    @property
+    def giveaway_channel(self):
+        return self.bot.get_channel(self.GIVEAWAY_CHANNEL_ID)
+
+    @property
+    def giveaway_emoji(self):
+        return self.bot.get_emoji(self.GIVEAWAY_EMOJI_ID)
 
     @property
     def guild(self):
@@ -382,7 +401,6 @@ Turns back on when the bot connects."""
         def format_hour(x, pos):
             return mdates.num2date(x).strftime('%I %p').lstrip('0')
 
-        line_color = '#F54F33'
         fig, ax = plt.subplots()
 
         # if any(None not in (d.min, d.max) for d in datapoints):
@@ -392,19 +410,19 @@ Turns back on when the bot connects."""
         # Plot player counts
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
         x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
-        lines = ax.plot(x, y, line_color)  # , marker='.')
+        lines = ax.plot(x, y, self.INA_STATUS_LINE_COLOR)  # , marker='.')
 
         # Set limits and fill under the line
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, server.max_players + 1)
-        ax.fill_between(x, y, color=line_color + '55')
+        ax.fill_between(x, y, color=self.INA_STATUS_LINE_COLOR + '55')
 
         # Set xticks to every two hours
         step = 1 / 12
         start = x_max - step + (mdates.date2num(datetime.datetime.utcnow()) - x_max)
         ax.set_xticks(np.arange(start, x_min, -step))
         ax.xaxis.set_major_formatter(format_hour)
-        ax.set_xlabel('UTC', loc='left', color=line_color)
+        ax.set_xlabel('UTC', loc='left', color=self.INA_STATUS_LINE_COLOR)
 
         # Set yticks
         ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
@@ -416,7 +434,10 @@ Turns back on when the bot connects."""
         # Color the ticks and make spine invisible
         for spine in ax.spines.values():
             spine.set_color('#00000000')
-        ax.tick_params(labelsize=9, color='#70707066', labelcolor=line_color)
+        ax.tick_params(
+            labelsize=9, color='#70707066',
+            labelcolor=self.INA_STATUS_LINE_COLOR
+        )
 
         # Make background fully transparent
         fig.patch.set_facecolor('#00000000')
@@ -493,6 +514,159 @@ Turns back on when the bot connects."""
                 player.name, h, m
             )
         )
+
+
+
+
+
+    @commands.group(name='giveaway', invoke_without_command=True)
+    @commands.cooldown(2, 5, commands.BucketType.channel)
+    @commands.is_owner()
+    # @commands.has_role('Staff')
+    # @checks.used_in_guild(GUILD_ID)
+    async def client_giveaway(self, ctx):
+        """Commands for setting up giveaways."""
+        await ctx.send_help(ctx.command)
+
+
+    async def _giveaway_get_message(self):
+        """Get the latest giveaway message."""
+        try:
+            return await self.giveaway_channel.history(limit=1).next()
+        except discord.NoMoreItems:
+            return None
+
+
+    def _giveaway_get_status(self, message: discord.Message) -> GiveawayStatus:
+        """Check if the giveaway message shows it's currently running."""
+        embed = message.embeds[0]
+        if embed is None:
+            return GiveawayStatus.UNKNOWN
+
+        title = str(embed.title).lower()
+        if 'finish' in title:
+            return GiveawayStatus.FINISHED
+        elif 'cancel' in title:
+            return GiveawayStatus.CANCELED
+
+        return GiveawayStatus.RUNNING
+
+
+    def _giveaway_create_embed(self, title, description):
+        embed = discord.Embed(
+            color=discord.Color.gold(),
+            description=description,
+            title=title,
+            timestamp=datetime.datetime.utcnow()
+        ).set_footer(
+            text='Started at'
+        )
+
+        return embed
+
+
+    @client_giveaway.command(name='cancel')
+    async def client_giveaway_cancel(self, ctx, *, description: str = None):
+        """Cancel the current giveaway.
+If a description is given, this replaces the giveaway's current description
+and adds a title saying the giveaway has been canceled.
+The giveaway message is deleted if no description is given."""
+        last_giveaway = await self._giveaway_get_message()
+        if last_giveaway is None or not self._giveaway_get_status(last_giveaway):
+            return await ctx.send('There is no giveaway running at the moment!')
+        elif description is None:
+            await last_giveaway.delete()
+            return await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
+
+        embed = last_giveaway.embeds[0]
+        embed.color = discord.Color.dark_red()
+        embed.title = 'This giveaway has been canceled.'
+        embed.description = description
+
+        await last_giveaway.edit(embed=embed)
+        return await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
+
+
+    @client_giveaway.command(name='finish')
+    async def client_giveaway_finish(self, ctx):
+        """End the current giveaway and decide who the winner is."""
+        last_giveaway = await self._giveaway_get_message()
+        if last_giveaway is None or not self._giveaway_get_status(last_giveaway):
+            return await ctx.send('There is no giveaway running at the moment!')
+
+        # Find the giveaway reaction
+        reaction = discord.utils.find(
+            lambda r: hasattr(r.emoji, 'id') and r.emoji.id == self.GIVEAWAY_EMOJI_ID,
+            last_giveaway.reactions
+        )
+        if reaction is None:
+            return await ctx.send(
+                'Giveaway is missing reaction: {}'.format(self.giveaway_emoji))
+
+        # Pick a winner
+        participants = []
+        async for user in reaction.users():
+            if user != ctx.me:
+                participants.append(user)
+
+        if not participants:
+            return await ctx.send('There are no participants to choose from!')
+
+        winner = random.choice(participants)
+
+        # Update embed
+        embed = last_giveaway.embeds[0]
+        embed.color = discord.Color.green()
+        embed.title = 'This giveaway has finished!'
+        embed.add_field(
+            name='The winner is:',
+            value=f'{winner.mention}\n'
+                  'Please create a support ticket to receive your reward!'
+        )
+
+        await last_giveaway.edit(embed=embed)
+
+        await ctx.send(
+            '# of participants: {:,}\nWinner: {}'.format(
+                len(participants),
+                winner.mention
+            ),
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+
+
+    @client_giveaway.command(name='simulate')
+    async def client_giveaway_simulate(self, ctx, title, *, description):
+        """Generate a giveaway message in the current channel."""
+        embed = self._giveaway_create_embed(title, description)
+        await ctx.send(embed=embed)
+
+
+    @client_giveaway.command(name='start')
+    async def client_giveaway_start(self, ctx, title, *, description):
+        """Start a new giveaway in the giveaway channel.
+Only one giveaway can be running at a time, for now that is."""
+        # Check if giveaway is already running
+        last_giveaway = await self._giveaway_get_message()
+        if last_giveaway is not None and self._giveaway_get_status(
+                last_giveaway) == GiveawayStatus.RUNNING:
+            return await ctx.send(
+                'There is already a giveaway running! Please "finish" or "cancel" '
+                'the giveaway before creating a new one!'
+            )
+
+        embed = self._giveaway_create_embed(title, description)
+
+        message = await self.giveaway_channel.send(embed=embed)
+
+        try:
+            await message.add_reaction(self.giveaway_emoji)
+        except discord.HTTPException:
+            await ctx.send(
+                'Warning: failed to add the giveaway reaction ({})'.format(
+                    self.giveaway_emoji
+                )
+            )
 
 
 
