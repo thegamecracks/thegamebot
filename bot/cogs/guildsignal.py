@@ -617,6 +617,9 @@ The giveaway message is deleted if no description is given."""
         embed.title = 'This giveaway has been canceled.'
         embed.description = description
 
+        embed.set_footer(text=embed.Empty)
+        embed.timestamp = embed.Empty
+
         await ctx.last_giveaway.edit(embed=embed)
         await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
 
@@ -677,7 +680,10 @@ text: The text to replace the field with."""
             name='The winner is:',
             value=f'{winner.mention}\n'
                   'Please create a support ticket to receive your reward!'
+        ).set_footer(
+            text='Finished at'
         )
+        embed.timestamp = datetime.datetime.utcnow()
 
         await ctx.last_giveaway.edit(embed=embed)
 
