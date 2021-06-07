@@ -66,8 +66,12 @@ class DatabaseEvents(commands.Cog):
                     authors.add((row['guild_id'], row['user_id']))
 
         for guild_id, user_id in authors:
+            if user_id is None:  # un-claimed tag
+                continue
+
             guild = self.bot.get_guild(guild_id)
             if guild is None:
+                # NOTE: this shouldn't happen after checking guild table
                 continue
 
             member = await self.try_member(guild, user_id)
@@ -83,8 +87,12 @@ class DatabaseEvents(commands.Cog):
     async def cleanup_tables(self):
         """Update the tables to match guild/member changes."""
         await self.bot.wait_until_ready()
-        deleted = False
 
+        # Make sure this only happens once on startup
+        if self.bot.dbevents_cleaned_up:
+            return
+
+        deleted = False
         intents = self.bot.intents
         if intents.guilds:
             logger.debug('Cleaning up guild tables')
@@ -93,6 +101,7 @@ class DatabaseEvents(commands.Cog):
             logger.debug('Cleaning up tag tables')
             deleted = bool(await self.check_tag_tables()) or deleted
 
+        self.bot.dbevents_cleaned_up = True
         if deleted:
             await self.bot.dbusers.vacuum()
 

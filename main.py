@@ -80,6 +80,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         # Add botvars
         with utils.update_text('Adding botvars',
                                'Added botvars'):
+            self.dbevents_cleaned_up = False
             self.session = aiohttp.ClientSession()
             self.inflector = inflect.engine()
             self.info_bootup_time = 0
