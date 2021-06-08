@@ -570,14 +570,15 @@ Turns back on when the bot connects."""
 
 
 
-    @commands.group(name='giveaway', invoke_without_command=True)
+    @commands.group(name='giveaway')
     @commands.cooldown(2, 5, commands.BucketType.channel)
     # @commands.is_owner()
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
     async def client_giveaway(self, ctx):
         """Commands for setting up giveaways."""
-        await ctx.send_help(ctx.command)
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
 
     async def _giveaway_get_message(self):
@@ -589,6 +590,7 @@ Turns back on when the bot connects."""
 
 
     def _giveaway_create_embed(self, title, description):
+        """Create the running giveaway embed."""
         embed = discord.Embed(
             color=discord.Color.gold(),
             description=description,
@@ -599,6 +601,79 @@ Turns back on when the bot connects."""
         )
 
         return embed
+
+
+    def _giveaway_finish_embed(self, embed, winner, total):
+        """Edit a running embed so the giveaway is finished."""
+        embed.color = discord.Color.green()
+
+        embed.title = 'This giveaway has finished with {:,} {}!'.format(
+            total, self.bot.inflector.plural('participant', total)
+        )
+
+        embed.add_field(
+            name='The winner is:',
+            value=f'{winner.mention}\n'
+                  'Please create a support ticket to receive your reward!'
+        ).set_footer(
+            text='Finished at'
+        )
+        embed.timestamp = datetime.datetime.utcnow()
+
+        return embed
+
+
+    def _giveaway_reroll_embed(self, embed, winner, total, reason):
+        """Edit a finished embed to replace the winner."""
+        embed.title = 'This giveaway has finished with {:,} {}!'.format(
+            total, self.bot.inflector.plural('participant', total)
+        )
+
+        embed.clear_fields()
+
+        embed.add_field(
+            name='The (rerolled) winner is:',
+            value=f'{winner.mention}\n'
+                  'Please create a support ticket to receive your reward!'
+        ).add_field(
+            name='Reason for rerolling:',
+            value=reason
+        ).set_footer(
+            text='Rerolled at'
+        )
+        embed.timestamp = datetime.datetime.utcnow()
+
+        return embed
+
+    def _giveaway_find_field_by_name(self, embed, name):
+        return discord.utils.find(lambda f: name in f.name, embed.fields)
+
+
+    async def _giveaway_get_participants(self, message, *, ignored=None):
+        if not ignored:
+            ignored = (self.bot.user.id,)
+
+        reaction = discord.utils.find(
+            lambda r: getattr(r.emoji, 'id', 0) == self.GIVEAWAY_EMOJI_ID,
+            message.reactions
+        )
+
+        if reaction is None:
+            return None, None
+
+        participants = []
+        async for user in reaction.users():
+            if user.id not in ignored:
+                participants.append(user)
+
+        return reaction, participants
+
+
+    def _giveaway_parse_winner_from_field(
+            self, field) -> Optional[discord.Object]:
+        """Parse the winner mention from the winner field."""
+        match = re.search('<@!?(\d+)>', field.value)
+        return int(match.group(1)) if match else None
 
 
     @client_giveaway.command(name='cancel')
@@ -652,39 +727,21 @@ text: The text to replace the field with."""
     @is_giveaway_running(GIVEAWAY_CHANNEL_ID)
     async def client_giveaway_finish(self, ctx):
         """End the current giveaway and decide who the winner is."""
-        # Find the giveaway reaction
-        reaction = discord.utils.find(
-            lambda r: hasattr(r.emoji, 'id') and r.emoji.id == self.GIVEAWAY_EMOJI_ID,
-            ctx.last_giveaway.reactions
-        )
+        reaction, participants = await self._giveaway_get_participants(ctx.last_giveaway)
         if reaction is None:
             return await ctx.send(
                 'Giveaway is missing reaction: {}'.format(self.giveaway_emoji))
-
-        # Pick a winner
-        participants = []
-        async for user in reaction.users():
-            if user != ctx.me:
-                participants.append(user)
-
-        if not participants:
+        elif not participants:
             return await ctx.send('There are no participants to choose from!')
 
         winner = random.choice(participants)
 
         # Update embed
-        embed = ctx.last_giveaway.embeds[0]
-        embed.color = discord.Color.green()
-        embed.title = 'This giveaway has finished!'
-        embed.add_field(
-            name='The winner is:',
-            value=f'{winner.mention}\n'
-                  'Please create a support ticket to receive your reward!'
-        ).set_footer(
-            text='Finished at'
+        embed = self._giveaway_finish_embed(
+            ctx.last_giveaway.embeds[0],
+            winner,
+            total=len(participants)
         )
-        embed.timestamp = datetime.datetime.utcnow()
-
         await ctx.last_giveaway.edit(embed=embed)
 
         await ctx.send(
@@ -694,6 +751,41 @@ text: The text to replace the field with."""
             ),
             allowed_mentions=discord.AllowedMentions.none()
         )
+
+
+    @client_giveaway.command(name='reroll')
+    @check_giveaway_status(
+        GIVEAWAY_CHANNEL_ID,
+        lambda s: s == GiveawayStatus.FINISHED,
+        'You can only reroll the winner when there is a finished giveaway!'
+    )
+    async def client_giveaway_reroll(self, ctx, *, reason):
+        """Reroll the winner for a giveaway that has already finished.
+
+reason: The reason for rerolling the winner."""
+        embed = ctx.last_giveaway.embeds[0]
+
+        win_f = self._giveaway_find_field_by_name(embed, 'winner')
+        previous_winner = self._giveaway_parse_winner_from_field(win_f)
+
+        reaction, participants = await self._giveaway_get_participants(
+            ctx.last_giveaway, ignored=(ctx.me.id, previous_winner))
+        if reaction is None:
+            return await ctx.send(
+                'Giveaway is missing reaction: {}'.format(self.giveaway_emoji))
+        elif not participants:
+            return await ctx.send(
+                'There are no other participants to choose from!')
+
+        winner = random.choice(participants)
+
+        embed = self._giveaway_reroll_embed(
+            embed, winner,
+            total=len(participants),
+            reason=reason
+        )
+        await ctx.last_giveaway.edit(embed=embed)
+        await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
 
 
     @client_giveaway.command(name='simulate')
