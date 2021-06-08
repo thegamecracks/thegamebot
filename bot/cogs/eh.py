@@ -233,7 +233,12 @@ class EventHandlers(commands.Cog):
             time.localtime()))
 
     async def on_command_error(self, ctx, error):
+        # If it's CheckAnyFailure, handle the first error in that
+        if isinstance(error, commands.CheckAnyFailure):
+           error = error.errors[0]
+
         error_unpacked = getattr(error, 'original', error)
+
         if getattr(ctx, 'handled', False):
             return
         elif isinstance(error, self.IGNORE_EXCEPTIONS):
@@ -267,18 +272,16 @@ class EventHandlers(commands.Cog):
 
             return new_perms
 
-        def convert_roles(missing_perms):
+        def convert_roles(roles):
             """Convert IDs in one or more roles into strings."""
             def convert(p):
                 if isinstance(p, int):
-                    r = ctx.bot.get_role(p)
-                    return str(r) if r is not None else p
+                    return str(ctx.bot.get_role(p) or p)
                 return p
 
-            if isinstance(missing_perms, list):
-                return [convert(p) for p in missing_perms]
-
-            return convert(missing_perms),
+            if isinstance(roles, list):
+                return [convert(p) for p in roles]
+            return (convert(roles),)
 
         def get_command_signature():
             prefix = ctx.prefix
@@ -345,14 +348,14 @@ class EventHandlers(commands.Cog):
         def get_denied_message():
             return random.choice(ctx.bot.get_cog('Settings').get('deniedmessages'))
 
-        def missing_x_to_run(x, missing_perms):
-            count = len(missing_perms)
+        def missing_x_to_run(x, items):
+            count = len(items)
             if count == 1:
-                return (f'missing the {missing_perms[0]} {x} '
+                return (f'missing the {items[0]} {x} '
                         'to run this command.')
 
             return 'missing {:,} {} to run this command: {}'.format(
-                count, ctx.bot.inflector.plural(x), ctx.bot.inflector.join(missing_perms)
+                count, ctx.bot.inflector.plural(x), ctx.bot.inflector.join(items)
             )
 
         # Send an error message
@@ -373,9 +376,13 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, (
                 commands.BotMissingRole,
                 commands.BotMissingAnyRole)):
+            roles = getattr(
+                error, 'missing_roles',
+                getattr(error, 'missing_role', None)
+            )
             await ctx.send(
                 'I am {}'.format(
-                    missing_x_to_run('role', convert_roles(error.missing_roles))
+                    missing_x_to_run('role', convert_roles(roles))
                 )
             )
         elif isinstance(error, commands.ChannelNotFound):
@@ -432,9 +439,13 @@ class EventHandlers(commands.Cog):
             )
         elif isinstance(error, (commands.MissingRole,
                                 commands.MissingAnyRole)):
+            roles = getattr(
+                error, 'missing_roles',
+                getattr(error, 'missing_role', None)
+            )
             await ctx.send(
                 'You are {}'.format(
-                    missing_x_to_run('role', convert_roles(error.missing_roles))
+                    missing_x_to_run('role', convert_roles(roles))
                 )
             )
         elif isinstance(error, commands.NoPrivateMessage):
