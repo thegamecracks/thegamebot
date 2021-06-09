@@ -596,6 +596,9 @@ class SignalHill(commands.Cog):
 
         if not running:
             for status in self.server_statuses:
+                # Forget the last graph sent so cleanup
+                # will wait for new graphs to be created
+                status.last_graph = None
                 status.update_loop.start()
             self.server_status_cleanup.start()
 
