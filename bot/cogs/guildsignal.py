@@ -204,6 +204,8 @@ class ServerStatus:
 
         embed.set_author(name=f'Rank #{server.rank:,}')
 
+        description.append('Direct connect: steam://connect/{}:{}'.format(
+            server.ip, server.port))
         description.append('Map: ' + (self.server_map or server.details['map']))
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
         # Generate list of player names with their playtime
