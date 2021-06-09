@@ -444,7 +444,7 @@ This only works on your own messages unless you also have Manage Messages permis
 
 message: The message to remove a reaction from. If not provided, checks the last 10 messages for a message you sent that has the reaction."""
         def valid_author_message(m):
-            return m.author == ctx.author and get_my_emoji(m)
+            return m.author == ctx.author and self.get_clock_reaction(m)
 
         clock = self.bot.get_emoji(self.clock_emoji)
         response = '\N{WHITE HEAVY CHECK MARK}'
