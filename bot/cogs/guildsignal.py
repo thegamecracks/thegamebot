@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass, field
 import datetime
 import enum
 import io
@@ -8,7 +9,7 @@ import math
 import os
 import random
 import re
-from typing import Callable, Optional
+from typing import Callable, ClassVar, Optional
 
 import abattlemetrics as abm
 import discord
@@ -96,76 +97,52 @@ class SteamIDConverter(commands.Converter):
         return int(arg)
 
 
-class SignalHill(commands.Cog):
-    """Stuff for the Signal Hill server."""
+@dataclass
+class ServerStatus:
+    bot: discord.Client
+    bm_client: abm.BattleMetricsClient
+    server_id: int
+    channel_id: int
+    message_id: int
 
-    ACTIVE_HOURS = range(6, 22)
-    BM_SERVER_LINK = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
-    INA_SERVER_ID = 10654566
-    INA_STATUS_MESSAGE_ID = (819632332896993360, 842228691077431296)
-    INA_STATUS_SECONDS = 60
-    INA_STATUS_EDIT_RATE = 10
-    INA_STATUS_FALSE_EDIT_RATE = 5
-    INA_STATUS_GRAPH_DEST = 842924251954151464
-    INA_STATUS_GRAPH_RATE = 60 * 30
-    INA_STATUS_LINE_COLOR = '#F54F33'
-    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
-    GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
-    GIVEAWAY_EMOJI_ID = 815804214470770728  # testing: 340900129114423296
-    GUILD_ID = 811415496036843550
+    # A range of active hours in the day.
+    # Determines the header to use when creating the embed.
+    active_hours: range
+    # The name of the map the server is running on.
+    # Set to None to use whatever battlemetrics provides.
+    server_map: Optional[str]
 
-    def __init__(self, bot):
-        self.bot = bot
-        self.bm_client = abm.BattleMetricsClient(
-            self.bot.session,
-            token=os.getenv('BattlemetricsToken')
-        )
-        self.ina_status_enabled = True
-        self.ina_status_last_server = None
-        # Cooldown for editing
-        self.ina_status_cooldown = commands.Cooldown(
-            1, self.INA_STATUS_EDIT_RATE, commands.BucketType.default)
-        # Cooldown for clearing reaction without actually updating
-        # (improves button response without actually making more queries)
-        self.ina_status_reaction_cooldown = commands.Cooldown(
-            1, self.INA_STATUS_FALSE_EDIT_RATE, commands.BucketType.default)
-        # Last message sent with graph
-        self.ina_status_graph_last = None
-        # Cooldown for graph generation
-        self.ina_status_graph_cooldown = commands.Cooldown(
-            1, self.INA_STATUS_GRAPH_RATE, commands.BucketType.default)
+    # The ID of the channel to upload the graph to.
+    graph_channel_id: int
+    # The line color to use when creating the graph.
+    # Must be in the format '#rrggbb' (no transparency).
+    line_color: str
 
-        self.ina_status_loop.add_exception_type(discord.DiscordServerError)
-        self.ina_status_loop.start()
+    # Cooldown for editing
+    edit_cooldown: commands.Cooldown
+    # Cooldown for graph generation
+    graph_cooldown: commands.Cooldown
+    # Cooldown for clearing reaction without actually updating
+    # (improves button response without actually making more queries)
+    react_cooldown: commands.Cooldown
 
+    loop_interval: int
 
-    def cog_unload(self):
-        self.ina_status_loop.cancel()
+    last_server: Optional[abm.Server] = field(default=None, init=False)
+    # Last message sent with the uploaded graph
+    last_graph: Optional[discord.Message] = field(default=None, init=False)
+
+    BM_SERVER_LINK: ClassVar[str] = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
 
     @property
-    def giveaway_channel(self):
-        return self.bot.get_channel(self.GIVEAWAY_CHANNEL_ID)
-
-    @property
-    def giveaway_emoji(self):
-        return self.bot.get_emoji(self.GIVEAWAY_EMOJI_ID)
-
-    @property
-    def guild(self):
-        return self.bot.get_guild(self.GUILD_ID)
-
-
-    @property
-    def partial_ina_status(self) -> Optional[discord.PartialMessage]:
-        """Return a PartialMessage displaying the I&A status."""
-        channel_id, message_id = self.INA_STATUS_MESSAGE_ID
-        channel = self.bot.get_channel(channel_id)
+    def partial_message(self) -> Optional[discord.PartialMessage]:
+        """Return a PartialMessage to the server status message."""
+        channel = self.bot.get_channel(self.channel_id)
         if channel:
-            return channel.get_partial_message(message_id)
+            return channel.get_partial_message(self.message_id)
 
-
-    async def ina_status_fetch_server(self, *args, **kwargs):
-        """Fetch the I&A server and replace self.ina_status_last_server.
+    async def fetch_server(self, *args, **kwargs):
+        """Fetch the server and cache it in self.last_server.
 
         Args:
             *args
@@ -173,17 +150,22 @@ class SignalHill(commands.Cog):
 
         Returns:
             Tuple[abattlemetrics.Server, Optional[abattlemetrics.Server]]:
-                The server that was fetched and the previous value
-                or self.ina_status_last_server.
+                The server that was fetched and the previous server
+                that was cached.
 
         """
-        server = await self.bm_client.get_server_info(*args, **kwargs)
-        old, self.ina_status_last_server = self.ina_status_last_server, server
+        server = await self.bm_client.get_server_info(
+            self.server_id, *args, **kwargs)
+        old, self.last_server = self.last_server, server
         return server, old
 
+    def create_embed(
+            self, server: abm.Server
+        ) -> discord.Embed:
+        """Create the server status embed.
 
-    def ina_status_create_embed(self, server: abm.Server):
-        """Create the embed for updating the I&A status.
+        Args:
+            server (abattlemetrics.Server): The server to display in the embed.
 
         Returns:
             discord.Embed
@@ -202,7 +184,7 @@ class SignalHill(commands.Cog):
 
         maybe_offline = (
             '(If I am offline, scroll up or check [battlemetrics]({link}))')
-        if not now.hour in self.ACTIVE_HOURS:
+        if now.hour not in self.active_hours:
             maybe_offline = (
                 "(I may be offline at this time, if so you can "
                 'scroll up or check [battlemetrics]({link}))'
@@ -210,7 +192,7 @@ class SignalHill(commands.Cog):
         maybe_offline = maybe_offline.format(
             link=self.BM_SERVER_LINK
         ).format(
-            game='arma3', server_id=self.INA_SERVER_ID
+            game='arma3', server_id=self.server_id
         )
 
         description.append(maybe_offline)
@@ -222,7 +204,7 @@ class SignalHill(commands.Cog):
 
         embed.set_author(name=f'Rank #{server.rank:,}')
 
-        description.append('Map: ' + server.details['map'])
+        description.append('Map: ' + (self.server_map or server.details['map']))
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
         # Generate list of player names with their playtime
         players = sorted(
@@ -252,191 +234,8 @@ class SignalHill(commands.Cog):
 
         return embed
 
-
-    async def ina_status_upload_graph(self, server, graphing_cog):
-        """Generate the player count graph, upload it, and cache
-        the resulting message in self.ina_status_graph_last.
-
-        Args:
-            server (abattlemetrics.Server): The Server object.
-                Used to know the max number of players.
-            graphing_cog (commands.Cog): The Graphing cog.
-
-        Returns:
-            discord.Message
-
-        """
-        stop = datetime.datetime.utcnow()
-        start = stop - datetime.timedelta(hours=24)
-        datapoints = await self.bm_client.get_player_count_history(
-            self.INA_SERVER_ID, start=start, stop=stop
-        )
-
-        f = await self.bot.loop.run_in_executor(
-            None, self.ina_status_player_count_graph,
-            datapoints, server, graphing_cog
-        )
-        graph = discord.File(f, filename='graph.png')
-
-        m = await self.bot.get_channel(self.INA_STATUS_GRAPH_DEST).send(file=graph)
-        if self.ina_status_graph_last:
-            await self.ina_status_graph_last.delete(delay=0)
-        self.ina_status_graph_last = m
-        return m
-
-
-    async def ina_status_update(self):
-        """Update the I&A status message.
-
-        Returns:
-            Tuple[abattlemetrics.Server, discord.Embed]:
-                The server fetched from the API and the embed generated
-                from it.
-            Tuple[float, None]: Either on cooldown or failed to fetch
-                the server due to a 5xx response.
-
-        """
-        retry_after = self.ina_status_cooldown.update_rate_limit(None)
-        if retry_after:
-            return retry_after, None
-        # NOTE: a high cooldown period will help with preventing concurrent
-        # updates but this by itself does not remove the potential
-
-        message = self.partial_ina_status
-
-        try:
-            server, old = await self.ina_status_fetch_server(
-                self.INA_SERVER_ID, include_players=True)
-        except abm.HTTPException as e:
-            if e.status >= 500:
-                return 30.0, None
-
-        embed = self.ina_status_create_embed(server)
-
-        m = self.ina_status_graph_last
-        if not m or not self.ina_status_graph_cooldown.update_rate_limit(None):
-            graphing_cog = self.bot.get_cog('Graphing')
-            if graphing_cog:
-                m = await self.ina_status_upload_graph(server, graphing_cog)
-        attachment = m.attachments[0]
-
-        if attachment:
-            embed.set_image(url=attachment)
-
-        await message.edit(embed=embed)
-        return server, embed
-
-
-    def get_next_period(self, interval: int, now=None,
-                        *, inclusive=False) -> int:
-        """Get the number of seconds to sleep to reach the next period
-        given the current time.
-
-        For example, if the interval was 600s and the
-        current time was X:09:12, this would return 48s.
-
-        Args:
-            interval (int): The interval per hour in seconds.
-            now (Optional[datetime.datetime]): The current time.
-                Defaults to datetime.datetime.utcnow().
-            inclusive (bool): If True and the current time is already
-                in sync with the interval, this returns 0.
-
-        Returns:
-            int
-
-        """
-        now = now or datetime.datetime.utcnow()
-        seconds = now.minute * 60 + now.second
-        wait_for = interval - seconds % interval
-        if inclusive:
-            wait_for %= interval
-        return wait_for
-
-
-    @commands.Cog.listener('on_raw_reaction_add')
-    async def ina_status_react(self, payload):
-        """Update the I&A status manually with a reaction."""
-        ch, msg = self.INA_STATUS_MESSAGE_ID
-        if (    not self.ina_status_enabled
-                or payload.channel_id != ch or payload.message_id != msg
-                or payload.emoji.name != self.REFRESH_EMOJI
-                or getattr(payload.member, 'bot', False)):
-            return
-
-        server, embed = await self.ina_status_update()
-        # NOTE: loop could decide to update right after this
-
-        reaction_cooldown = self.ina_status_reaction_cooldown
-        if embed is not None or not reaction_cooldown.update_rate_limit(None):
-            # Update was successful or able to make a false update
-            message = self.partial_ina_status
-            try:
-                await message.clear_reaction(self.REFRESH_EMOJI)
-            except discord.HTTPException:
-                pass
-            else:
-                await message.add_reaction(self.REFRESH_EMOJI)
-
-
-    @tasks.loop()
-    async def ina_status_loop(self):
-        """Update the I&A status periodically."""
-        server, embed = await self.ina_status_update()
-
-        next_period = 15
-        if isinstance(server, float):
-            next_period = server
-        elif server.status == 'online':
-            next_period = self.get_next_period(self.INA_STATUS_SECONDS)
-        await asyncio.sleep(next_period)
-
-
-    @ina_status_loop.before_loop
-    async def before_ina_status_loop(self):
-        await self.bot.wait_until_ready()
-
-        # Clean up graph destination
-        graph_channel = self.bot.get_channel(self.INA_STATUS_GRAPH_DEST)
-        await graph_channel.purge(limit=2, check=lambda m: m.author == self.bot.user)
-
-        # Sync to the next interval
-        next_period = self.get_next_period(self.INA_STATUS_SECONDS, inclusive=True)
-        await asyncio.sleep(next_period)
-
-
-    def ina_status_toggle(self) -> bool:
-        """Toggle the I&A status loop and react listener."""
-        self.ina_status_enabled = not self.ina_status_enabled
-        self.ina_status_loop.cancel()
-        if self.ina_status_enabled:
-            self.ina_status_loop.start()
-        return self.ina_status_enabled
-
-
-    @commands.Cog.listener('on_connect')
-    async def ina_status_toggle_on_connect(self):
-        """Turn on the I&A status loop and react listener after connecting."""
-        if not self.ina_status_enabled:
-            self.ina_status_toggle()
-
-
-
-
-
-
-    @commands.command(name='togglesignalstatus', aliases=('tss',))
-    @commands.max_concurrency(1)
-    @commands.is_owner()
-    async def client_toggle_ina_status(self, ctx):
-        """Toggle the Signal Hill I&A status message.
-Turns back on when the bot connects."""
-        enabled = self.ina_status_toggle()
-        emoji = '\N{LARGE GREEN CIRCLE}' if enabled else '\N{LARGE RED CIRCLE}'
-        await ctx.message.add_reaction(emoji)
-
-
-    def ina_status_player_count_graph(self, datapoints, server, graphing_cog):
+    def create_player_count_graph(
+            self, datapoints, server, graphing_cog) -> io.BytesIO:
         """Generate a player count history graph.
 
         Args:
@@ -461,19 +260,19 @@ Turns back on when the bot connects."""
         # Plot player counts
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
         x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
-        lines = ax.plot(x, y, self.INA_STATUS_LINE_COLOR)  # , marker='.')
+        lines = ax.plot(x, y, self.line_color)  # , marker='.')
 
         # Set limits and fill under the line
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, server.max_players + 1)
-        ax.fill_between(x, y, color=self.INA_STATUS_LINE_COLOR + '55')
+        ax.fill_between(x, y, color=self.line_color + '55')
 
         # Set xticks to every two hours
         step = 1 / 12
         start = x_max - step + (mdates.date2num(datetime.datetime.utcnow()) - x_max)
         ax.set_xticks(np.arange(start, x_min, -step))
         ax.xaxis.set_major_formatter(format_hour)
-        ax.set_xlabel('UTC', loc='left', color=self.INA_STATUS_LINE_COLOR)
+        ax.set_xlabel('UTC', loc='left', color=self.line_color)
 
         # Set yticks
         ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
@@ -487,7 +286,7 @@ Turns back on when the bot connects."""
             spine.set_color('#00000000')
         ax.tick_params(
             labelsize=9, color='#70707066',
-            labelcolor=self.INA_STATUS_LINE_COLOR
+            labelcolor=self.line_color
         )
 
         # Make background fully transparent
@@ -504,34 +303,328 @@ Turns back on when the bot connects."""
         plt.close(fig)
         return f
 
+    async def upload_graph(self, server, graphing_cog):
+        """Generate the player count graph, upload it, and cache
+        the resulting message in self.last_graph.
 
+        Args:
+            channel (discord.abc.Messageable): The channel to upload to.
+            server (abattlemetrics.Server): The Server object.
+                Used to know the max number of players.
+            graphing_cog (commands.Cog): The Graphing cog.
 
+        Returns:
+            discord.Message
 
-
-    @commands.command(name='history')
-    @commands.max_concurrency(1)
-    @commands.is_owner()
-    async def client_player_count_history(self, ctx):
-        """Render the player count history graph."""
+        """
         stop = datetime.datetime.utcnow()
         start = stop - datetime.timedelta(hours=24)
         datapoints = await self.bm_client.get_player_count_history(
-            self.INA_SERVER_ID, start=start, stop=stop
+            self.server_id, start=start, stop=stop
         )
 
-        graphing_cog = ctx.bot.get_cog('Graphing')
-        server = self.ina_status_last_server
-        if not server:
-            server, old = await self.ina_status_fetch_server(self.INA_SERVER_ID)
-
-        f = await ctx.bot.loop.run_in_executor(
-            None, self.ina_status_player_count_graph,
+        f = await self.bot.loop.run_in_executor(
+            None, self.create_player_count_graph,
             datapoints, server, graphing_cog
         )
-        embed = discord.Embed().set_image(url='attachment://graph.png')
         graph = discord.File(f, filename='graph.png')
 
-        await ctx.send(embed=embed, file=graph)
+        m = await self.bot.get_channel(self.graph_channel_id).send(file=graph)
+        if self.last_graph:
+            await self.last_graph.delete(delay=0)
+        self.last_graph = m
+        return m
+
+    async def update(self):
+        """Update the server status message.
+
+        Returns:
+            Tuple[abattlemetrics.Server, discord.Embed]:
+                The server fetched from the API and the embed generated
+                from it.
+            Tuple[float, None]: The time to wait before retrying.
+                Results from either a cooldown or a 5xx response.
+
+        """
+        retry_after = self.edit_cooldown.update_rate_limit(None)
+        if retry_after:
+            return retry_after, None
+        # NOTE: a high cooldown period will help with preventing concurrent
+        # updates but this by itself does not remove the potential
+
+        try:
+            server, old = await self.fetch_server(include_players=True)
+        except abm.HTTPException as e:
+            if e.status >= 500:
+                return 30.0, None
+
+        embed = self.create_embed(server)
+
+        # Add graph to embed
+        graph = self.last_graph
+        if not graph or not self.graph_cooldown.update_rate_limit(None):
+            graphing_cog = self.bot.get_cog('Graphing')
+            if graphing_cog:
+                graph = await self.upload_graph(server, graphing_cog)
+        attachment = graph.attachments[0]
+        embed.set_image(url=attachment)
+
+        await self.partial_message.edit(embed=embed)
+        return server, embed
+
+    def _get_next_period(self, now=None, *, inclusive=False) -> int:
+        """Get the number of seconds to sleep to reach the next period
+        given the current time.
+
+        For example, if the interval was 600s and the
+        current time was HH:09:12, this would return 48s.
+
+        Args:
+            interval (int): The interval per hour in seconds.
+            now (Optional[datetime.datetime]): The current time.
+                Defaults to datetime.datetime.utcnow().
+            inclusive (bool): Return 0 when the current time
+                is already in sync with the interval.
+
+        Returns:
+            int
+
+        """
+        now = now or datetime.datetime.utcnow()
+        seconds = now.minute * 60 + now.second
+        wait_for = self.loop_interval - seconds % self.loop_interval
+        if inclusive:
+            wait_for %= self.loop_interval
+        return wait_for
+
+    @tasks.loop()
+    async def update_loop(self):
+        server, embed = await self.update()
+
+        next_period = 15
+        if isinstance(server, float):
+            next_period = server
+        elif server.status == 'online':
+            next_period = self._get_next_period()
+        await asyncio.sleep(next_period)
+
+    update_loop.add_exception_type(discord.DiscordServerError)
+
+    @update_loop.before_loop
+    async def before_update_loop(self):
+        await self.bot.wait_until_ready()
+
+        # Sync to the next interval
+        next_period = self._get_next_period(inclusive=True)
+        await asyncio.sleep(next_period)
+
+
+class SignalHill(commands.Cog):
+    """Stuff for the Signal Hill server."""
+
+    ACTIVE_HOURS = range(6, 22)
+    SERVER_STATUS_INTERVAL = 60
+    SERVER_STATUS_EDIT_RATE = 10
+    SERVER_STATUS_FALSE_EDIT_RATE = 5
+    SERVER_STATUS_GRAPH_DEST = 842924251954151464
+    SERVER_STATUS_GRAPH_RATE = 60 * 30
+    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
+    GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
+    GIVEAWAY_EMOJI_ID = 815804214470770728  # testing: 340900129114423296
+    GUILD_ID = 811415496036843550
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.bm_client = abm.BattleMetricsClient(
+            self.bot.session,
+            token=os.getenv('BattlemetricsToken')
+        )
+        self.server_statuses = [
+            # I&A server
+            ServerStatus(
+                bot, self.bm_client,
+                server_id=10654566,
+                channel_id=819632332896993360,
+                message_id=842228691077431296,
+                server_map=None,
+                line_color='#F54F33',
+                **self.create_server_status_params()
+            ),
+            # SOG server
+            ServerStatus(
+                bot, self.bm_client,
+                server_id=11783468,
+                channel_id=852008953968984115,
+                message_id=852009695241175080,
+                server_map='Cam Lao Nam',
+                line_color='#2FE4BF',
+                **self.create_server_status_params()
+            ),
+        ]
+        self.server_status_toggle()
+
+
+    def cog_unload(self):
+        for status in self.server_statuses:
+            status.update_loop.cancel()
+        self.server_status_cleanup.cancel()
+
+    @property
+    def giveaway_channel(self):
+        return self.bot.get_channel(self.GIVEAWAY_CHANNEL_ID)
+
+    @property
+    def giveaway_emoji(self):
+        return self.bot.get_emoji(self.GIVEAWAY_EMOJI_ID)
+
+    @property
+    def guild(self):
+        return self.bot.get_guild(self.GUILD_ID)
+
+    def create_server_status_params(self):
+        return {
+            'active_hours': self.ACTIVE_HOURS,
+            'graph_channel_id': self.SERVER_STATUS_GRAPH_DEST,
+            'edit_cooldown': commands.Cooldown(
+                1, self.SERVER_STATUS_EDIT_RATE,
+                commands.BucketType.default
+            ),
+            'graph_cooldown': commands.Cooldown(
+                1, self.SERVER_STATUS_GRAPH_RATE,
+                commands.BucketType.default
+            ),
+            'react_cooldown': 
+                commands.Cooldown(
+                1, self.SERVER_STATUS_FALSE_EDIT_RATE,
+                commands.BucketType.default
+            ),
+            'loop_interval': self.SERVER_STATUS_INTERVAL
+        }
+
+
+    @commands.Cog.listener('on_raw_reaction_add')
+    async def server_status_react(self, payload):
+        """Update a server status manually with a reaction."""
+        if (    str(payload.emoji) != self.REFRESH_EMOJI
+                or getattr(payload.member, 'bot', False)):
+            return
+
+        status = discord.utils.get(
+            self.server_statuses,
+            channel_id=payload.channel_id,
+            message_id=payload.message_id
+        )
+        if status is None:
+            return
+
+        server, embed = await status.update()
+        # NOTE: loop could decide to update right after this
+
+        if embed or not status.react_cooldown.update_rate_limit(None):
+            # Update successful or can pretend to update
+            message = status.partial_message
+            try:
+                await message.clear_reaction(self.REFRESH_EMOJI)
+            except discord.HTTPException:
+                pass
+            else:
+                await message.add_reaction(self.REFRESH_EMOJI)
+
+
+    @property
+    def server_status_running(self) -> int:
+        """The number of server statuses that are running."""
+        return sum(
+            status.update_loop.is_running() for status in self.server_statuses
+        )
+
+
+    @tasks.loop(seconds=SERVER_STATUS_INTERVAL)
+    async def server_status_cleanup(self):
+        """Clean up extra graph messages once all server statuses have
+        uploaded a graph and then stop.
+
+        This assumes that all the server status graphs are uploaded
+        to self.SERVER_STATUS_GRAPH_DEST.
+
+        """
+        messages = [
+            status.last_graph for status in self.server_statuses
+            if status.last_graph is not None
+        ]
+        total = len(self.server_statuses)
+        if len(messages) != total:
+            # Not all server statuses have sent
+            return
+
+        allowed_ids = {m.id for m in messages}
+
+        def check(m):
+            return m.id not in allowed_ids
+
+        channel = self.bot.get_channel(self.SERVER_STATUS_GRAPH_DEST)
+        await channel.purge(
+            limit=total * 2,
+            before=discord.Object(min(allowed_ids)),
+            check=check
+        )
+
+        self.server_status_cleanup.stop()
+
+
+    @server_status_cleanup.before_loop
+    async def before_server_status_cleanup(self):
+        await self.bot.wait_until_ready()
+
+
+    def server_status_toggle(self) -> int:
+        """Toggle the server status loops and returns the number
+        of server statuses that have been canceled, or in other
+        words the number of statuses that were running beforehand.
+
+        If only some server statuses are running,
+        this will cancel the remaining loops.
+
+        """
+        running = 0
+        for status in self.server_statuses:
+            running += status.update_loop.is_running()
+            status.update_loop.cancel()
+        self.server_status_cleanup.cancel()
+
+        if not running:
+            for status in self.server_statuses:
+                status.update_loop.start()
+            self.server_status_cleanup.start()
+
+        return running
+
+
+    @commands.Cog.listener('on_connect')
+    async def server_status_toggle_on_connect(self):
+        """Turn on the server statuses after connecting."""
+        running = self.server_status_running
+        if running != len(self.server_statuses):
+            self.server_status_toggle()
+            if running != 0:
+                # We just canceled the remaining loops,
+                # turn them all back on
+                self.server_status_toggle()
+
+
+
+
+
+
+    @commands.command(name='togglesignalstatus', aliases=('tss',))
+    @commands.max_concurrency(1)
+    @commands.is_owner()
+    async def client_toggle_server_status(self, ctx):
+        """Toggle the Signal Hill server statuses.
+Turns back on when the bot connects."""
+        enabled = self.server_status_toggle() == 0
+        emoji = '\N{LARGE GREEN CIRCLE}' if enabled else '\N{LARGE RED CIRCLE}'
+        await ctx.message.add_reaction(emoji)
 
 
 
@@ -541,7 +634,7 @@ Turns back on when the bot connects."""
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
     async def client_playtime(self, ctx, steam_id: SteamIDConverter):
-        """Get someone's server playtime in the last month."""
+        """Get someone's server playtime in the last month for the I&A server."""
         async with ctx.typing():
             player_id = await self.bm_client.match_player(
                 steam_id, abm.IdentifierType.STEAM_ID)
@@ -554,7 +647,7 @@ Turns back on when the bot connects."""
             stop = datetime.datetime.utcnow()
             start = stop - datetime.timedelta(days=30)
             datapoints = await self.bm_client.get_player_time_played_history(
-                player_id, self.INA_SERVER_ID, start=start, stop=stop)
+                player_id, 10654566, start=start, stop=stop)
 
         total_playtime = sum(dp.value for dp in datapoints)
         m, s = divmod(total_playtime, 60)
