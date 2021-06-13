@@ -79,8 +79,9 @@ class Timezones(commands.Cog):
                 the time string was in.
 
         """
-        matches = []
-        for i, m in enumerate(cls.regex_12_24.finditer(s), start=1):
+        matches = {}  # uses dict to prevent duplicates
+        i = 1
+        for m in cls.regex_12_24.finditer(s):
             hour, minute, noon = int(m['hour']), m['minute'], m['noon']
 
             if noon is not None:
@@ -125,12 +126,14 @@ class Timezones(commands.Cog):
             )
             # Include timezone in string only if it was parsed correctly
             s = m[0] if not m['tz'] or given_tz else m[0][:m.start('tz') - m.start()]
-            matches.append((s, dt, form))
 
-            if i == limit:
-                break
+            if s not in matches:
+                matches[s] = (s, dt, form)
+                i += 1
+                if i == limit:
+                    break
 
-        return matches
+        return list(matches.values())
         # return [m[1] for m in dateparser.search.search_dates(s, languages=['en'])]
 
     def get_clock_reaction(self, m: discord.Message) -> Optional[discord.Reaction]:
