@@ -455,7 +455,7 @@ class SignalHill(commands.Cog):
             # SOG server
             ServerStatus(
                 bot, self.bm_client,
-                server_id=11783468,
+                server_id=4712021,
                 channel_id=852008953968984115,
                 message_id=852009695241175080,
                 server_map='Cam Lao Nam',
