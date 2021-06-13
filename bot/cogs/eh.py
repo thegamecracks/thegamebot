@@ -165,6 +165,7 @@ class EventHandlers(commands.Cog):
         commands.BotMissingRole: None,
         commands.CommandInvokeError: (1, 5, commands.BucketType.user),
         commands.CommandOnCooldown: None,
+        commands.ConversionError: (1, 5, commands.BucketType.user),
         commands.DisabledCommand: None,
         commands.MaxConcurrencyReached: None,
         commands.MissingAnyRole: None,
@@ -477,7 +478,21 @@ class EventHandlers(commands.Cog):
             await ctx.send('Failed to parse your parameters.\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.ConversionError):
-            await ctx.send('An error occurred while trying to parse your parameters.')
+            embed = discord.Embed(
+                color=utils.get_bot_color(ctx.bot),
+                description='An error occurred while trying to parse '
+                            'your parameters: ```py\n{}: {}``` Error '
+                            'code: **{}**'.format(
+                    type(error_unpacked).__name__,
+                    str(error_unpacked),
+                    code
+                )
+            ).set_author(
+                name=ctx.author.display_name,
+                icon_url=ctx.author.avatar_url
+            )
+            await ctx.send(embed=embed)
+            raise error
         elif isinstance(error, checks.UserOnCooldown):
             # User has invoked too many commands
             embed = discord.Embed(
