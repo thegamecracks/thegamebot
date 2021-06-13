@@ -57,6 +57,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'moderation',
             'notes',
             'prefix',
+            'prog',
             'randomization',
             'reminders',
             'tags',

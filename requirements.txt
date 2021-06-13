@@ -4,6 +4,7 @@ asqlite @ git+https://github.com/Rapptz/asqlite@43fbf58097adf1d9cc62040ec4c49e5b
 astunparse==1.6.3
 async-timeout==3.0.1
 attrs==19.3.0
+autopep8==1.5.7
 braceexpand==0.1.6
 chardet==3.0.4
 colorama==0.4.4
