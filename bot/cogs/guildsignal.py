@@ -14,6 +14,7 @@ from typing import Callable, ClassVar, Optional
 import abattlemetrics as abm
 import discord
 from discord.ext import commands, tasks
+import humanize
 from matplotlib import dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib import ticker
@@ -635,9 +636,57 @@ Turns back on when the bot connects."""
 
 
 
+    @commands.command(name='lastsession')
+    @commands.has_role('Staff')
+    @checks.used_in_guild(GUILD_ID)
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def client_last_session(self, ctx, *steam_ids: SteamIDConverter):
+        """Get one or more players' last session played on the I&A server."""
+        results = []
+        async with ctx.typing():
+            for s_id in steam_ids:
+                p_id = await self.bm_client.match_player(
+                    s_id, abm.IdentifierType.STEAM_ID)
+
+                if p_id is None:
+                    results.append(f'{s_id}: Unknown steam ID') 
+
+                session = await self.bm_client.get_player_session_history(
+                    p_id, limit=1, server_ids=(10654566,)).flatten()
+                session = session[0] if session else None
+                if not session:
+                    results.append(f'{s_id}: No session found')
+
+                started_at = session.stop or session.start
+                # Convert naive UTC to naive local time
+                started_at = started_at.replace(
+                    tzinfo=datetime.timezone.utc
+                ).astimezone().replace(tzinfo=None)
+                started_at = humanize.naturaltime(started_at)
+
+                playtime = int(session.playtime)
+                if playtime == 0:
+                    playtime = 'an unknown duration'
+                else:
+                    m, s = divmod(playtime, 60)
+                    h, m = divmod(m, 60)
+                    playtime = f'{h}:{m:02d}h'
+
+                results.append(
+                    '{}: {}, {}, played for {}'.format(
+                        s_id, session.player_name, started_at, playtime)
+                )
+
+        await ctx.send('```yaml\n{}```'.format('\n'.join(results)))
+
+
+
+
+
     @commands.command(name='playtime')
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
+    @commands.cooldown(1, 3, commands.BucketType.user)
     async def client_playtime(self, ctx, steam_id: SteamIDConverter):
         """Get someone's server playtime in the last month for the I&A server."""
         async with ctx.typing():
