@@ -285,11 +285,17 @@ class EventHandlers(commands.Cog):
             return (convert(roles),)
 
         def get_command_signature():
-            prefix = ctx.prefix
-            name_signature = ctx.invoked_with
-            arguments = ctx.command.signature
+            invoked_with = ctx.invoked_with
+            if ctx.command.parent:
+                invoked_with = '{} {}'.format(
+                    ctx.command.full_parent_name,
+                    invoked_with
+                )
 
-            return f'{prefix}{name_signature} {arguments}'
+            return '{}{} {}'.format(
+                ctx.prefix, invoked_with,
+                ctx.command.signature
+            )
 
         def get_concurrency_description():
             if not ctx.guild and error.per == commands.BucketType.channel:
