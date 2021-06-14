@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import datetime
 import enum
 import io
+import itertools
 import logging
 import os
 import random
@@ -429,29 +430,48 @@ class LastSessionPageSource(menus.AsyncIteratorPageSource):
             **kwargs
         )
 
-    @staticmethod
-    async def yield_sessions(bm_client, ids: list):
-        async def get_session_details():
-            if i >= SteamIDConverter.INTEGER:
-                # steam64ID
-                p_id = await bm_client.match_player(
-                    i, abm.IdentifierType.STEAM_ID)
+    async def yield_sessions(self, bm_client, ids: list):
+        async def fetch_group():
+            async def get_session():
                 if p_id is None:
-                    return (i, None, None)
-            else:
-                # Probably a battlemetrics player ID
-                p_id = i
+                    # match_players found nothing for this ID
+                    return (orig, None, None)
 
-            session = await bm_client.get_player_session_history(
-                p_id, limit=1, server_ids=(10654566,)
-            ).flatten()
-            if not session:
-                return (i, p_id, None)
+                session = await bm_client.get_player_session_history(
+                    p_id, limit=1, server_ids=(10654566,)
+                ).flatten()
+                if not session:
+                    return (orig, p_id, None)
 
-            return (i, p_id, session[0])
+                return (orig, p_id, session[0])
 
-        for i in ids:
-            yield await get_session_details()
+            # Separate steam IDs and player IDs
+            steam_ids, player_ids = [], []
+            for i, v in enumerate(group):
+                if v >= SteamIDConverter.INTEGER:
+                    steam_ids.append((i, v))
+                else:
+                    player_ids.append((i, v, v))
+
+            if steam_ids:
+                # Convert steam IDs into player IDs
+                results = await bm_client.match_players(
+                    *(v for i, v in steam_ids),
+                    type=abm.IdentifierType.STEAM_ID
+                )
+                player_ids.extend((i, v, results[v]) for i, v in steam_ids)
+                player_ids.sort()
+
+            for i, orig, p_id in player_ids:
+                yield await get_session()
+
+        group_size = self.per_page + 1
+        # NOTE: 1 is added since AsyncIteratorPageSource fetches
+        # one extra to know if it has to paginate or not
+        for n in range(0, len(ids), group_size):
+            group = itertools.islice(ids, n, n + group_size)
+            async for result in fetch_group():
+                yield result
 
     async def format_page(self, menu, entries):
         embed = discord.Embed(
@@ -720,6 +740,7 @@ Turns back on when the bot connects."""
 
 
     @commands.command(name='lastsession')
+    # @commands.is_owner()
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
     @commands.max_concurrency(1, commands.BucketType.user)
@@ -728,11 +749,13 @@ Turns back on when the bot connects."""
 
 ids: A space-separated list of steam64IDs or battlemetrics player IDs to check.
 Use battlemetrics IDs when possible since it can take a long time to find someone by steam ID."""
+        if len(ids) > 100:
+            return await ctx.send('You are only allowed to provide 100 IDs at a time.')
         # Remove duplicates while retaining order using dict
         ids = dict.fromkeys(ids)
 
         menu = menus.MenuPages(
-            LastSessionPageSource(self.bm_client, ids, per_page=3),
+            LastSessionPageSource(self.bm_client, ids, per_page=6),
             clear_reactions_after=True
         )
         async with ctx.typing():
@@ -754,8 +777,9 @@ Use battlemetrics IDs when possible since it can take a long time to find someon
     async def client_playtime(self, ctx, steam_id: SteamIDConverter):
         """Get someone's server playtime in the last month for the I&A server."""
         async with ctx.typing():
-            player_id = await self.bm_client.match_player(
-                steam_id, abm.IdentifierType.STEAM_ID)
+            results = await self.bm_client.match_players(
+                steam_id, type=abm.IdentifierType.STEAM_ID)
+            player_id = results[steam_id]
 
             if player_id is None:
                 return await ctx.send('Could not find a user with that steam ID!')
