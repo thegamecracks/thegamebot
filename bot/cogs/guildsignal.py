@@ -90,8 +90,10 @@ def is_giveaway_running(giveaway_channel_id):
 
 class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
+    REGEX = re.compile('\d{17}')
+    INTEGER = 10_000_000_000_000_000
     async def convert(self, ctx, arg):
-        if not re.match('\d{17}', arg):
+        if not self.REGEX.match(arg):
             raise commands.BadArgument('Could not parse Steam64ID.')
         return int(arg)
 
@@ -421,52 +423,86 @@ class ServerStatus:
 
 
 class LastSessionPageSource(menus.AsyncIteratorPageSource):
-    def __init__(self, bm_client, steam_ids, **kwargs):
+    def __init__(self, bm_client, ids, **kwargs):
         super().__init__(
-            self.yield_sessions(bm_client, steam_ids),
+            self.yield_sessions(bm_client, ids),
             **kwargs
         )
 
     @staticmethod
-    async def yield_sessions(bm_client, steam_ids):
+    async def yield_sessions(bm_client, ids: list):
         async def get_session_details():
-            p_id = await bm_client.match_player(
-                s_id, abm.IdentifierType.STEAM_ID)
-
-            if p_id is None:
-                return f'{s_id}: Unknown steam ID'
+            if i >= SteamIDConverter.INTEGER:
+                # steam64ID
+                p_id = await bm_client.match_player(
+                    i, abm.IdentifierType.STEAM_ID)
+                if p_id is None:
+                    return (i, None, None)
+            else:
+                # Probably a battlemetrics player ID
+                p_id = i
 
             session = await bm_client.get_player_session_history(
                 p_id, limit=1, server_ids=(10654566,)
             ).flatten()
             if not session:
-                return f'{s_id}: No session found'
-            session = session[0]
+                return (i, p_id, None)
 
-            started_at = session.stop or session.start
-            # Convert naive UTC to naive local time since
-            # humanize.naturaltime() only supports that
-            started_at = started_at.replace(
-                tzinfo=datetime.timezone.utc
-            ).astimezone().replace(tzinfo=None)
-            started_at = humanize.naturaltime(started_at)
+            return (i, p_id, session[0])
 
-            playtime = int(session.playtime)
-            if playtime == 0:
-                playtime = 'an unknown duration'
-            else:
-                m, s = divmod(playtime, 60)
-                h, m = divmod(m, 60)
-                playtime = f'{h}:{m:02d}h'
-
-            return '{}: {}, {}, played for {}'.format(
-                s_id, session.player_name, started_at, playtime)
-
-        for s_id in steam_ids:
+        for i in ids:
             yield await get_session_details()
 
     async def format_page(self, menu, entries):
-        return '```yaml\n{}```'.format('\n'.join(entries))
+        embed = discord.Embed(
+            color=utils.get_bot_color(menu.bot)
+        )
+
+        if self.is_paginating():
+            embed.set_author(
+                name=f'Page {menu.current_page + 1}'
+            )
+
+        for i, p_id, session in entries:
+            if p_id is None:
+                val = 'Unknown steam ID'
+            elif session is None:
+                val = f'BM ID: {p_id}\n' if i != p_id else ''
+                val += 'No session found'
+            else:
+                started_at = session.stop or session.start
+                # Convert naive UTC to naive local time since
+                # humanize.naturaltime() only supports that
+                started_at = started_at.replace(
+                    tzinfo=datetime.timezone.utc
+                ).astimezone().replace(tzinfo=None)
+                started_at = humanize.naturaltime(started_at)
+
+                playtime = int(session.playtime)
+                if playtime == 0:
+                    playtime = 'an unknown duration'
+                else:
+                    m, s = divmod(playtime, 60)
+                    h, m = divmod(m, 60)
+                    playtime = f'{h}:{m:02d}h'
+
+                # Making and joining the rows together
+                val = []
+
+                if i != p_id:
+                    val.append(f'BM ID: {p_id}')
+
+                val.extend((
+                    session.player_name,
+                    started_at,
+                    f'Session lasted for {playtime}'
+                ))
+
+                val = '\n'.join(val)
+
+            embed.add_field(name=i, value=val)
+
+        return embed
 
 
 class SignalHill(commands.Cog):
@@ -687,19 +723,25 @@ Turns back on when the bot connects."""
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
     @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_last_session(self, ctx, *steam_ids: SteamIDConverter):
-        """Get one or more players' last session played on the I&A server."""
+    async def client_last_session(self, ctx, *ids: int):
+        """Get one or more players' last session played on the I&A server.
+
+ids: A space-separated list of steam64IDs or battlemetrics player IDs to check.
+Use battlemetrics IDs when possible since it can take a long time to find someone by steam ID."""
         # Remove duplicates while retaining order using dict
-        steam_ids = tuple(dict.fromkeys(steam_ids))
+        ids = dict.fromkeys(ids)
+
         menu = menus.MenuPages(
-            LastSessionPageSource(self.bm_client, steam_ids, per_page=3),
+            LastSessionPageSource(self.bm_client, ids, per_page=3),
             clear_reactions_after=True
         )
         async with ctx.typing():
             await menu.start(ctx)
-        # Wait for menu to finish outside of typing()
-        # so it doesn't keep typing but max concurrency is still upheld
-        await menu._event.wait()
+
+        if menu.should_add_reactions():
+            # Wait for menu to finish outside of typing()
+            # so it doesn't keep typing but max concurrency is still upheld
+            await menu._event.wait()
 
 
 
