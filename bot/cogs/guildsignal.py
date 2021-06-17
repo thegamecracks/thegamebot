@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 import datetime
 import enum
+import functools
 import io
 import itertools
 import logging
@@ -423,7 +424,7 @@ class ServerStatus:
         await asyncio.sleep(next_period)
 
 
-class LastSessionPageSourceMixin:
+class SessionPageSourceMixin:
     @staticmethod
     def utc_to_local(dt: datetime.datetime) -> datetime.datetime:
         """Convert a naive UTC datetime into a naive local datetime."""
@@ -440,7 +441,25 @@ class LastSessionPageSourceMixin:
         h, m = divmod(m, 60)
         return f'{h}:{m:02d}h'
 
-    async def format_page(self, menu, entries):
+    @classmethod
+    def format_session(cls, session: abm.Session):
+        started_at = session.stop or session.start
+        playtime = int(session.playtime)
+
+        # NOTE: humanize.naturaltime() only supports
+        # naive local datetimes
+        started_at = humanize.naturaltime(
+            cls.utc_to_local(started_at)
+        )
+
+        playtime = cls.format_playtime(playtime)
+
+        return (
+            started_at,
+            f'Session lasted for {playtime}'
+        )
+
+    def get_embed_template(self, menu):
         embed = discord.Embed(
             color=utils.get_bot_color(menu.bot)
         )
@@ -452,42 +471,11 @@ class LastSessionPageSourceMixin:
                 name=f'Page {menu.current_page + 1}{max_pages}'
             )
 
-        for i, p_id, session in entries:
-            if p_id is None:
-                val = 'Unknown steam ID'
-            elif session is None:
-                val = f'BM ID: {p_id}\n' if i != p_id else ''
-                val += 'No session found'
-            else:
-                started_at = session.stop or session.start
-                playtime = int(session.playtime)
-
-                # NOTE: humanize.naturaltime() only supports
-                # naive local datetimes
-                started_at = humanize.naturaltime(
-                    self.utc_to_local(started_at)
-                )
-
-                playtime = self.format_playtime(playtime)
-
-                # Making and joining the rows together
-                val = []
-                if i != p_id:
-                    val.append(f'BM ID: {p_id}')
-                val.extend((
-                    session.player_name,
-                    started_at,
-                    f'Session lasted for {playtime}'
-                ))
-                val = '\n'.join(val)
-
-            embed.add_field(name=i, value=val)
-
         return embed
 
 
 class LastSessionAsyncPageSource(
-        LastSessionPageSourceMixin, menus.AsyncIteratorPageSource):
+        SessionPageSourceMixin, menus.AsyncIteratorPageSource):
     def __init__(self, bm_client, ids, *, per_page, **kwargs):
         super().__init__(
             self.yield_sessions(bm_client, per_page + 1, ids),
@@ -503,7 +491,7 @@ class LastSessionAsyncPageSource(
 
         Args:
             bm_client (abattlemetrics.BattleMetricsClient):
-                The client to fetch sessions from.
+                The client to use for fetching sessions.
             group_size (int):
                 When there are multiple steam64IDs, this specifies
                 how many of those IDs are all matched at once.
@@ -555,9 +543,97 @@ class LastSessionAsyncPageSource(
             async for result in fetch_group():
                 yield result
 
+    async def format_page(self, menu, entries):
+        embed = self.get_embed_template(menu)
+        for i, p_id, session in entries:
+            if p_id is None:
+                val = 'Unknown steam ID'
+            elif session is None:
+                val = f'BM ID: {p_id}\n' if i != p_id else ''
+                val += 'No session found'
+            else:
+                val = []
+                if i != p_id:
+                    val.append(f'BM ID: {p_id}')
+                val.append(session.player_name)
+                val.extend(self.format_session(session))
+                val = '\n'.join(val)
 
-class LastSessionListPageSource(LastSessionPageSourceMixin, menus.ListPageSource):
-    pass
+            embed.add_field(name=i, value=val)
+
+        return embed
+
+
+class PlayerListPageSource(
+        SessionPageSourceMixin, menus.AsyncIteratorPageSource):
+    def __init__(
+            self, list_players, get_session, ids, **kwargs):
+        super().__init__(
+            self.yield_sessions(list_players, get_session, ids),
+            **kwargs
+        )
+        self.ids = frozenset(ids)
+
+    @staticmethod
+    async def yield_sessions(list_players, get_session, ids: list):
+        """Yield the most recent sessions of a given list of steam/player IDs.
+
+        Args:
+            list_players: The BattleMetricsClient.list_players()
+                method, which can be partially supplied with
+                whatever parameters are desired aside from
+                `limit` and `search`.
+            get_session
+                (Optional[Callable[[int],
+                          abattlemetrics.AsyncSessionIterator]]):
+                If session data is desired, the
+                BattleMetricsClient.get_player_session_history()
+                method can be provided for fetching session data.
+            ids (Sequence[Union[int, str]]):
+                A list of identifiers to look up.
+
+        Yields:
+            Tuple[abattlemetrics.Player, Optional[abattlemetrics.Session]]
+
+        """
+        max_search = 100
+        groups = [
+            itertools.islice(ids, n, n + max_search)
+            for n in range(0, len(ids), max_search)
+        ]
+        for g in groups:
+            search = '|'.join([str(i) for i in g])
+            async for p in list_players(limit=max_search, search=search):
+                session = None
+                if get_session:
+                    try:
+                        session = await get_session(p.id, limit=1).next()
+                    except StopAsyncIteration:
+                        pass
+
+                yield (p, session)
+
+    async def format_page(self, menu, entries):
+        embed = self.get_embed_template(menu)
+        for player, session in entries:
+            # Get steam ID
+            s_id = discord.utils.get(
+                player.identifiers,
+                type=abm.IdentifierType.STEAM_ID
+            )
+            name = s_id.name if s_id else '\u200b'
+
+            val = [
+                f'BM ID: {player.id}',
+                player.name
+            ]
+            if session:
+                val.extend(self.format_session(session))
+            val = '\n'.join(val)
+
+            embed.add_field(name=name, value=val)
+
+        return embed
 
 
 class SignalHill(commands.Cog):
@@ -774,9 +850,61 @@ Turns back on when the bot connects."""
 
 
 
-    async def _run_last_session_menu(self, ctx, source):
+    @commands.command(name='checkwhitelist')
+    @commands.has_role('Staff')
+    @checks.used_in_guild(GUILD_ID)
+    @commands.max_concurrency(1, commands.BucketType.user)
+    async def client_check_whitelist(self, ctx, sessions: bool = False):
+        """Check which whitelisted players have not been online within the last two weeks.
+This looks through the steam IDs in the <#824486812709027880> channel.
+
+sessions: If true, fetches session data for each player, including the last time they played. This may make queries slower."""
+        whitelist_channel = ctx.bot.get_channel(824486812709027880)
+
+        settings = ctx.bot.get_cog('Settings')
+        ids = settings.get('checkwhitelist-ids', None)
+        last_message_id = settings.get('checkwhitelist-last_message_id', 0)
+        if ids is None or whitelist_channel.last_message_id != last_message_id:
+            ids = []
+
+            # Fetch IDs from channel
+            async with ctx.typing():
+                async for m in whitelist_channel.history(limit=None):
+                    match = SteamIDConverter.REGEX.search(m.content)
+                    if match:
+                        ids.append(int(match.group()))
+
+            # Cache them in settings
+            settings.set(
+                'checkwhitelist-ids', ids
+            ).set(
+                'checkwhitelist-last_message_id',
+                whitelist_channel.last_message_id
+            ).save()
+
+        get_session = None
+        if sessions:
+            get_session = functools.partial(
+                self.bm_client.get_player_session_history,
+                server_ids=(10654566,)
+            )
+
         menu = menus.MenuPages(
-            source,
+            PlayerListPageSource(
+                functools.partial(
+                    self.bm_client.list_players,
+                    public=False,
+                    search='|'.join([str(n) for n in ids]),
+                    # thankfully battlemetrics does not care how
+                    # long the query string is
+                    last_seen_before=datetime.datetime.utcnow()
+                                     - datetime.timedelta(weeks=2),
+                    include_identifiers=True
+                ),
+                get_session,
+                ids,
+                per_page=9
+            ),
             clear_reactions_after=True
         )
         async with ctx.typing():
@@ -788,8 +916,10 @@ Turns back on when the bot connects."""
             await menu._event.wait()
 
 
-    @commands.group(name='lastsession', invoke_without_command=True)
-    # @commands.is_owner()
+
+
+
+    @commands.command(name='lastsession')
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
     @commands.max_concurrency(1, commands.BucketType.user)
@@ -803,43 +933,18 @@ Use battlemetrics IDs when possible since it can take a long time to find someon
         # Remove duplicates while retaining order using dict
         ids = dict.fromkeys(ids)
 
-        source = LastSessionAsyncPageSource(self.bm_client, ids, per_page=6)
-        await self._run_last_session_menu(ctx, source)
-
-
-    @client_last_session.command(name='twoweeks', aliases=('twoweek',))
-    @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_last_session_twoweeks(self, ctx, *ids: int):
-        """Get sessions on the I&A server filtered by over two weeks ago.
-See the parent command for more info."""
-        if len(ids) > 100:
-            return await ctx.send('You are only allowed to provide 100 IDs at a time.')
-        ids = dict.fromkeys(ids)
-
-        session_history = LastSessionAsyncPageSource.yield_sessions(
-            self.bm_client, 100, ids)
-        before = datetime.datetime.utcnow() - datetime.timedelta(weeks=2)
-
-        results = []
+        menu = menus.MenuPages(
+            LastSessionAsyncPageSource(self.bm_client, ids, per_page=6),
+            clear_reactions_after=True
+        )
         async with ctx.typing():
-            async for i, p_id, session in session_history:
-                if None in (p_id, session):
-                    continue
+            await menu.start(ctx)
 
-                started_at = session.stop or session.start
-                if started_at > before:
-                    continue
+        if menu.should_add_reactions():
+            # Wait for menu to finish outside of typing()
+            # so it doesn't keep typing but max concurrency is still upheld
+            await menu._event.wait()
 
-                results.append((i, p_id, session))
-
-        if not results:
-            return await ctx.send(
-                'All of the given players have been on within '
-                'the last two weeks!'
-            )
-
-        source = LastSessionListPageSource(results, per_page=9)
-        await self._run_last_session_menu(ctx, source)
 
 
 
@@ -881,7 +986,6 @@ See the parent command for more info."""
 
     @commands.group(name='giveaway')
     @commands.cooldown(2, 5, commands.BucketType.channel)
-    # @commands.is_owner()
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
     async def client_giveaway(self, ctx):
