@@ -87,6 +87,12 @@ class Settings(commands.Cog):
 
         return self._cache
 
+    def pop(self, key, default=EMPTY):
+        """Pop one of the settings."""
+        if default is self.EMPTY:
+            return self.load().pop(key)
+        return self.load().pop(key, default)
+
     def save(self, ignore_cache=True):
         """Save the current settings to disk.
 
