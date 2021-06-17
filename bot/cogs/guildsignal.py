@@ -572,7 +572,7 @@ class PlayerListPageSource(
             self.yield_sessions(list_players, get_session, ids),
             **kwargs
         )
-        self.ids = frozenset(ids)
+        self.ids = ids
 
     @staticmethod
     async def yield_sessions(list_players, get_session, ids: list):
@@ -615,6 +615,11 @@ class PlayerListPageSource(
 
     async def format_page(self, menu, entries):
         embed = self.get_embed_template(menu)
+
+        embed.set_footer(
+            text=f'{len(self.ids)} whitelisted players'
+        )
+
         for player, session in entries:
             # Get steam ID
             s_id = discord.utils.get(
@@ -629,6 +634,7 @@ class PlayerListPageSource(
             ]
             if session:
                 val.extend(self.format_session(session))
+            val.append('\u200b')  # helps readability on mobile
             val = '\n'.join(val)
 
             embed.add_field(name=name, value=val)
@@ -864,14 +870,15 @@ sessions: If true, fetches session data for each player, including the last time
         settings = ctx.bot.get_cog('Settings')
         ids = settings.get('checkwhitelist-ids', None)
         last_message_id = settings.get('checkwhitelist-last_message_id', 0)
+        # NOTE: this does not take into consideration whether
+        # a message was edited or deleted
         if ids is None or whitelist_channel.last_message_id != last_message_id:
             ids = []
 
             # Fetch IDs from channel
             async with ctx.typing():
                 async for m in whitelist_channel.history(limit=None):
-                    match = SteamIDConverter.REGEX.search(m.content)
-                    if match:
+                    for match in SteamIDConverter.REGEX.finditer(m.content):
                         ids.append(int(match.group()))
 
             # Cache them in settings
@@ -908,7 +915,13 @@ sessions: If true, fetches session data for each player, including the last time
             clear_reactions_after=True
         )
         async with ctx.typing():
-            await menu.start(ctx)
+            try:
+                await menu.start(ctx)
+            except IndexError:
+                await ctx.send(
+                    f'All {len(ids)} whitelisted players have been active '
+                    'within the last 2 weeks!'
+                )
 
         if menu.should_add_reactions():
             # Wait for menu to finish outside of typing()
