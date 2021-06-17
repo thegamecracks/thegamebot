@@ -5,6 +5,7 @@
 import asyncio
 import contextlib
 import datetime
+import sqlite3
 
 import asqlite
 import discord
@@ -85,7 +86,13 @@ class MessageTracker(commands.Cog):
         if self._conn:
             raise RuntimeError('The database is already open.')
 
-        self._conn = await asqlite.connect(':memory:')
+        self._conn = await asqlite.connect(
+            ':memory:',
+            detect_types=(
+                sqlite3.PARSE_DECLTYPES
+                | sqlite3.PARSE_COLNAMES
+            )
+        )
         async with self._conn.transaction():
             await self._conn.executescript(self.TABLE_SETUP)
 
