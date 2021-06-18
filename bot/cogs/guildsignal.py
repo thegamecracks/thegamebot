@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker
 import numpy as np
 
-from bot import checks, errors, utils
+from bot import checks, converters, errors, utils
 
 abm_log = logging.getLogger('abattlemetrics')
 abm_log.setLevel(logging.INFO)
@@ -424,6 +424,22 @@ class ServerStatus:
         await asyncio.sleep(next_period)
 
 
+class EmbedPageSourceMixin:
+    def get_embed_template(self, menu):
+        embed = discord.Embed(
+            color=utils.get_bot_color(menu.bot)
+        )
+
+        if self.is_paginating():
+            max_pages = self.get_max_pages()
+            max_pages = '' if max_pages is None else f'/{max_pages}'
+            embed.set_author(
+                name=f'Page {menu.current_page + 1}{max_pages}'
+            )
+
+        return embed
+
+
 class SessionPageSourceMixin:
     @staticmethod
     def utc_to_local(dt: datetime.datetime) -> datetime.datetime:
@@ -457,23 +473,10 @@ class SessionPageSourceMixin:
             cls.format_playtime(playtime)
         )
 
-    def get_embed_template(self, menu):
-        embed = discord.Embed(
-            color=utils.get_bot_color(menu.bot)
-        )
-
-        if self.is_paginating():
-            max_pages = self.get_max_pages()
-            max_pages = '' if max_pages is None else f'/{max_pages}'
-            embed.set_author(
-                name=f'Page {menu.current_page + 1}{max_pages}'
-            )
-
-        return embed
-
 
 class LastSessionAsyncPageSource(
-        SessionPageSourceMixin, menus.AsyncIteratorPageSource):
+        SessionPageSourceMixin, EmbedPageSourceMixin,
+        menus.AsyncIteratorPageSource):
     def __init__(self, bm_client, ids, *, per_page, **kwargs):
         super().__init__(
             self.yield_sessions(bm_client, per_page + 1, ids),
@@ -563,18 +566,19 @@ class LastSessionAsyncPageSource(
 
 
 class PlayerListPageSource(
-        SessionPageSourceMixin, menus.AsyncIteratorPageSource):
+        SessionPageSourceMixin, EmbedPageSourceMixin,
+        menus.AsyncIteratorPageSource):
     def __init__(
             self, list_players, get_session, ids, **kwargs):
         super().__init__(
-            self.yield_sessions(list_players, get_session, ids),
+            self.yield_players(list_players, get_session, ids),
             **kwargs
         )
         self.ids = ids
 
     @staticmethod
-    async def yield_sessions(list_players, get_session, ids: list):
-        """Yield the most recent sessions of a given list of steam/player IDs.
+    async def yield_players(list_players, get_session, ids: list):
+        """Yield players and optionally their last sessions.
 
         Args:
             list_players: The BattleMetricsClient.list_players()
@@ -637,6 +641,84 @@ class PlayerListPageSource(
 
             embed.add_field(name=name, value=val)
 
+        return embed
+
+
+class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
+    def __init__(self, channels):
+        super().__init__(
+            self.yield_pages(self.yield_tickets(channels)),
+            per_page=1
+        )
+        self.channels = channels
+
+    @staticmethod
+    def get_ticket_number(channel) -> int:
+        m = re.search('\d+', channel.name)
+        if m:
+            return int(m.group())
+        return 0
+
+    @functools.cached_property
+    def channel_span(self):
+        start, end = self.channels[0], self.channels[-1]
+        if start == end:
+            return str(self.get_ticket_number(start))
+        return '{}-{}'.format(
+            self.get_ticket_number(start),
+            self.get_ticket_number(end)
+        )
+
+    @staticmethod
+    async def yield_pages(tickets):
+        paginator = commands.Paginator(prefix='', suffix='', max_size=2048)
+        page_number = 0
+        async for line in tickets:
+            # Yield pages as they are created
+            pages = paginator.pages
+            if len(pages) - 1 > page_number:
+                yield pages[page_number]
+                page_number += 1
+
+            paginator.add_line(line)
+
+        yield paginator.pages[-1]
+
+    @staticmethod
+    async def yield_tickets(channels):
+        def check(m):
+            nonlocal match
+            # Optimized way of checking for staff role
+            if not m.author._roles.get(811415496075247649):
+                return False
+            match = converters.CodeBlock.from_search(m.content)
+            return match is not None and SteamIDConverter.REGEX.search(match.code)
+
+        match = None
+        for c in channels:
+            message = await c.history().find(check)
+            if message is None:
+                yield f'{c.mention}: no message found'
+            else:
+                yield (
+                    '{c}: {a} `{m}`\n'
+                    '\u200b \u200b \u200b \u200b '
+                    '([Jump to message]({j}))'.format(
+                        c=c.mention,
+                        a=message.author.mention,
+                        m=match.code,
+                        j=message.jump_url
+                    )
+                )
+
+    async def format_page(self, menu, page: str):
+        embed = self.get_embed_template(menu)
+        embed.description = page
+        embed.set_author(
+            name=f'{embed.author.name} ({self.channel_span})'
+        ).set_footer(
+            text=f'{len(self.channels)} tickets'
+        )
         return embed
 
 
@@ -854,11 +936,41 @@ Turns back on when the bot connects."""
 
 
 
-    @commands.command(name='checkwhitelist')
+    @commands.group(name='whitelist')
     @commands.has_role('Staff')
     @checks.used_in_guild(GUILD_ID)
+    async def client_whitelist(self, ctx):
+        """Commands for managing whitelists."""
+
+
+    @client_whitelist.command(name='accepted')
+    @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_check_whitelist(self, ctx, sessions: bool = False):
+    async def client_whitelist_accepted(self, ctx):
+        """List whitelist tickets that have been approved.
+This searches up to 100 messages in each whitelist ticket for acceptance from staff."""
+        category = ctx.bot.get_channel(824502569652322304)
+
+        if not category.text_channels:
+            return await ctx.send('No whitelist tickets are open!')
+
+        menu = menus.MenuPages(
+            WhitelistPageSource(category.text_channels),
+            clear_reactions_after=True
+        )
+        async with ctx.typing():
+            await menu.start(ctx)
+
+        if menu.should_add_reactions():
+            # Wait for menu to finish outside of typing()
+            # so it doesn't keep typing but max concurrency is still upheld
+            await menu._event.wait()
+
+
+    @client_whitelist.command(name='expired')
+    @commands.cooldown(2, 60, commands.BucketType.default)
+    @commands.max_concurrency(1, commands.BucketType.user)
+    async def client_whitelist_expired(self, ctx, sessions: bool = False):
         """Check which whitelisted players have not been online within the last two weeks.
 This looks through the steam IDs in the <#824486812709027880> channel.
 
