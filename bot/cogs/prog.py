@@ -2,46 +2,11 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import re
-
 import autopep8
 import discord
 from discord.ext import commands, menus
 
-
-class CodeBlock:
-    REGEX = re.compile(
-        r'```(?:(?P<language>\w*)(?:\n))?\s*(?P<code>.*?)\s*```',
-        re.IGNORECASE | re.DOTALL
-    )
-
-    def __init__(self, language, code):
-        self.language = language or None
-        self.code = code
-
-    def reformat(self) -> str:
-        """Reformat the code using autopep8.
-
-        This returns the newly formatted string.
-
-        """
-        return autopep8.fix_code(self.code)
-
-    @classmethod
-    async def convert(cls, ctx, arg, required=False):
-        """Converts a code block with an optional language name
-        and strips whitespace from the following block.
-
-        If `required`, commands.UserInputError is raised when the argument
-        is not a code block.
-
-        """
-        match = cls.REGEX.match(arg)
-        if match is None:
-            if required:
-                raise commands.UserInputError('Argument must be a code block.')
-            return cls(language=None, code=arg)
-        return cls(**match.groupdict())
+from bot.converters import CodeBlock
 
 
 class CodeBlockSource(menus.ListPageSource):
@@ -99,7 +64,9 @@ class Programming(commands.Cog):
             return await ctx.send('The code block must be python!')
         code.language = 'py'
 
-        code.code = await ctx.bot.loop.run_in_executor(None, code.reformat)
+        code.code = await ctx.bot.loop.run_in_executor(
+            None, autopep8.fix_code, code.code
+        )
 
         prefix, reply = ctx.author.mention, True
         try:
