@@ -435,11 +435,11 @@ class SessionPageSourceMixin:
     @staticmethod
     def format_playtime(s: int) -> str:
         if s == 0:
-            return 'an unknown duration'
+            return 'Session is ongoing'
 
         m, s = divmod(s, 60)
         h, m = divmod(m, 60)
-        return f'{h}:{m:02d}h'
+        return f'Session lasted for {h}:{m:02d}h'
 
     @classmethod
     def format_session(cls, session: abm.Session):
@@ -452,11 +452,9 @@ class SessionPageSourceMixin:
             cls.utc_to_local(started_at)
         )
 
-        playtime = cls.format_playtime(playtime)
-
         return (
             started_at,
-            f'Session lasted for {playtime}'
+            cls.format_playtime(playtime)
         )
 
     def get_embed_template(self, menu):
