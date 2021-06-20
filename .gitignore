@@ -1,5 +1,6 @@
-run_venv.bat
 desktop.ini
+run_venv.bat
+settings.json
 *.db-shm
 *.db-wal
 
