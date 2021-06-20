@@ -3,18 +3,19 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import itertools
-from typing import List, Optional
+from typing import Iterable, Optional
 
 
 def format_table(
-        rows: List[List[str]],
-        divs=(1,), div_char='=', col_sep=' | ',
+        rows: Iterable[Iterable[str]],
+        divs: Optional[Iterable[int]] = (1,),
+        div_char='=', col_sep=' | ',
         *, strip_trailing=False) -> str:
     """Format a table of rows into a string.
 
     Args:
-        rows (List[List[str]]): The rows to format.
-        divs (Iterable[int]): The indices for where to insert dividers.
+        rows (Iterable[Iterable[str]]): The rows to format.
+        divs (Optional[Iterable[int]]): The indices for where to insert dividers.
             This defaults to 1, intended for separating the column
             names from the row data.
         div_char (str): The string to use for the dividers.

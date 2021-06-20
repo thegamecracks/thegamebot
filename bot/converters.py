@@ -93,7 +93,7 @@ class CommandConverter(commands.Converter):
         finally:
             ctx.command = original
 
-    async def convert(self, ctx, argument):
+    async def convert(self, ctx, argument) -> commands.Command:
         """
         Args:
             ctx (commands.Context)
@@ -106,7 +106,7 @@ class CommandConverter(commands.Converter):
             BadArgument
 
         """
-        c = ctx.bot.get_command(argument)
+        c: Optional[commands.Command] = ctx.bot.get_command(argument)
         try:
             if c is None:
                 raise commands.BadArgument(

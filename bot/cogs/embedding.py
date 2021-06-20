@@ -33,7 +33,7 @@ class Embedding(commands.Cog):
         'authorurl':          ('--authorurl', '-AU')
     }
 
-    hyperlink_regex = re.compile('\[.+\]\(.+\)')
+    hyperlink_regex = re.compile(r'\[.+\]\(.+\)')
 
     def __init__(self, bot):
         self.bot = bot

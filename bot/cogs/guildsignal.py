@@ -9,7 +9,7 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Optional
+from typing import Callable, ClassVar, Optional, List
 
 import abattlemetrics as abm
 import discord
@@ -94,6 +94,7 @@ class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
     REGEX = re.compile('\d{17}')
     INTEGER = 10_000_000_000_000_000
+
     async def convert(self, ctx, arg):
         if not self.REGEX.match(arg):
             raise commands.BadArgument('Could not parse Steam64ID.')
@@ -102,7 +103,7 @@ class SteamIDConverter(commands.Converter):
 
 @dataclass
 class ServerStatus:
-    bot: discord.Client
+    bot: commands.Bot
     bm_client: abm.BattleMetricsClient
     server_id: int
     channel_id: int
@@ -212,7 +213,7 @@ class ServerStatus:
         description.append('Map: ' + (self.server_map or server.details['map']))
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
         # Generate list of player names with their playtime
-        players = sorted(
+        players: List[abm.Player] = sorted(
             server.players, reverse=True, key=lambda p: p.playtime or 0)
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
@@ -225,6 +226,8 @@ class ServerStatus:
             #     pt = f' ({hours}:{minutes:02d}h)'
             score = f' ({p.score})' if p.score is not None else ''
             players[i] = f'{name}{pt}{score}'
+
+        players: List[str]
         if players:
             # Group them into 1-3 fields in sizes of 5
             n_fields = min((len(players) + 4) // 5, 3)
@@ -385,7 +388,6 @@ class ServerStatus:
         current time was HH:09:12, this would return 48s.
 
         Args:
-            interval (int): The interval per hour in seconds.
             now (Optional[datetime.datetime]): The current time.
                 Defaults to datetime.datetime.utcnow().
             inclusive (bool): Return 0 when the current time
@@ -425,7 +427,7 @@ class ServerStatus:
 
 
 class EmbedPageSourceMixin:
-    def get_embed_template(self, menu):
+    def get_embed_template(self, menu: menus.MenuPages):
         embed = discord.Embed(
             color=utils.get_bot_color(menu.bot)
         )
@@ -694,12 +696,13 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
             match = converters.CodeBlock.from_search(m.content)
             return match is not None and SteamIDConverter.REGEX.search(match.code)
 
-        match = None
+        match: Optional[converters.CodeBlock] = None
         for c in channels:
             message = await c.history().find(check)
             if message is None:
                 yield f'{c.mention}: no message found'
             else:
+                match: converters.CodeBlock
                 yield (
                     '{c}: {a} `{m}`\n'
                     '\u200b \u200b \u200b \u200b '
@@ -1039,8 +1042,7 @@ sessions: If true, fetches session data for each player, including the last time
     async def client_last_session(self, ctx, *ids: int):
         """Get one or more players' last session played on the I&A server.
 
-ids: A space-separated list of steam64IDs or battlemetrics player IDs to check.
-Use battlemetrics IDs when possible since it can take a long time to find someone by steam ID."""
+ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."""
         if len(ids) > 100:
             return await ctx.send('You are only allowed to provide 100 IDs at a time.')
         # Remove duplicates while retaining order using dict

@@ -374,4 +374,4 @@ def setup(bot):
 def teardown(bot):
     bot.help_command = help_command = _original_help_command
     if help_command is not None:
-        help_command.cog = self.bot.get_cog('Informative') or None
+        help_command.cog = bot.get_cog('Informative') or None

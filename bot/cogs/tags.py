@@ -2,7 +2,6 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import datetime
 import sqlite3
 from typing import Optional
 
@@ -83,7 +82,7 @@ class TagPageSource(menus.AsyncIteratorPageSource):
         self.bot = bot
         self.format = format
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu: menus.MenuPages, entries):
         start = menu.current_page * self.per_page
         return discord.Embed(
             color=utils.get_bot_color(self.bot),

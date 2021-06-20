@@ -217,7 +217,8 @@ This only counts channels that both you and the bot can see."""
 
         # Search for the command
         try:
-            command = await converters.CommandConverter().convert(ctx, command)
+            command: commands.Command = \
+                await converters.CommandConverter().convert(ctx, command)
         except commands.BadArgument:
             return await ctx.send("That command doesn't exist.")
 
@@ -289,6 +290,7 @@ This only counts channels that both you and the bot can see."""
         uses = stats[command.qualified_name]
         if is_group:
             # Include total count of subcommands
+            command: commands.Group
             uses += get_group_uses(stats, command)
 
         if command == ctx.command:

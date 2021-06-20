@@ -431,6 +431,7 @@ Temperature conversions:
         # Kelvin to Rankine
     convert 273.15 K to degC"""
         def separate(m):
+            i = 0
             for i, s in enumerate(measurement):
                 # Issue: should optimize by creating a function for this,
                 # using a constant containing a set of valid characters

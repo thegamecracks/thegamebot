@@ -5,7 +5,6 @@
 import datetime
 import itertools
 import re
-import textwrap
 from typing import Iterable, Optional
 
 import discord
@@ -77,7 +76,7 @@ class NoteManagement(commands.Cog):
         await self.bot.dbnotes.add_note(user_id, *args, **kwargs)
         self.cache.pop(user_id, None)
 
-    def invalid_indices(self, maximum: int, index: list, *, limit=3):
+    def invalid_indices(self, maximum: int, index: Iterable[int], *, limit=3):
         """Return a list of 1-indexed strings indicating which
         indices are out of bounds."""
         over = (str(n + 1) for n in index if not 0 < n + 1 <= maximum)

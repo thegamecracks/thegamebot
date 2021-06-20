@@ -6,7 +6,6 @@ import asyncio
 import calendar
 import random
 import time
-from typing import Union
 
 import discord
 from discord.ext import commands
