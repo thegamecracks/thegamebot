@@ -632,7 +632,7 @@ Format referenced from the Ayana bot."""
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
-        owner = guild.owner.name if streamer_friendly else str(guild.owner)
+        owner = guild.owner or await guild.fetch_member(guild.owner_id)
         roles = guild.roles
 
         embed = discord.Embed(
@@ -641,7 +641,7 @@ Format referenced from the Ayana bot."""
         )
 
         embed.set_author(name=guild.name)
-        embed.set_thumbnail(url=guild.icon_url)
+        embed.set_thumbnail(url=guild.icon.url)
         if not streamer_friendly:
             embed.add_field(
                 name='ID',
@@ -661,7 +661,7 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Owner',
-            value=owner
+            value=owner.display_name if streamer_friendly else str(owner)
         )
         embed.add_field(
             name='Time of Server Creation',
