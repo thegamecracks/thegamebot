@@ -708,11 +708,14 @@ Format referenced from the Ayana bot."""
         uptime_string = await ctx.bot.strftime_user(
             ctx.author.id, ctx.bot.uptime_last_connect)
 
-        await ctx.send(embed=discord.Embed(
+        embed = discord.Embed(
             title='Uptime',
             description=f'{diff_string}\n({uptime_string})',
-            color=utils.get_bot_color(ctx.bot)
-        ))
+            color=utils.get_bot_color(ctx.bot),
+            timestamp=self.bot.uptime_last_connect_adjusted
+        )
+
+        await ctx.send(embed=embed)
 
 
 
