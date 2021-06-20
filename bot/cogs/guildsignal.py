@@ -788,19 +788,9 @@ class SignalHill(commands.Cog):
         return {
             'active_hours': self.ACTIVE_HOURS,
             'graph_channel_id': self.SERVER_STATUS_GRAPH_DEST,
-            'edit_cooldown': commands.Cooldown(
-                1, self.SERVER_STATUS_EDIT_RATE,
-                commands.BucketType.default
-            ),
-            'graph_cooldown': commands.Cooldown(
-                1, self.SERVER_STATUS_GRAPH_RATE,
-                commands.BucketType.default
-            ),
-            'react_cooldown': 
-                commands.Cooldown(
-                1, self.SERVER_STATUS_FALSE_EDIT_RATE,
-                commands.BucketType.default
-            ),
+            'edit_cooldown': commands.Cooldown(1, self.SERVER_STATUS_EDIT_RATE),
+            'graph_cooldown': commands.Cooldown(1, self.SERVER_STATUS_GRAPH_RATE),
+            'react_cooldown': commands.Cooldown(1, self.SERVER_STATUS_FALSE_EDIT_RATE),
             'loop_interval': self.SERVER_STATUS_INTERVAL
         }
 

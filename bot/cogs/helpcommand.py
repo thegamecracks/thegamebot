@@ -31,7 +31,8 @@ class HelpCommand(commands.HelpCommand):
         super().__init__(
             command_attrs={
                 'help': 'Shows help about the bot, a command, or a category',
-                'cooldown': commands.Cooldown(2, 3, commands.BucketType.user)
+                'cooldown': commands.CooldownMapping.from_cooldown(
+                    2, 3, commands.BucketType.user)
             }
         )
 

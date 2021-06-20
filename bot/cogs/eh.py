@@ -321,7 +321,7 @@ class EventHandlers(commands.Cog):
 
         def get_cooldown_description():
             if (not ctx.guild
-                and error.cooldown.type in (
+                and ctx.command._buckets._type in (
                     commands.BucketType.channel,
                     commands.BucketType.guild)):
                 # in DMs; use member in place of channel/guild bucket
@@ -330,11 +330,11 @@ class EventHandlers(commands.Cog):
                 )
             else:
                 description = self.COOLDOWN_DESCRIPTIONS.get(
-                    error.cooldown.type, 'This command is on cooldown.'
+                    ctx.command._buckets._type, 'This command is on cooldown.'
                 )
 
             return description.format(
-                here=get_cooldown_here(error.cooldown.type),
+                here=get_cooldown_here(ctx.command._buckets._type),
                 times=ctx.bot.inflector.inflect(
                     '{0} plural("time", {0}) '
                     'every {1} plural("second", {1})'.format(
@@ -406,7 +406,7 @@ class EventHandlers(commands.Cog):
                         round(error.retry_after * 10) / 10
                     )
                 ),
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             embed.description = get_cooldown_description()
@@ -425,7 +425,7 @@ class EventHandlers(commands.Cog):
                 color=utils.get_bot_color(ctx.bot)
             ).set_footer(
                 text=get_concurrency_description(),
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             await ctx.send(embed=embed)
@@ -495,7 +495,7 @@ class EventHandlers(commands.Cog):
                 )
             ).set_author(
                 name=ctx.author.display_name,
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
             await ctx.send(embed=embed)
             raise error
@@ -509,7 +509,7 @@ class EventHandlers(commands.Cog):
                     'You can retry in {0} plural("second", {0}).'.format(
                         round(error.retry_after * 10) / 10)
                 ),
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
@@ -532,7 +532,7 @@ class EventHandlers(commands.Cog):
                 )
             ).set_author(
                 name=ctx.author.display_name,
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
             await ctx.send(embed=embed)
             raise error

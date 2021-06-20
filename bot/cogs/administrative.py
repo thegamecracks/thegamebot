@@ -106,7 +106,7 @@ class Administrative(commands.Cog):
         elif per < 0:
             return await ctx.send('`per` cannot be negative.')
 
-        buckets = commands.CooldownMapping(commands.Cooldown(rate, per, type))
+        buckets = commands.CooldownMapping(commands.Cooldown(rate, per), type)
         command._buckets = buckets
 
         await ctx.send(f'Updated cooldown for {command.name}.')
@@ -139,12 +139,15 @@ command: The name of the command to reset."""
     async def client_cooldown_remove(
             self, ctx, *, command: converters.CommandConverter):
         """Remove a command's cooldown."""
+        def no_op(message):
+            return
+
         command: commands.Command
 
         if not command._buckets.valid:
             return await ctx.send('This command does not have a cooldown.')
 
-        buckets = commands.CooldownMapping(None)
+        buckets = commands.CooldownMapping(None, no_op)
         command._buckets = buckets
 
         await ctx.send(f'Removed cooldown for {command.name}.')

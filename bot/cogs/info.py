@@ -262,13 +262,16 @@ This only counts channels that both you and the bot can see."""
             description.append('Is hidden: \N{WHITE HEAVY CHECK MARK}')
 
         # Insert cooldown
-        cooldown: commands.Cooldown = command._buckets._cooldown
+        cooldown: commands.CooldownMapping = command._buckets
         if cooldown is not None:
             cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
-                cooldown.type, '')
+                cooldown._type, '')
             description.append(
-                'Cooldown settings: '
-                f'{cooldown.rate}/{cooldown.per:.0f}s {cooldown_type}'
+                'Cooldown settings: {}/{:.0f}s {}'.format(
+                    cooldown._cooldown.rate,
+                    cooldown._cooldown.per,
+                    cooldown_type
+                )
             )
 
         # Insert concurrency limit
