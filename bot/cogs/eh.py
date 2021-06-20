@@ -369,7 +369,7 @@ class EventHandlers(commands.Cog):
         if isinstance(error, commands.BadBoolArgument):
             # error.param is instance of inspect.Parameter
             await ctx.send('Expected a boolean answer for parameter '
-                           f'"{error.param.name}".\n'
+                           f'"{error.argument.name}".\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.BotMissingPermissions):
             await ctx.send(
