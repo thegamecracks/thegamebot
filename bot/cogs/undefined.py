@@ -217,7 +217,7 @@ https://stackoverflow.com/q/64080277/"""
 
 
     @commands.command(name='leave')
-    @commands.has_permissions(manage_guild=True)
+    @commands.has_guild_permissions(manage_guild=True)
     @commands.guild_only()
     @commands.cooldown(2, 60, commands.BucketType.guild)
     async def client_leave(self, ctx):

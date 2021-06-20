@@ -14,6 +14,7 @@ import aiohttp
 import discord
 from discord.ext import commands
 import discord_slash as dslash
+from dotenv import load_dotenv
 import inflect
 import matplotlib
 import matplotlib.pyplot as plt
@@ -35,11 +36,12 @@ logger = discordlogger.get_logger()
 
 class TheGameBot(BotDatabaseMixin, commands.Bot):
     EXT_LIST = [
-        f'bot.cogs.{c}' for c in (
+        'bot.cogs.' + c for c in (
             'settings',  # dependency of a lot of things
             'administrative',
             'background',
             'ciphers',
+            'dbevents',
             'economy',
             'eh',
             'embedding',
@@ -55,6 +57,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'moderation',
             'notes',
             'prefix',
+            'prog',
             'randomization',
             'reminders',
             'tags',
@@ -78,6 +81,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         # Add botvars
         with utils.update_text('Adding botvars',
                                'Added botvars'):
+            self.dbevents_cleaned_up = False
             self.session = aiohttp.ClientSession()
             self.inflector = inflect.engine()
             self.info_bootup_time = 0
@@ -230,6 +234,8 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
 
 async def main():
+    load_dotenv(override=True)
+
     start_time = time.perf_counter()
 
     parser = argparse.ArgumentParser()
@@ -240,7 +246,7 @@ async def main():
 
     args = parser.parse_args()
 
-    token = os.getenv('PyDiscordBotToken')
+    token = os.getenv('BotToken')
     if token is None:
         s = 'Could not get token from environment.'
         logger.error(s)
@@ -257,7 +263,7 @@ async def main():
     for attr in DISABLED_INTENTS:
         setattr(intents, attr, False)
 
-    bot = TheGameBot(intents=intents)
+    bot = TheGameBot(intents=intents, strip_after_prefix=True)
     await bot.setup()
 
     async def bootup_time(bot, start_time):

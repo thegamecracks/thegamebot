@@ -22,24 +22,26 @@ class UserOnCooldown(commands.CommandError):
 def used_in_guild(*guild_ids):
     """Check if a command was used in a given set of guilds."""
     async def predicate(ctx):
-        return ctx.guild and ctx.guild.id in guild_ids
+        await commands.guild_only().predicate(ctx)
+        return ctx.guild.id in guild_ids
 
     return commands.check(predicate)
 
 
 def is_in_guild(*guild_ids):
-    """Check if the author is part of a given set of guilds.
-    This will not work without members intent.
-    """
+    """Check if the author is part of a given set of guilds."""
     async def check_guild(guild_id):
         guild = ctx.bot.get_guild(guild_id)
         if guild is None:
             return False
 
-        return bool(
-            guild.get_member(ctx.author.id)
-            or await guild.fetch_member(ctx.author.id)
-        )
+        if guild.get_member(ctx.author.id):
+            return True
+
+        try:
+            await guild.fetch_member(ctx.author.id)
+        except discord.HTTPException:
+            return False
         
     async def predicate(ctx):
         if ctx.guild and ctx.guild.id in guild_ids:

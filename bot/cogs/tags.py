@@ -181,6 +181,38 @@ existing: The name of an existing tag or even another alias."""
             await ctx.send('Created your new alias!')
 
 
+    @client_tag.command(name='claim')
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def client_tag_claim(self, ctx, *, name: TagNameConverter('name')):
+        """Claim a tag or alias made by someone that is no longer in the server.
+Note it may take some time before a tag loses their author."""
+        db = ctx.bot.dbtags
+
+        tag = await db.get_tag(ctx.guild.id, name)
+        is_alias = False
+        if tag is None:
+            is_alias = True
+            tag = await db.get_alias(ctx.guild.id, name)
+
+        ref = 'alias' if is_alias else 'tag'
+
+        if tag is None:
+            return await ctx.send('This tag does not exist.')
+        elif tag['user_id'] is not None:
+            return await ctx.send(
+                'This {} is already owned by <@{}>!'.format(
+                    ref, tag['user_id']
+                ), allowed_mentions=discord.AllowedMentions(users=False)
+            )
+
+        if is_alias:
+            await db.set_alias_author(ctx.guild.id, name, ctx.author.id)
+        else:
+            await db.set_tag_author(ctx.guild.id, name, ctx.author.id)
+
+        await ctx.send('You now own the {} "{}"!'.format(ref, name))
+
+
     @client_tag.command(name='create')
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def client_tag_create(
@@ -247,60 +279,57 @@ content: The new content to use."""
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_tag_info(self, ctx, *, name: TagNameConverter('name')):
         """Get info about a tag."""
-        tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
+        db = ctx.bot.dbtags
+
+        tag = await db.get_tag(ctx.guild.id, name)
+        is_alias = False
+        if tag is None:
+            is_alias = True
+            tag = await db.get_alias(ctx.guild.id, name)
+
         if tag is None:
             return await ctx.send('That tag does not exist!')
 
+        created_at = await ctx.bot.localize_datetime(
+            ctx.author.id, tag['created_at'])
+        owner_id = tag['user_id']
+        owner_mention = f'<@{owner_id}>' if owner_id else 'No owner'
+
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot)
+        ).add_field(
+            name='Owner',
+            value=owner_mention
+        ).add_field(
+            name='Time of Creation',
+            value=utils.strftime_zone(created_at),
+            inline=False
         )
 
-        is_alias = tag['name'] != name
-
         if is_alias:
-            alias = await ctx.bot.dbtags.get_alias(ctx.guild.id, name)
-            created_at = await ctx.bot.localize_datetime(
-                ctx.author.id, tag['created_at'])
-
-            embed.title = alias['alias']
+            title = tag['alias']
+            footer = 'Alias requested by {}'
             embed.add_field(
-                name='Owner',
-                value=f"<@{alias['user_id']}>"
-            ).add_field(
                 name='Original',
-                value=alias['name']
-            ).add_field(
-                name='Time of Creation',
-                value=utils.strftime_zone(created_at),
-                inline=False
+                value=tag['name']
             )
 
-            footer = 'Alias requested by {}'
         else:
-            created_at = await ctx.bot.localize_datetime(
-                ctx.author.id, tag['created_at'])
-
-            embed.title = tag['name']
+            title = tag['name']
+            footer = 'Tag requested by {}'
             embed.add_field(
-                name='Owner',
-                value=f"<@{tag['user_id']}>"
-            ).add_field(
                 name='Uses',
                 value=format(tag['uses'], ',')
-            ).add_field(
-                name='Time of Creation',
-                value=utils.strftime_zone(created_at),
-                inline=False
             )
 
-            aliases = await ctx.bot.dbtags.get_aliases(ctx.guild.id, name)
+            aliases = await db.get_aliases(ctx.guild.id, name)
             if aliases:
                 embed.add_field(
                     name='Aliases',
                     value=', '.join([r['alias'] for r in aliases])
                 )
 
-            if tag['edited_at'] is not None:
+            if tag['edited_at']:
                 edited_at = await ctx.bot.localize_datetime(
                     ctx.author.id, tag['edited_at'])
                 embed.add_field(
@@ -309,8 +338,8 @@ content: The new content to use."""
                     inline=False
                 )
 
-            footer = 'Tag requested by {}'
 
+        embed.title = title
         embed.set_footer(
             text=footer.format(ctx.author.display_name),
             icon_url=ctx.author.avatar_url

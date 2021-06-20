@@ -11,12 +11,19 @@ from bot import errors
 
 
 class PurgeLimitConverter(commands.Converter):
-    def __init__(self, min: int = 2, max: int = 100):
-        self.min = min
-        self.max = max
+    MIN = 2
+    MAX = 100
+
+    def __init__(self, min: int = None, max: int = None):
+        self.min = min or self.MIN
+        self.max = max or self.MAX
 
     async def convert(self, ctx, arg):
-        n = int(arg)
+        if arg: 
+            n = int(arg)
+        elif ctx.message.reference:
+            # Assume they want the maximum
+            return self.max
 
         if n < self.min:
             raise errors.ErrorHandlerResponse(
@@ -41,6 +48,12 @@ class Moderation(commands.Cog):
         self.bot = bot
 
 
+    @commands.Cog.listener('on_message')
+    async def anti_h0nde(self, m):
+        if m.channel.id == 456843008315359233 and 'h0nde' in m.system_content.casefold():
+            await m.add_reaction('\N{REVERSED HAND WITH MIDDLE FINGER EXTENDED}')
+
+
 
 
 
@@ -56,6 +69,16 @@ class Moderation(commands.Cog):
             ), delete_after=12
         )
 
+
+    def get_purge_replied(self, ctx, limit):
+        if ctx.message.reference:
+            message = discord.Object(ctx.message.reference.message_id)
+            if limit is None:
+                return PurgeLimitConverter.MAX, message
+            return limit, message
+        return limit, None
+
+
     @commands.group(name='purge', invoke_without_command=True)
     @commands.cooldown(2, 10, commands.BucketType.channel)
     @commands.guild_only()
@@ -64,11 +87,18 @@ class Moderation(commands.Cog):
         manage_messages=True,
         read_message_history=True
     )
-    async def client_purge(self, ctx, limit: PurgeLimitConverter):
+    async def client_purge(self, ctx, limit: PurgeLimitConverter = None):
         """Bulk delete messages in the current channel.
 
-limit: The number of messages to look through. (range: 2-100)"""
-        messages = await ctx.channel.purge(limit=limit, before=ctx.message)
+You can reply to a message to only delete messages up to (but not including) that message.
+
+limit: The number of messages to look through. (max: 100)"""
+        limit, after = self.get_purge_replied(ctx, limit)
+        if limit is None:
+            return await ctx.send_help(ctx.command)
+
+        messages = await ctx.channel.purge(
+            limit=limit, before=ctx.message, after=after)
         await self.send_purged(ctx, messages)
 
 
@@ -80,16 +110,22 @@ limit: The number of messages to look through. (range: 2-100)"""
         manage_messages=True,
         read_message_history=True
     )
-    async def client_purge_bot(self, ctx, limit: PurgeLimitConverter):
+    async def client_purge_bot(self, ctx, limit: PurgeLimitConverter = None):
         """Delete messages from bots.
 
-limit: The number of messages to look through. (range: 2-100)"""
+You can reply to a message to only delete messages up to (but not including) that message.
+
+limit: The number of messages to look through. (max: 100)"""
         def check(m):
             return m.author.bot
 
+        limit, after = self.get_purge_replied(ctx, limit)
+        if limit is None:
+            return await ctx.send_help(ctx.command)
+
         messages = await ctx.channel.purge(
             limit=limit, check=check,
-            before=ctx.message
+            before=ctx.message, after=after
         )
         await self.send_purged(ctx, messages)
 
@@ -102,16 +138,22 @@ limit: The number of messages to look through. (range: 2-100)"""
         commands.is_owner()
     )
     @commands.bot_has_permissions(read_message_history=True)
-    async def client_purge_self(self, ctx, limit: PurgeLimitConverter):
+    async def client_purge_self(self, ctx, limit: PurgeLimitConverter = None):
         """Delete messages from me.
 This will also remove messages that appear to be invoking one of my commands if I have Manage Messages permission.
 
-limit: The number of messages to look through. (range: 2-100)"""
+You can reply to a message to only delete messages up to (but not including) that message.
+
+limit: The number of messages to look through. (max: 100)"""
         def check(m):
             return (
                 m.author == ctx.me
                 or perms.manage_messages and m.content.startswith(prefixes)
             )
+
+        limit, after = self.get_purge_replied(ctx, limit)
+        if limit is None:
+            return await ctx.send_help(ctx.command)
 
         perms = ctx.me.permissions_in(ctx.channel)
         prefixes = ()
@@ -124,7 +166,7 @@ limit: The number of messages to look through. (range: 2-100)"""
 
         messages = await ctx.channel.purge(
             limit=limit, check=check,
-            before=ctx.message,
+            before=ctx.message, after=after,
             bulk=perms.manage_messages
         )
 

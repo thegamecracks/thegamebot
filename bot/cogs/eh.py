@@ -62,6 +62,7 @@ class EventHandlers(commands.Cog):
         commands.DisabledCommand,
         commands.MaxConcurrencyReached,
         commands.UserInputError,
+        errors.ErrorHandlerResponse
     )
     # Prevents printing simplified command errors.
     IGNORE_EXCEPTIONS_AFTER = (commands.CheckFailure,)
@@ -164,6 +165,7 @@ class EventHandlers(commands.Cog):
         commands.BotMissingRole: None,
         commands.CommandInvokeError: (1, 5, commands.BucketType.user),
         commands.CommandOnCooldown: None,
+        commands.ConversionError: (1, 5, commands.BucketType.user),
         commands.DisabledCommand: None,
         commands.MaxConcurrencyReached: None,
         commands.MissingAnyRole: None,
@@ -232,7 +234,12 @@ class EventHandlers(commands.Cog):
             time.localtime()))
 
     async def on_command_error(self, ctx, error):
+        # If it's CheckAnyFailure, handle the first error in that
+        if isinstance(error, commands.CheckAnyFailure):
+           error = error.errors[0]
+
         error_unpacked = getattr(error, 'original', error)
+
         if getattr(ctx, 'handled', False):
             return
         elif isinstance(error, self.IGNORE_EXCEPTIONS):
@@ -266,25 +273,29 @@ class EventHandlers(commands.Cog):
 
             return new_perms
 
-        def convert_roles(missing_perms):
+        def convert_roles(roles):
             """Convert IDs in one or more roles into strings."""
             def convert(p):
                 if isinstance(p, int):
-                    r = ctx.bot.get_role(p)
-                    return str(r) if r is not None else p
+                    return str(ctx.bot.get_role(p) or p)
                 return p
 
-            if isinstance(missing_perms, list):
-                return [convert(p) for p in missing_perms]
-
-            return convert(missing_perms),
+            if isinstance(roles, list):
+                return [convert(p) for p in roles]
+            return (convert(roles),)
 
         def get_command_signature():
-            prefix = ctx.prefix
-            name_signature = ctx.invoked_with
-            arguments = ctx.command.signature
+            invoked_with = ctx.invoked_with
+            if ctx.command.parent:
+                invoked_with = '{} {}'.format(
+                    ctx.command.full_parent_name,
+                    invoked_with
+                )
 
-            return f'{prefix}{name_signature} {arguments}'
+            return '{}{} {}'.format(
+                ctx.prefix, invoked_with,
+                ctx.command.signature
+            )
 
         def get_concurrency_description():
             if not ctx.guild and error.per == commands.BucketType.channel:
@@ -344,21 +355,21 @@ class EventHandlers(commands.Cog):
         def get_denied_message():
             return random.choice(ctx.bot.get_cog('Settings').get('deniedmessages'))
 
-        def missing_x_to_run(x, missing_perms):
-            count = len(missing_perms)
+        def missing_x_to_run(x, items):
+            count = len(items)
             if count == 1:
-                return (f'missing the {missing_perms[0]} {x} '
+                return (f'missing the {items[0]} {x} '
                         'to run this command.')
 
             return 'missing {:,} {} to run this command: {}'.format(
-                count, ctx.bot.inflector.plural(x), ctx.bot.inflector.join(missing_perms)
+                count, ctx.bot.inflector.plural(x), ctx.bot.inflector.join(items)
             )
 
         # Send an error message
         if isinstance(error, commands.BadBoolArgument):
             # error.param is instance of inspect.Parameter
             await ctx.send('Expected a boolean answer for parameter '
-                           f'"{error.param.name}".\n'
+                           f'"{error.argument.name}".\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.BotMissingPermissions):
             await ctx.send(
@@ -372,9 +383,13 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, (
                 commands.BotMissingRole,
                 commands.BotMissingAnyRole)):
+            roles = getattr(
+                error, 'missing_roles',
+                getattr(error, 'missing_role', None)
+            )
             await ctx.send(
                 'I am {}'.format(
-                    missing_x_to_run('role', convert_roles(error.missing_roles))
+                    missing_x_to_run('role', convert_roles(roles))
                 )
             )
         elif isinstance(error, commands.ChannelNotFound):
@@ -431,9 +446,13 @@ class EventHandlers(commands.Cog):
             )
         elif isinstance(error, (commands.MissingRole,
                                 commands.MissingAnyRole)):
+            roles = getattr(
+                error, 'missing_roles',
+                getattr(error, 'missing_role', None)
+            )
             await ctx.send(
                 'You are {}'.format(
-                    missing_x_to_run('role', convert_roles(error.missing_roles))
+                    missing_x_to_run('role', convert_roles(roles))
                 )
             )
         elif isinstance(error, commands.NoPrivateMessage):
@@ -465,7 +484,21 @@ class EventHandlers(commands.Cog):
             await ctx.send('Failed to parse your parameters.\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.ConversionError):
-            await ctx.send('An error occurred while trying to parse your parameters.')
+            embed = discord.Embed(
+                color=utils.get_bot_color(ctx.bot),
+                description='An error occurred while trying to parse '
+                            'your parameters: ```py\n{}: {}``` Error '
+                            'code: **{}**'.format(
+                    type(error_unpacked).__name__,
+                    str(error_unpacked),
+                    code
+                )
+            ).set_author(
+                name=ctx.author.display_name,
+                icon_url=ctx.author.avatar_url
+            )
+            await ctx.send(embed=embed)
+            raise error
         elif isinstance(error, checks.UserOnCooldown):
             # User has invoked too many commands
             embed = discord.Embed(

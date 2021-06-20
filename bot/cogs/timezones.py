@@ -79,8 +79,9 @@ class Timezones(commands.Cog):
                 the time string was in.
 
         """
-        matches = []
-        for i, m in enumerate(cls.regex_12_24.finditer(s), start=1):
+        matches = {}  # uses dict to prevent duplicates
+        i = 1
+        for m in cls.regex_12_24.finditer(s):
             hour, minute, noon = int(m['hour']), m['minute'], m['noon']
 
             if noon is not None:
@@ -125,12 +126,14 @@ class Timezones(commands.Cog):
             )
             # Include timezone in string only if it was parsed correctly
             s = m[0] if not m['tz'] or given_tz else m[0][:m.start('tz') - m.start()]
-            matches.append((s, dt, form))
 
-            if i == limit:
-                break
+            if s not in matches:
+                matches[s] = (s, dt, form)
+                i += 1
+                if i == limit:
+                    break
 
-        return matches
+        return list(matches.values())
         # return [m[1] for m in dateparser.search.search_dates(s, languages=['en'])]
 
     def get_clock_reaction(self, m: discord.Message) -> Optional[discord.Reaction]:
@@ -201,7 +204,9 @@ class Timezones(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, m: discord.Message):
         """Detect times sent in messages."""
-        await self.provide_translation(m)
+        ctx = await self.bot.get_context(m)
+        if not ctx.valid:
+            await self.provide_translation(m)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -442,7 +447,7 @@ This only works on your own messages unless you also have Manage Messages permis
 
 message: The message to remove a reaction from. If not provided, checks the last 10 messages for a message you sent that has the reaction."""
         def valid_author_message(m):
-            return m.author == ctx.author and get_my_emoji(m)
+            return m.author == ctx.author and self.get_clock_reaction(m)
 
         clock = self.bot.get_emoji(self.clock_emoji)
         response = '\N{WHITE HEAVY CHECK MARK}'
