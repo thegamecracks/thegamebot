@@ -314,7 +314,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     @commands.group(name='presence', invoke_without_command=True)
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
-        """Commands to change the bot's presence. Restricted to admins."""
+        """Commands to change the bot's presence."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
@@ -519,96 +519,6 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
                 await ctx.send(result)
             else:
                 await ctx.send('Extension has been reloaded.')
-
-
-
-
-
-    @commands.command(name='send')
-    @commands.cooldown(2, 10, commands.BucketType.user)
-    async def client_sendmessage(self, ctx, channelID, *, message):
-        """Sends a message to a given channel. Restricted to admins.
-
-BUG (2020/06/21): An uneven amount of colons will prevent
-    custom emoji from being detected."""
-
-        def convert_emojis_in_message(message, guild):
-
-            def partition_emoji(s, start=0):
-                """Find a substring encapsulated in colons
-                and partition it, stripping the colons."""
-                left = s.find(':', start)
-                right = s.find(':', left + 1)
-                if left == -1 or right == -1:
-                    return None
-                return s[:left], s[left + 1:right], s[right + 1:]
-
-            # NOTE: While not very memory efficient to create a dictionary
-            # of emojis, the send command is sparsely used
-            emojis = {e.name: e for e in guild.emojis}
-
-            # BUG: Emojis not separated from other words by spaces don't
-            # get seen
-##            word_list = message.split(' ')
-##
-##            for i, word in enumerate(word_list):
-##                if word.startswith(':') and word.endswith(':'):
-##                    word = word[1:-1]
-##
-##                    e = emojis.get(word, None)
-##
-##                    if e is not None:
-##                        # Emoji found; replace word with converted text
-##                        word_list[i] = '<:{}:{}>'.format(word, e.id)
-##
-##            return ' '.join(word_list)
-
-            # BUG: this revision breaks when there are an odd number of colons
-            # NOTE: After this, `message` will no longer contain
-            # the original message
-            parts = []
-            while message:
-                search = partition_emoji(message)
-                if search is None:
-                    parts.append(message)
-                    break
-                left, e, message = search
-                parts.append(left)
-                parts.append(e)
-
-            # Iterate through the emojis found in the message
-            # NOTE: `parts` should always have an odd length
-            # (1 for no emoji, then 2 * [# of emoji] + 1)
-            for i in range(1, len(parts), 2):
-                name = parts[i]
-                # Search for custom emoji with matching names
-                e = emojis.get(name)
-
-                if e is not None:
-                    # Emoji found; replace word with converted text
-                    parts[i] = f'<:{name}:{e.id}>'
-
-            return ''.join(parts)
-
-        if channelID == 'here':
-            channel = ctx.channel
-        else:
-            channel = self.bot.get_channel(int(channelID))
-        message = convert_emojis_in_message(message, channel.guild)
-        # NOTE: Emoji conversion could result in an oversized message.
-        await channel.send(message)
-
-
-    @client_sendmessage.error
-    async def client_sendmessage_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, AttributeError):
-            if "'NoneType' object has no attribute" in str(error):
-                await ctx.send('I cannot find the given channel.')
-                ctx.handled = True
-        elif isinstance(error, discord.Forbidden):
-            await ctx.send('I cannot access this given channel.')
-            ctx.handled = True
 
 
 
