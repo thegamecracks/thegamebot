@@ -134,7 +134,7 @@ class HelpCommand(commands.HelpCommand):
                 'Type {0}help [command] for more info on a command.\n'
                 'You can also type {0}help [category] for '
                 'more info on a category (do not type spaces in the '
-                "category's name).".format(self.clean_prefix)
+                "category's name).".format(self.context.clean_prefix)
             )
         )
 
@@ -195,7 +195,7 @@ class HelpCommand(commands.HelpCommand):
             title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
             color=utils.get_bot_color(self.context.bot),
             description=(
-                f'{cog.description}\nType {self.clean_prefix}help [command] '
+                f'{cog.description}\nType {self.context.clean_prefix}help [command] '
                 'for more info on a command.'
             )
         )
