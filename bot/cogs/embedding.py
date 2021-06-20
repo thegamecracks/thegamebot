@@ -252,7 +252,8 @@ You will be DM'd for your parameters."""
                 content=f'~~{message.content}~~ Canceled hyperlink.')
 
         def check(message):
-            return message.channel == ctx.author.dm_channel
+            return (message.channel == ctx.author.dm_channel
+                    and message.author == ctx.author)
 
         message_request = await ctx.author.send(
             'Send your message here to embed it:')
