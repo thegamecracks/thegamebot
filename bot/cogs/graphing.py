@@ -205,7 +205,7 @@ or the last message that was sent."""
                 return False, 'There is no text to analyse.'
 
         ref = ctx.message.reference
-        perms = ctx.me.permissions_in(ctx.channel)
+        perms = ctx.channel.permissions_for(ctx.me)
 
         if not text and ref is not None:
             # Try recursing into the message the user replied to.

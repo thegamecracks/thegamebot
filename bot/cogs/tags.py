@@ -117,7 +117,7 @@ class Tags(commands.Cog):
         m = m or ctx.message
         can_delete = (
             m.author == ctx.me
-            or ctx.me.permissions_in(m.channel).manage_messages
+            or m.channel.permissions_for(ctx.me).manage_messages
         )
 
         if can_delete:
@@ -240,8 +240,8 @@ If you have Manage Server permissions you can also delete other people's tags.""
         tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
         if tag is None:
             return await ctx.send('That tag does not exist!')
-        elif tag['user_id'] != ctx.author.id and not ctx.author.permissions_in(
-                ctx.channel).manage_guild:
+        elif tag['user_id'] != ctx.author.id and not ctx.channel.permissions_for(
+                ctx.author).manage_guild:
             return await ctx.send('Cannot delete a tag made by someone else.')
 
         is_alias = tag['name'] != name
@@ -341,7 +341,7 @@ content: The new content to use."""
         embed.title = title
         embed.set_footer(
             text=footer.format(ctx.author.display_name),
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)

@@ -179,7 +179,7 @@ class ServerStatus:
 
         embed = discord.Embed(
             title=server.name,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         ).set_footer(
             text='Last updated'
         )
@@ -325,7 +325,7 @@ class ServerStatus:
             discord.Message
 
         """
-        stop = datetime.datetime.utcnow()
+        stop = datetime.datetime.now(datetime.timezone.utc)
         start = stop - datetime.timedelta(hours=24)
         datapoints = await self.bm_client.get_player_count_history(
             self.server_id, start=start, stop=stop
@@ -389,7 +389,7 @@ class ServerStatus:
 
         Args:
             now (Optional[datetime.datetime]): The current time.
-                Defaults to datetime.datetime.utcnow().
+                Defaults to datetime.datetime.now(datetime.timezone.utc).
             inclusive (bool): Return 0 when the current time
                 is already in sync with the interval.
 
@@ -397,7 +397,7 @@ class ServerStatus:
             int
 
         """
-        now = now or datetime.datetime.utcnow()
+        now = now or datetime.datetime.now(datetime.timezone.utc)
         seconds = now.minute * 60 + now.second
         wait_for = self.loop_interval - seconds % self.loop_interval
         if inclusive:
@@ -1007,7 +1007,7 @@ sessions: If true, fetches session data for each player, including the last time
                     search='|'.join([str(n) for n in ids]),
                     # thankfully battlemetrics does not care how
                     # long the query string is
-                    last_seen_before=datetime.datetime.utcnow()
+                    last_seen_before=datetime.datetime.now(datetime.timezone.utc)
                                      - datetime.timedelta(weeks=2),
                     include_identifiers=True
                 ),
@@ -1080,7 +1080,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
 
             player = await self.bm_client.get_player_info(player_id)
 
-            stop = datetime.datetime.utcnow()
+            stop = datetime.datetime.now(datetime.timezone.utc)
             start = stop - datetime.timedelta(days=30)
             datapoints = await self.bm_client.get_player_time_played_history(
                 player_id, 10654566, start=start, stop=stop)
@@ -1123,7 +1123,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
             color=discord.Color.gold(),
             description=description,
             title=title,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         ).set_footer(
             text='Started at'
         )
@@ -1146,7 +1146,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         ).set_footer(
             text='Finished at'
         )
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
 
         return embed
 
@@ -1169,7 +1169,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         ).set_footer(
             text='Rerolled at'
         )
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
 
         return embed
 

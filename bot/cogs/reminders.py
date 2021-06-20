@@ -102,7 +102,7 @@ class Reminders(commands.Cog):
 
         # Make times relative to the timezone
         settings = self.DATEPARSER_SETTINGS.copy()
-        now = pytz.UTC.localize(datetime.datetime.utcnow()).astimezone(tz)
+        now = datetime.datetime.now(datetime.timezone.utc).astimezone(tz)
         settings['RELATIVE_BASE'] = now
         settings['TIMEZONE'] = now.tzname()
 
@@ -110,7 +110,7 @@ class Reminders(commands.Cog):
         dt = dateparser.parse(date_string, settings=settings)
 
         # Offset back to UTC and make it timezone-naive
-        dt = dt.astimezone(pytz.UTC).replace(tzinfo=None)
+        dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
         return dt
 

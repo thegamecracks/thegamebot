@@ -289,7 +289,7 @@ class BotBlackjackGame:
             color=self.color
         ).set_author(
             name=user.display_name,
-            icon_url=user.avatar_url
+            icon_url=user.avatar.url
         )
 
         # deck = self.deck

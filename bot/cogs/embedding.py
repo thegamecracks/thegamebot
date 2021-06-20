@@ -156,7 +156,10 @@ These are the limits set by Discord:
         if fields:
             embed_dict['fields'] = list(fields.values())
         embed = discord.Embed.from_dict(embed_dict)
-        embed.timestamp = datetime.datetime.now().astimezone()
+        # NOTE: In discord.py 2.0.0a d30fea5, if the timestamp is set
+        # through assignment instead of in constructor,
+        # it is interpreted as UTC instead of in local time
+        embed.timestamp = datetime.datetime.now()
         try:
             await ctx.send(embed=embed)
         except discord.HTTPException as e:
@@ -227,7 +230,7 @@ You will be DM'd for your parameters."""
             title=f'{ctx.author.display_name}',
             description=f'[{text}]({link})',
             color=utils.get_user_color(ctx.bot, ctx.author),
-            timestamp=datetime.datetime.now().astimezone()
+            timestamp=datetime.datetime.now()
         )
 
         await ctx.send(embed=embed)
@@ -270,7 +273,7 @@ You will be DM'd for your parameters."""
             title=f'{ctx.author.display_name}',
             description=message.content,
             color=utils.get_user_color(ctx.bot, ctx.author),
-            timestamp=datetime.datetime.now().astimezone()
+            timestamp=datetime.datetime.now()
         )
 
         await ctx.send(embed=embed)

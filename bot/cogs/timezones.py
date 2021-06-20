@@ -460,9 +460,9 @@ message: The message to remove a reaction from. If not provided, checks the last
 
         if message is None:
             response = '\N{BLACK QUESTION MARK ORNAMENT}'
-        elif (  message.author != ctx.author
-                and not ctx.author.permissions_in(
-                    message.channel).manage_messages):
+        elif (message.author != ctx.author
+                and not message.channel.permissions_for(
+                    ctx.author).manage_messages):
             response = '\N{CROSS MARK}'
         elif not getattr(self.get_clock_reaction(message), 'me', False):
             response = '\N{BLACK QUESTION MARK ORNAMENT}'
@@ -471,7 +471,7 @@ message: The message to remove a reaction from. If not provided, checks the last
 
         # Delete message if successful and message is in same channel
         if response == '\N{WHITE HEAVY CHECK MARK}':
-            me_perms = ctx.me.permissions_in(ctx.channel)
+            me_perms = ctx.channel.permissions_for(ctx.me)
             if ctx.channel == message.channel and me_perms.manage_messages:
                 return await ctx.message.delete()
 
@@ -565,7 +565,7 @@ By default, this is enabled."""
 This is useful if you have automatic timezone translation disabled but want it for a particular message.
 This can only be used on your messages unless you also have Manage Messages permission.
 The sender must have a timezone set to use this."""
-        perms = ctx.author.permissions_in(ctx.channel)
+        perms = ctx.channel.permissions_for(ctx.author)
         if message.guild != ctx.guild:
             return await ctx.reply('The message must be in the same guild!')
         elif message.author.bot:

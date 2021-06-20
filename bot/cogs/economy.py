@@ -58,7 +58,7 @@ class Economy(commands.Cog):
             color=utils.get_user_color(ctx.bot, user)
         ).set_author(
             name=user.display_name,
-            icon_url=user.avatar_url
+            icon_url=user.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -185,7 +185,7 @@ class Economy(commands.Cog):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot),
             description=description,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         )
 
         await ctx.send(embed=embed)

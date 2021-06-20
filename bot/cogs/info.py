@@ -92,10 +92,10 @@ Optional settings:
             ),
             color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
-            url=self.bot.user.avatar_url
+            url=self.bot.user.avatar.url
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         vp = sys.version_info
@@ -193,7 +193,7 @@ This only counts channels that both you and the bot can see."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -228,7 +228,7 @@ This only counts channels that both you and the bot can see."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         stats = self.bot.info_processed_commands
@@ -495,7 +495,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                 colour=utils.get_bot_color(ctx.bot)
             ).set_footer(
                 text=f'Requested by {ctx.author.display_name}',
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             graph = None
@@ -545,7 +545,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -599,7 +599,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
 
         embed.set_footer(
             text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await message.edit(embed=embed)
@@ -622,7 +622,7 @@ Format referenced from the Ayana bot."""
         created = (
             utils.timedelta_string(
                 relativedelta(
-                    datetime.datetime.utcnow(),
+                    datetime.datetime.now(datetime.timezone.utc),
                     guild.created_at
                 ),
                 **self.DATETIME_DIFFERENCE_PRECISION,
@@ -637,7 +637,7 @@ Format referenced from the Ayana bot."""
 
         embed = discord.Embed(
             color=utils.get_user_color(ctx.bot, ctx.author),
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         )
 
         embed.set_author(name=guild.name)
@@ -675,7 +675,7 @@ Format referenced from the Ayana bot."""
         )
         embed.set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -767,7 +767,7 @@ Format referenced from the Ayana bot."""
             joined = (
                 utils.timedelta_string(
                     relativedelta(
-                        datetime.datetime.utcnow(),
+                        datetime.datetime.now(datetime.timezone.utc),
                         user.joined_at
                     ),
                     **self.DATETIME_DIFFERENCE_PRECISION,
@@ -806,7 +806,7 @@ Format referenced from the Ayana bot."""
         created = (
             utils.timedelta_string(
                 relativedelta(
-                    datetime.datetime.utcnow(),
+                    datetime.datetime.now(datetime.timezone.utc),
                     user.created_at
                 ),
                 **self.DATETIME_DIFFERENCE_PRECISION,
@@ -818,11 +818,11 @@ Format referenced from the Ayana bot."""
         embed = discord.Embed(
             color=utils.get_user_color(ctx.bot, user),
             description=description,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         )
 
-        embed.set_author(name=author)  # icon_url=user.avatar_url
-        embed.set_thumbnail(url=user.avatar_url)
+        embed.set_author(name=author)  # icon_url=user.avatar.url
+        embed.set_thumbnail(url=user.avatar.url)
         if not streamer_friendly:
             embed.add_field(
                 name='ID',
@@ -893,7 +893,7 @@ Format referenced from the Ayana bot."""
             )
         embed.set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)

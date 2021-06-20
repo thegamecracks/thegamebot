@@ -41,7 +41,7 @@ class EmbedConfirmation(abc.ABC):
             color=self.color
         ).set_author(
             name=self.ctx.author.display_name,
-            icon_url=self.ctx.author.avatar_url
+            icon_url=self.ctx.author.avatar.url
         )
         self.embed = embed
         return embed
@@ -176,6 +176,6 @@ class TextConfirmation(EmbedConfirmation):
 
 def AdaptiveConfirmation(ctx, *args, **kwargs):
     """Return a Confirmation that works for the given context."""
-    perms = ctx.me.permissions_in(ctx.channel)
+    perms = ctx.channel.permissions_for(ctx.me)
     cls = ReactionConfirmation if perms.add_reactions else TextConfirmation
     return cls(ctx, *args, **kwargs)

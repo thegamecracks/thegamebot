@@ -155,7 +155,7 @@ limit: The number of messages to look through. (max: 100)"""
         if limit is None:
             return await ctx.send_help(ctx.command)
 
-        perms = ctx.me.permissions_in(ctx.channel)
+        perms = ctx.channel.permissions_for(ctx.me)
         prefixes = ()
         if perms.manage_messages:
             prefixes = await ctx.bot.get_prefix(ctx.message)
