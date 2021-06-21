@@ -92,13 +92,32 @@ def is_giveaway_running(giveaway_channel_id):
 
 class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
-    REGEX = re.compile('\d{17}')
+    REGEX = re.compile(r'\d{17}')
     INTEGER = 10_000_000_000_000_000
 
     async def convert(self, ctx, arg):
         if not self.REGEX.match(arg):
             raise commands.BadArgument('Could not parse Steam64ID.')
         return int(arg)
+
+
+class ServerStatusView(discord.ui.View):
+    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
+
+    def __init__(self, status, cooldown, timeout=None):
+        super().__init__(timeout=timeout)
+        self.status = status
+        self.cooldown = cooldown
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        return (
+            not interaction.user.bot
+            and not self.cooldown.update_rate_limit()
+        )
+
+    @discord.ui.button(style=discord.ButtonStyle.green, emoji=REFRESH_EMOJI)
+    async def on_refresh(self, button: discord.Button, interaction: discord.Interaction):
+        await self.status.update()
 
 
 @dataclass
@@ -136,7 +155,14 @@ class ServerStatus:
     # Last message sent with the uploaded graph
     last_graph: Optional[discord.Message] = field(default=None, init=False)
 
+    view: ServerStatusView = field(init=False)
+
     BM_SERVER_LINK: ClassVar[str] = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
+
+    def __post_init__(self):
+        self.view = ServerStatusView(self, self.react_cooldown)
+        # Make the view start listening for events
+        self.bot._connection.store_view(self.view, self.message_id)
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -316,7 +342,6 @@ class ServerStatus:
         the resulting message in self.last_graph.
 
         Args:
-            channel (discord.abc.Messageable): The channel to upload to.
             server (abattlemetrics.Server): The Server object.
                 Used to know the max number of players.
             graphing_cog (commands.Cog): The Graphing cog.
@@ -354,7 +379,7 @@ class ServerStatus:
                 Results from either a cooldown or a 5xx response.
 
         """
-        retry_after = self.edit_cooldown.update_rate_limit(None)
+        retry_after = self.edit_cooldown.update_rate_limit()
         if retry_after:
             return retry_after, None
         # NOTE: a high cooldown period will help with preventing concurrent
@@ -365,19 +390,20 @@ class ServerStatus:
         except abm.HTTPException as e:
             if e.status >= 500:
                 return 30.0, None
+            raise e
 
         embed = self.create_embed(server)
 
         # Add graph to embed
         graph = self.last_graph
-        if not graph or not self.graph_cooldown.update_rate_limit(None):
+        if not graph or not self.graph_cooldown.update_rate_limit():
             graphing_cog = self.bot.get_cog('Graphing')
             if graphing_cog:
                 graph = await self.upload_graph(server, graphing_cog)
         attachment = graph.attachments[0]
         embed.set_image(url=attachment)
 
-        await self.partial_message.edit(embed=embed)
+        await self.partial_message.edit(embed=embed, view=self.view)
         return server, embed
 
     def _get_next_period(self, now=None, *, inclusive=False) -> int:
@@ -734,7 +760,6 @@ class SignalHill(commands.Cog):
     SERVER_STATUS_FALSE_EDIT_RATE = 5
     SERVER_STATUS_GRAPH_DEST = 842924251954151464
     SERVER_STATUS_GRAPH_RATE = 60 * 30
-    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
     GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
     GIVEAWAY_EMOJI_ID = 815804214470770728  # testing: 340900129114423296
     GUILD_ID = 811415496036843550
@@ -796,35 +821,6 @@ class SignalHill(commands.Cog):
             'react_cooldown': commands.Cooldown(1, self.SERVER_STATUS_FALSE_EDIT_RATE),
             'loop_interval': self.SERVER_STATUS_INTERVAL
         }
-
-
-    @commands.Cog.listener('on_raw_reaction_add')
-    async def server_status_react(self, payload):
-        """Update a server status manually with a reaction."""
-        if (    str(payload.emoji) != self.REFRESH_EMOJI
-                or getattr(payload.member, 'bot', False)):
-            return
-
-        status = discord.utils.get(
-            self.server_statuses,
-            channel_id=payload.channel_id,
-            message_id=payload.message_id
-        )
-        if status is None:
-            return
-
-        server, embed = await status.update()
-        # NOTE: loop could decide to update right after this
-
-        if embed or not status.react_cooldown.update_rate_limit(None):
-            # Update successful or can pretend to update
-            message = status.partial_message
-            try:
-                await message.clear_reaction(self.REFRESH_EMOJI)
-            except discord.HTTPException:
-                pass
-            else:
-                await message.add_reaction(self.REFRESH_EMOJI)
 
 
     @property
@@ -915,12 +911,30 @@ class SignalHill(commands.Cog):
 
 
 
-    @commands.command(name='togglesignalstatus', aliases=('tss',))
+    @commands.group(name='signalstatus')
     @commands.max_concurrency(1)
     @commands.is_owner()
-    async def client_toggle_server_status(self, ctx):
+    async def client_server_status(self, ctx):
+        """Manage the Signal Hill server statuses."""
+
+
+    @client_server_status.command(name='create')
+    async def client_server_status_create(self, ctx, channel: discord.TextChannel):
+        """Create a message with the server status view and temporary embed."""
+        embed = discord.Embed(
+            color=utils.get_bot_color(ctx.bot),
+            description='Server status coming soon',
+            timestamp=datetime.datetime.now()
+        )
+        view = ServerStatusView(None, None)
+        await channel.send(embed=embed, view=view)
+        view.stop()
+
+
+    @client_server_status.command(name='toggle')
+    async def client_server_status_toggle(self, ctx):
         """Toggle the Signal Hill server statuses.
-Turns back on when the bot connects."""
+Automatically turns back on when the bot connects."""
         enabled = self.server_status_toggle() == 0
         emoji = '\N{LARGE GREEN CIRCLE}' if enabled else '\N{LARGE RED CIRCLE}'
         await ctx.message.add_reaction(emoji)
