@@ -9,7 +9,7 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Optional, List
+from typing import Callable, ClassVar, Dict, Optional, List
 
 import abattlemetrics as abm
 import discord
@@ -701,38 +701,67 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
     async def yield_pages(tickets):
         paginator = commands.Paginator(prefix='', suffix='', max_size=2048)
         page_number = 0
+        # Yield pages as they are created
         async for line in tickets:
-            # Yield pages as they are created
-            pages = paginator.pages
-            if len(pages) - 1 > page_number:
+            paginator.add_line(line)
+
+            # Use _pages to not prematurely close the current page
+            pages = paginator._pages
+            if len(pages) > page_number:
                 yield pages[page_number]
                 page_number += 1
-
-            paginator.add_line(line)
 
         yield paginator.pages[-1]
 
     @staticmethod
     async def yield_tickets(channels):
-        def check(m):
+        async def check(m):
             nonlocal match
+            if m.author.bot:
+                return False
+
+            author = member_cache.get(m.author.id)
+            if author is None:
+                author = m.author
+            elif isinstance(author, int):
+                return author
+
+            if not isinstance(author, discord.Member):
+                try:
+                    author = await m.guild.fetch_member(author.id)
+                except discord.NotFound:
+                    # Return ID to indicate the player has left
+                    member_cache[author.id] = author.id
+                    return author.id
+                member_cache[author.id] = author
+
             # Optimized way of checking for staff role
-            if not m.author._roles.get(811415496075247649):
+            if not author._roles.get(811415496075247649):
                 return False
             match = converters.CodeBlock.from_search(m.content)
             return match is not None and SteamIDConverter.REGEX.search(match.code)
 
+        member_cache: Dict[int, Union[discord.Member, int]] = {}
+
         match: Optional[converters.CodeBlock] = None
         for c in channels:
-            message = await c.history().find(check)
-            if message is None:
+            if not re.match(r'.*?-\d+', c.name):
+                continue
+
+            async for message in c.history():
+                status = await check(message)
+                if status:
+                    break
+            else:
                 yield f'{c.mention}: no message found'
+                continue
+
+            if isinstance(status, int):
+                yield f'{c.mention}: <@{status}> has left'
             else:
                 match: converters.CodeBlock
                 yield (
-                    '{c}: {a} `{m}`\n'
-                    '\u200b \u200b \u200b \u200b '
-                    '([Jump to message]({j}))'.format(
+                    '{c}: {a} ([Jump to message]({j}))\n`{m}`'.format(
                         c=c.mention,
                         a=message.author.mention,
                         m=match.code,
@@ -953,10 +982,13 @@ Automatically turns back on when the bot connects."""
     @client_whitelist.command(name='accepted')
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_whitelist_accepted(self, ctx):
+    async def client_whitelist_accepted(self, ctx, open=False):
         """List whitelist tickets that have been approved.
-This searches up to 100 messages in each whitelist ticket for acceptance from staff."""
-        category = ctx.bot.get_channel(824502569652322304)
+This searches up to 100 messages in each whitelist ticket for acceptance from staff.
+
+open: If True, looks through the open whitelist tickets instead of closed tickets."""
+        category_id = 824502569652322304 if open else 824502754751152138
+        category = ctx.bot.get_channel(category_id)
 
         if not category.text_channels:
             return await ctx.send('No whitelist tickets are open!')
