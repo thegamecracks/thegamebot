@@ -10,10 +10,6 @@ import re
 
 import discord
 from discord.ext import commands
-from discord_slash.utils import manage_commands
-from discord_slash import cog_ext as dslash_cog
-from discord_slash import SlashContext
-import discord_slash as dslash
 
 from bot import utils
 
@@ -278,30 +274,6 @@ You will be DM'd for your parameters."""
         )
 
         await ctx.send(embed=embed)
-
-
-
-
-
-    @dslash_cog.cog_slash(
-        name='hyperlink',
-        options=[manage_commands.create_option(
-            name='message',
-            description="The message to format. Example: text [display text](https://mylink.com/) text",
-            option_type=3,
-            required=True
-        )]
-    )
-    async def client_slash_hyperlink(self, ctx: SlashContext, message):
-        """Send a message with the ability to replace links with custom text."""
-        if not self.hyperlink_regex.search(message):
-            return await ctx.send(
-                'Your message should use a custom text hyperlink at least once.\n'
-                'See the example in the message option.',
-                hidden=True
-            )
-        content = f"**Hyperlink message by {ctx.author.mention}**\n{message}"
-        await ctx.send(content, allowed_mentions=discord.AllowedMentions.none())
 
 
 

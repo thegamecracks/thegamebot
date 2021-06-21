@@ -15,10 +15,6 @@ from typing import Optional
 from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
-from discord_slash.utils import manage_commands
-from discord_slash import cog_ext as dslash_cog
-from discord_slash import SlashContext
-import discord_slash as dslash
 import humanize
 import matplotlib
 from matplotlib import colors
@@ -549,14 +545,6 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
         )
 
         await ctx.send(embed=embed)
-
-
-    @dslash_cog.cog_slash(name='invite')
-    async def client_slash_invite(self, ctx: SlashContext):
-        """Get the invite link for the bot."""
-        link = self.get_invite_link()
-
-        await ctx.send(content=link, hidden=True)
 
 
 

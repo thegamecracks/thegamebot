@@ -13,7 +13,6 @@ import os
 import aiohttp
 import discord
 from discord.ext import commands
-import discord_slash as dslash
 from dotenv import load_dotenv
 import inflect
 import matplotlib
@@ -93,11 +92,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             self.uptime_last_disconnect = self.uptime_last_connect
             self.uptime_total_downtime = datetime.timedelta()
             self.uptime_is_online = False
-
-        # Setup slash command system
-        with utils.update_text('Adding slash command extension',
-                               'Added slash command extension'):
-            self.slash = dslash.SlashCommand(self)
 
         # Load extensions
         for i, name in enumerate(self.EXT_LIST, start=1):

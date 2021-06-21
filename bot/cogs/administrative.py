@@ -564,19 +564,6 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
 
 
 
-    @commands.command(name='syncslash')
-    @commands.cooldown(1, 15)
-    async def client_sync_slash(self, ctx):
-        """Synchronize slash commands."""
-        async with ctx.typing():
-            await self.bot.slash.sync_all_commands()
-
-        await ctx.send('Synced slash commands.')
-
-
-
-
-
 
 
 
