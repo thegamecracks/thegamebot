@@ -505,9 +505,9 @@ class SessionPageSourceMixin:
 class LastSessionAsyncPageSource(
         SessionPageSourceMixin, EmbedPageSourceMixin,
         menus.AsyncIteratorPageSource):
-    def __init__(self, bm_client, ids, *, per_page, **kwargs):
+    def __init__(self, bm_client, server_id, ids, *, per_page, **kwargs):
         super().__init__(
-            self.yield_sessions(bm_client, per_page + 1, ids),
+            self.yield_sessions(bm_client, server_id, per_page + 1, ids),
             # NOTE: per_page + 1 since AsyncIteratorPageSource fetches
             # one extra to know if it has to paginate or not
             per_page=per_page,
@@ -515,12 +515,14 @@ class LastSessionAsyncPageSource(
         )
 
     @staticmethod
-    async def yield_sessions(bm_client, group_size, ids: list):
+    async def yield_sessions(
+            bm_client, server_id: int, group_size: int, ids: list):
         """Yield the most recent sessions of a given list of steam/player IDs.
 
         Args:
             bm_client (abattlemetrics.BattleMetricsClient):
                 The client to use for fetching sessions.
+            server_id (int): The server's ID to get sessions from.
             group_size (int):
                 When there are multiple steam64IDs, this specifies
                 how many of those IDs are all matched at once.
@@ -540,7 +542,7 @@ class LastSessionAsyncPageSource(
                     return (orig, None, None)
 
                 session = await bm_client.get_player_session_history(
-                    p_id, limit=1, server_ids=(10654566,)
+                    p_id, limit=1, server_ids=(server_id,)
                 ).flatten()
                 if not session:
                     return (orig, p_id, None)
@@ -784,6 +786,8 @@ class SignalHill(commands.Cog):
     """Stuff for the Signal Hill server."""
 
     ACTIVE_HOURS = range(6, 22)
+    BM_SERVER_ID_INA = 10654566
+    BM_SERVER_ID_SOG = 4712021
     SERVER_STATUS_INTERVAL = 60
     SERVER_STATUS_EDIT_RATE = 10
     SERVER_STATUS_FALSE_EDIT_RATE = 5
@@ -792,6 +796,7 @@ class SignalHill(commands.Cog):
     GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
     GIVEAWAY_EMOJI_ID = 815804214470770728  # testing: 340900129114423296
     GUILD_ID = 811415496036843550
+    WHITELISTED_PLAYERS_CHANNEL_ID = 824486812709027880
 
     def __init__(self, bot):
         self.bot = bot
@@ -800,20 +805,18 @@ class SignalHill(commands.Cog):
             token=os.getenv('BattlemetricsToken')
         )
         self.server_statuses = [
-            # I&A server
             ServerStatus(
                 bot, self.bm_client,
-                server_id=10654566,
+                server_id=self.BM_SERVER_ID_INA,
                 channel_id=819632332896993360,
                 message_id=842228691077431296,
                 server_map=None,
                 line_color='#F54F33',
                 **self.create_server_status_params()
             ),
-            # SOG server
             ServerStatus(
                 bot, self.bm_client,
-                server_id=4712021,
+                server_id=self.BM_SERVER_ID_SOG,
                 channel_id=852008953968984115,
                 message_id=852009695241175080,
                 server_map='Cam Lao Nam',
@@ -840,6 +843,10 @@ class SignalHill(commands.Cog):
     @property
     def guild(self):
         return self.bot.get_guild(self.GUILD_ID)
+
+    @property
+    def whitelist_channel(self):
+        return self.bot.get_channel(self.WHITELISTED_PLAYERS_CHANNEL_ID)
 
     def create_server_status_params(self):
         return {
@@ -1006,7 +1013,44 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
             await menu._event.wait()
 
 
-    @client_whitelist.command(name='expired')
+    @commands.Cog.listener('on_raw_message_delete')
+    @commands.Cog.listener('on_raw_message_edit')
+    async def on_whitelist_update(self, payload):
+        """Nullify the stored last message ID for the whitelist channel
+        if a delete or edit was done inside the channel.
+        """
+        if payload.channel_id == self.WHITELISTED_PLAYERS_CHANNEL_ID:
+            settings = ctx.bot.get_cog('Settings')
+            if not settings.get('checkwhitelist-last_message_id', None):
+                settings.set('checkwhitelist-last_message_id', None).save()
+
+
+    async def get_whitelist_channel_ids(self) -> List[int]:
+        settings = self.bot.get_cog('Settings')
+        ids = settings.get('checkwhitelist-ids', None)
+        last_message_id = settings.get('checkwhitelist-last_message_id', None)
+        if (self.whitelist_channel.last_message_id != last_message_id
+                or ids is None):
+            ids = []
+
+            # Fetch IDs from channel
+            async for m in self.whitelist_channel.history(limit=None):
+                for match in SteamIDConverter.REGEX.finditer(m.content):
+                    ids.append(int(match.group()))
+
+            # Cache them in settings
+            settings.set(
+                'checkwhitelist-ids',
+                ids
+            ).set(
+                'checkwhitelist-last_message_id',
+                whitelist_channel.last_message_id
+            ).save()
+
+        return ids
+
+
+    @client_whitelist.group(name='expired', invoke_without_command=True)
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
     async def client_whitelist_expired(self, ctx, sessions: bool = False):
@@ -1014,35 +1058,14 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
 This looks through the steam IDs in the <#824486812709027880> channel.
 
 sessions: If true, fetches session data for each player, including the last time they played. This may make queries slower."""
-        whitelist_channel = ctx.bot.get_channel(824486812709027880)
-
-        settings = ctx.bot.get_cog('Settings')
-        ids = settings.get('checkwhitelist-ids', None)
-        last_message_id = settings.get('checkwhitelist-last_message_id', 0)
-        # NOTE: this does not take into consideration whether
-        # a message was edited or deleted
-        if ids is None or whitelist_channel.last_message_id != last_message_id:
-            ids = []
-
-            # Fetch IDs from channel
-            async with ctx.typing():
-                async for m in whitelist_channel.history(limit=None):
-                    for match in SteamIDConverter.REGEX.finditer(m.content):
-                        ids.append(int(match.group()))
-
-            # Cache them in settings
-            settings.set(
-                'checkwhitelist-ids', ids
-            ).set(
-                'checkwhitelist-last_message_id',
-                whitelist_channel.last_message_id
-            ).save()
+        async with ctx.typing():
+            ids = await self.get_whitelist_channel_ids()
 
         get_session = None
         if sessions:
             get_session = functools.partial(
                 self.bm_client.get_player_session_history,
-                server_ids=(10654566,)
+                server_ids=(self.BM_SERVER_ID_INA,)
             )
 
         menu = menus.MenuPages(
@@ -1078,6 +1101,62 @@ sessions: If true, fetches session data for each player, including the last time
             await menu._event.wait()
 
 
+    @client_whitelist_expired.command(name='dump')
+    @commands.cooldown(1, 120, commands.BucketType.default)
+    async def client_whitelist_expired_dump(self, ctx):
+        """Send a list of the expired whitelists."""
+        async with ctx.typing():
+            ids = await self.get_whitelist_channel_ids()
+
+            source = PlayerListPageSource.yield_players(
+                functools.partial(
+                    self.bm_client.list_players,
+                    public=False,
+                    search='|'.join([str(n) for n in ids]),
+                    last_seen_before=datetime.datetime.now(datetime.timezone.utc)
+                                     - datetime.timedelta(weeks=2),
+                    include_identifiers=True
+                ),
+                functools.partial(
+                    self.bm_client.get_player_session_history,
+                    server_ids=(self.BM_SERVER_ID_INA,)
+                ),
+                ids
+            )
+
+            results = []
+            async for player, session in source:
+                s_id = discord.utils.get(
+                    player.identifiers,
+                    type=abm.IdentifierType.STEAM_ID
+                )
+                s_id = s_id.name if s_id else '\u200b'
+
+                started_at = session.stop or session.start
+                diff = datetime.datetime.utcnow() - started_at
+                diff_string = utils.timedelta_abbrev(diff)
+
+                results.append((
+                    '{} = {} [{} {}]'.format(
+                        player.name,
+                        s_id,
+                        started_at.strftime('%m/%d').lstrip('0'),
+                        diff_string
+                    ),
+                    diff
+                ))
+
+        # Sort by most recent
+        results.sort(key=lambda x: x[1])
+
+        paginator = commands.Paginator(prefix='', suffix='')
+        for line, _ in results:
+            paginator.add_line(line)
+
+        for page in paginator.pages:
+            await ctx.send(page)
+
+
 
 
 
@@ -1095,7 +1174,8 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         ids = dict.fromkeys(ids)
 
         menu = menus.MenuPages(
-            LastSessionAsyncPageSource(self.bm_client, ids, per_page=6),
+            LastSessionAsyncPageSource(
+                self.bm_client, self.BM_SERVER_ID_INA, ids, per_page=6),
             clear_reactions_after=True
         )
         async with ctx.typing():
@@ -1129,7 +1209,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
             stop = datetime.datetime.now(datetime.timezone.utc)
             start = stop - datetime.timedelta(days=30)
             datapoints = await self.bm_client.get_player_time_played_history(
-                player_id, 10654566, start=start, stop=stop)
+                player_id, self.BM_SERVER_ID_INA, start=start, stop=stop)
 
         total_playtime = sum(dp.value for dp in datapoints)
         m, s = divmod(total_playtime, 60)
