@@ -335,7 +335,7 @@ class HelpCommand(commands.HelpCommand):
         for com in group.commands:
             embed.add_field(
                 name=com.name,
-                value=com.short_doc if com.short_doc else 'No description.'
+                value=com.short_doc or 'No description.'
             )
 
         await self.send(embed=embed)

@@ -12,6 +12,7 @@ import re
 from typing import Callable, ClassVar, Dict, Optional, List
 
 import abattlemetrics as abm
+import dateparser
 import discord
 from discord.ext import commands, menus, tasks
 import humanize
@@ -41,10 +42,10 @@ class GiveawayStatus(enum.Enum):
 
 def get_giveaway_status(m: discord.Message) -> GiveawayStatus:
     """Infer the status of a giveaway from the message."""
-    embed = m.embeds[0]
-    if embed is None:
+    if not m.embeds:
         return GiveawayStatus.UNKNOWN
 
+    embed = m.embeds[0]
     title = str(embed.title).lower()
     if 'finish' in title:
         return GiveawayStatus.FINISHED
@@ -60,22 +61,24 @@ def check_giveaway_status(
         bad_response: str):
     """Check if the giveaway's status matches a condition.
 
-    This will add `last_giveaway` to the context, which will
-    be the giveaway message if it exists.
+    Searches through the last 10 messages for a giveaway message,
+    i.e. where the status is not `GiveawayStatus.UNKNOWN`.
+
+    This will add a `last_giveaway` attribute to the context which will
+    be the giveaway message or None if it does not exist.
 
     """
     e = errors.ErrorHandlerResponse(bad_response)
 
     async def predicate(ctx):
         channel = ctx.bot.get_channel(giveaway_channel_id)
-        try:
-            ctx.last_giveaway = m = await channel.history(limit=1).next()
-        except discord.NoMoreItems:
-            ctx.last_giveaway = None
+
+        ctx.last_giveaway = m = await channel.history(limit=10).find(
+            lambda m: get_giveaway_status(m) != GiveawayStatus.UNKNOWN
+        )
+        if not m or not check_func(get_giveaway_status(m)):
             raise e
 
-        if not check_func(get_giveaway_status(m)):
-            raise e
         return True
 
     return commands.check(predicate)
@@ -88,6 +91,16 @@ def is_giveaway_running(giveaway_channel_id):
         lambda s: s == GiveawayStatus.RUNNING,
         'There is no giveaway running at the moment!'
     )
+
+
+class DateConverter(commands.Converter):
+    """Parse a datetime."""
+    async def convert(self, ctx, arg):
+        dt = await ctx.bot.loop.run_in_executor(
+            None, dateparser.parse, arg)
+        if dt is None:
+            raise commands.BadArgument('Could not parse date.')
+        return dt
 
 
 class SteamIDConverter(commands.Converter):
@@ -1243,15 +1256,17 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
             return None
 
 
-    def _giveaway_create_embed(self, title, description):
+    def _giveaway_create_embed(
+            self, end_date: Optional[datetime.datetime],
+            title: str, description: str):
         """Create the running giveaway embed."""
         embed = discord.Embed(
             color=discord.Color.gold(),
             description=description,
             title=title,
-            timestamp=datetime.datetime.now()
+            timestamp=end_date or datetime.datetime.now()
         ).set_footer(
-            text='Started at'
+            text='End date' if end_date else 'Start date'
         )
 
         return embed
@@ -1270,7 +1285,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
             value=f'{winner.mention}\n'
                   'Please create a support ticket to receive your reward!'
         ).set_footer(
-            text='Finished at'
+            text='Finish date'
         )
         embed.timestamp = datetime.datetime.now()
 
@@ -1443,9 +1458,19 @@ reason: The reason for rerolling the winner."""
 
 
     @client_giveaway.command(name='simulate')
-    async def client_giveaway_simulate(self, ctx, title, *, description):
-        """Generate a giveaway message in the current channel."""
-        embed = self._giveaway_create_embed(title, description)
+    async def client_giveaway_simulate(
+        self, ctx, end: Optional[DateConverter], title, *, description):
+        """Generate a giveaway message in the current channel.
+
+end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+title: The title of the giveaway.
+description: The description of the giveaway."""
+        if end is not None and end.tzinfo is None:
+            end = await ctx.bot.localize_datetime(
+                ctx.author.id, end,
+                return_row=False
+            )
+        embed = self._giveaway_create_embed(end, title, description)
         await ctx.send(embed=embed)
 
 
@@ -1456,10 +1481,16 @@ reason: The reason for rerolling the winner."""
         'There is already a giveaway running! Please "finish" or "cancel" '
         'the giveaway before creating a new one!'
     )
-    async def client_giveaway_start(self, ctx, title, *, description):
+    async def client_giveaway_start(
+            self, ctx, end: Optional[DateConverter], title, *, description):
         """Start a new giveaway in the giveaway channel.
 Only one giveaway can be running at a time, for now that is."""
-        embed = self._giveaway_create_embed(title, description)
+        if end is not None and end.tzinfo is None:
+            end = await ctx.bot.localize_datetime(
+                ctx.author.id, end,
+                return_row=False
+            )
+        embed = self._giveaway_create_embed(end, title, description)
 
         message = await self.giveaway_channel.send(embed=embed)
 
