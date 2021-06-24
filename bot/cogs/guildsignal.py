@@ -9,7 +9,7 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Dict, Optional, List
+from typing import Callable, ClassVar, Dict, Optional, List, Union
 
 import abattlemetrics as abm
 import dateparser
@@ -1046,7 +1046,7 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
         if a delete or edit was done inside the channel.
         """
         if payload.channel_id == self.WHITELISTED_PLAYERS_CHANNEL_ID:
-            settings = ctx.bot.get_cog('Settings')
+            settings = self.bot.get_cog('Settings')
             if not settings.get('checkwhitelist-last_message_id', None):
                 settings.set('checkwhitelist-last_message_id', None).save()
 
@@ -1070,7 +1070,7 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
                 ids
             ).set(
                 'checkwhitelist-last_message_id',
-                whitelist_channel.last_message_id
+                self.whitelist_channel.last_message_id
             ).save()
 
         return ids
