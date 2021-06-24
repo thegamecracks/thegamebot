@@ -95,11 +95,24 @@ def is_giveaway_running(giveaway_channel_id):
 
 class DateConverter(commands.Converter):
     """Parse a datetime."""
-    async def convert(self, ctx, arg):
+    def __init__(self, stored_tz=True):
+        self.stored_tz = stored_tz
+
+    async def convert(self, ctx, arg) -> datetime.datetime:
         dt = await ctx.bot.loop.run_in_executor(
             None, dateparser.parse, arg)
+
         if dt is None:
             raise commands.BadArgument('Could not parse date.')
+        elif dt.tzinfo is None:
+            if self.stored_tz:
+                # Since the datetime was user inputted, if it's naive
+                # it's probably in their timezone so don't assume it's UTC
+                dt = await ctx.bot.localize_datetime(
+                    ctx.author.id, dt, assume_utc=False, return_row=False)
+            else:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+
         return dt
 
 
@@ -1272,18 +1285,25 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         return embed
 
 
-    def _giveaway_finish_embed(self, embed, winner, total):
+    def _giveaway_finish_embed(self, embed, winners, total):
         """Edit a running embed so the giveaway is finished."""
+        plural = self.bot.inflector.plural
+        k = len(winners)
+
         embed.color = discord.Color.green()
 
-        embed.title = 'This giveaway has finished with {:,} {}!'.format(
-            total, self.bot.inflector.plural('participant', total)
+        embed.title = '{}\nThis giveaway has finished with {:,} {}!'.format(
+            embed.title, total, plural('participant', total)
         )
 
         embed.add_field(
-            name='The winner is:',
-            value=f'{winner.mention}\n'
-                  'Please create a support ticket to receive your reward!'
+            name='The {} {}:'.format(
+                plural('winner', k), plural('is', k)
+            ),
+            value='{}\n Please create a support ticket to '
+                  'receive your reward!'.format(
+                self.bot.inflector.join([u.mention for u in winners])
+            )
         ).set_footer(
             text='Finish date'
         )
@@ -1292,18 +1312,25 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         return embed
 
 
-    def _giveaway_reroll_embed(self, embed, winner, total, reason):
-        """Edit a finished embed to replace the winner."""
-        embed.title = 'This giveaway has finished with {:,} {}!'.format(
-            total, self.bot.inflector.plural('participant', total)
+    def _giveaway_reroll_embed(self, embed, winners, total, reason):
+        """Edit a finished embed to replace the winners."""
+        plural = self.bot.inflector.plural
+        k = len(winners)
+
+        embed.title = '{}\nThis giveaway has finished with {:,} {}!'.format(
+            embed.title.split('\n')[0], total, plural('participant', total)
         )
 
         embed.clear_fields()
 
         embed.add_field(
-            name='The (rerolled) winner is:',
-            value=f'{winner.mention}\n'
-                  'Please create a support ticket to receive your reward!'
+            name='The (rerolled) {} {}:'.format(
+                plural('winner', k), plural('is', k)
+            ),
+            value='{}\n Please create a support ticket to '
+                  'receive your reward!'.format(
+                self.bot.inflector.join([u.mention for u in winners])
+            )
         ).add_field(
             name='Reason for rerolling:',
             value=reason
@@ -1338,11 +1365,19 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         return reaction, participants
 
 
-    def _giveaway_parse_winner_from_field(
+    def _giveaway_get_winners(self, embed, participants):
+        m = re.match('\d+', embed.title)
+        k = int(m.group() if m else 1)
+        return random.choices(participants, k=k)
+
+
+    def _giveaway_parse_winners_from_field(
             self, field) -> Optional[discord.Object]:
         """Parse the winner mention from the winner field."""
-        match = re.search('<@!?(\d+)>', field.value)
-        return int(match.group(1)) if match else None
+        return [
+            int(m.group(1))
+            for m in re.finditer(r'<@!?(\d+)>', field.value)
+        ]
 
 
     @client_giveaway.command(name='cancel')
@@ -1373,8 +1408,8 @@ The giveaway message is deleted if no description is given."""
     async def client_giveaway_edit(self, ctx, field, *, text):
         """Edit a field in the giveaway message.
 
-field: "title" or "description"
-text: The text to replace the field with."""
+field: "end", "title", or "description"
+text: The text to replace the field with. If the field is "end" and your date could not be parsed, the end date is removed."""
         field = field.lower()
 
         embed = ctx.last_giveaway.embeds[0]
@@ -1382,6 +1417,15 @@ text: The text to replace the field with."""
             embed.title = text
         elif field == 'description':
             embed.description = text
+        elif field == 'end':
+            try:
+                dt = await DateConverter().convert(ctx, text)
+            except commands.BadArgument as e:
+                embed.timestamp = ctx.last_giveaway.created_at
+                embed.set_footer(text='Start date')
+            else:
+                embed.timestamp = dt
+                embed.set_footer(text='End date')
         else:
             return await ctx.send(
                 'Please specify the field to edit '
@@ -1403,20 +1447,21 @@ text: The text to replace the field with."""
         elif not participants:
             return await ctx.send('There are no participants to choose from!')
 
-        winner = random.choice(participants)
+        embed = ctx.last_giveaway.embeds[0]
+        winners = self._giveaway_get_winners(embed, participants)
 
         # Update embed
         embed = self._giveaway_finish_embed(
-            ctx.last_giveaway.embeds[0],
-            winner,
+            embed, winners,
             total=len(participants)
         )
         await ctx.last_giveaway.edit(embed=embed)
 
         await ctx.send(
-            '# of participants: {:,}\nWinner: {}'.format(
+            '# of participants: {:,}\n{}: {}'.format(
                 len(participants),
-                winner.mention
+                ctx.bot.inflector.plural('Winner', len(winners)),
+                ctx.bot.inflector.join([u.mention for u in winners])
             ),
             allowed_mentions=discord.AllowedMentions.none()
         )
@@ -1428,17 +1473,25 @@ text: The text to replace the field with."""
         lambda s: s == GiveawayStatus.FINISHED,
         'You can only reroll the winner when there is a finished giveaway!'
     )
-    async def client_giveaway_reroll(self, ctx, *, reason):
+    async def client_giveaway_reroll(
+            self, ctx, winner: Optional[discord.User], *, reason):
         """Reroll the winner for a giveaway that has already finished.
+This will include members that reacted after the giveaway has finished.
 
+winner: The specific winner to reroll.
 reason: The reason for rerolling the winner."""
         embed = ctx.last_giveaway.embeds[0]
 
         win_f = self._giveaway_find_field_by_name(embed, 'winner')
-        previous_winner = self._giveaway_parse_winner_from_field(win_f)
+        previous_winners = self._giveaway_parse_winners_from_field(win_f)
+
+        try:
+            replacement_index = previous_winners.index(winner.id)
+        except ValueError:
+            return await ctx.send('That user is not one of the winners!')
 
         reaction, participants = await self._giveaway_get_participants(
-            ctx.last_giveaway, ignored=(ctx.me.id, previous_winner))
+            ctx.last_giveaway, ignored=(ctx.me.id, *previous_winners))
         if reaction is None:
             return await ctx.send(
                 'Giveaway is missing reaction: {}'.format(self.giveaway_emoji))
@@ -1446,11 +1499,20 @@ reason: The reason for rerolling the winner."""
             return await ctx.send(
                 'There are no other participants to choose from!')
 
-        winner = random.choice(participants)
+        if winner:
+            replacement = random.choice(participants)
+            new_winners = previous_winners.copy()
+            new_winners[replacement_index] = replacement
+            # Convert the rest into discord.Users
+            for i, v in enumerate(new_winners):
+                if isinstance(v, int):
+                    new_winners[i] = await ctx.bot.fetch_user(v)
+        else:
+            new_winners = self._giveaway_get_winners(embed, participants)
 
         embed = self._giveaway_reroll_embed(
-            embed, winner,
-            total=len(participants),
+            embed, new_winners,
+            total=len(participants) + (len(previous_winners) - 1) * bool(winner),
             reason=reason
         )
         await ctx.last_giveaway.edit(embed=embed)
@@ -1459,17 +1521,12 @@ reason: The reason for rerolling the winner."""
 
     @client_giveaway.command(name='simulate')
     async def client_giveaway_simulate(
-        self, ctx, end: Optional[DateConverter], title, *, description):
+            self, ctx, end: Optional[DateConverter], title, *, description):
         """Generate a giveaway message in the current channel.
 
 end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
 title: The title of the giveaway.
 description: The description of the giveaway."""
-        if end is not None and end.tzinfo is None:
-            end = await ctx.bot.localize_datetime(
-                ctx.author.id, end,
-                return_row=False
-            )
         embed = self._giveaway_create_embed(end, title, description)
         await ctx.send(embed=embed)
 
@@ -1484,12 +1541,13 @@ description: The description of the giveaway."""
     async def client_giveaway_start(
             self, ctx, end: Optional[DateConverter], title, *, description):
         """Start a new giveaway in the giveaway channel.
-Only one giveaway can be running at a time, for now that is."""
-        if end is not None and end.tzinfo is None:
-            end = await ctx.bot.localize_datetime(
-                ctx.author.id, end,
-                return_row=False
-            )
+Only one giveaway can be running at a time, for now that is.
+
+The number of winners is determined by a prefixed number in the title, i.e. "2x Apex DLCs". If this number is not present, defaults to 1 winner.end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+
+end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+title: The title of the giveaway.
+description: The description of the giveaway."""
         embed = self._giveaway_create_embed(end, title, description)
 
         message = await self.giveaway_channel.send('@everyone', embed=embed)
