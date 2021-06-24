@@ -1492,7 +1492,7 @@ Only one giveaway can be running at a time, for now that is."""
             )
         embed = self._giveaway_create_embed(end, title, description)
 
-        message = await self.giveaway_channel.send(embed=embed)
+        message = await self.giveaway_channel.send('@everyone', embed=embed)
 
         try:
             await message.add_reaction(self.giveaway_emoji)
