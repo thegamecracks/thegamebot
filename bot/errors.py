@@ -10,18 +10,18 @@ class ErrorHandlerResponse(commands.CommandError):
     always send to the user."""
 
 
-class DollarInputError(commands.UserInputError, ErrorHandlerResponse):
+class DollarInputError(commands.BadArgument, ErrorHandlerResponse):
     """An invalid input was given while converting dollars."""
     def __init__(self, reason, argument):
         self.reason = reason
         self.argument = argument
 
 
-class IndexOutOfBoundsError(commands.UserInputError, ErrorHandlerResponse):
+class IndexOutOfBoundsError(commands.BadArgument, ErrorHandlerResponse):
     """An index given by the user was out of bounds."""
 
 
-class UnknownTimezoneError(commands.UserInputError):
+class UnknownTimezoneError(commands.BadArgument):
     """An invalid input was given while converting to a timezone."""
     def __init__(self, argument):
         self.argument = argument
