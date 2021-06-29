@@ -130,8 +130,8 @@ class SteamIDConverter(commands.Converter):
 class ServerStatusView(discord.ui.View):
     REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
 
-    def __init__(self, status, cooldown, timeout=None):
-        super().__init__(timeout=timeout)
+    def __init__(self, status, cooldown):
+        super().__init__(timeout=None)
         self.status = status
         self.cooldown = cooldown
 
@@ -189,6 +189,8 @@ class ServerStatus:
         self.view = ServerStatusView(self, self.react_cooldown)
         # Make the view start listening for events
         self.bot._connection.store_view(self.view, self.message_id)
+        # NOTE: this doesn't use use bot.add_view() so discord can generate
+        # the custom_id, I don't think I need to care about it anyways
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -773,7 +775,7 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 
         match: Optional[converters.CodeBlock] = None
         for c in channels:
-            if not re.match(r'.*?-\d+', c.name):
+            if not re.match(r'.+-\d+', c.name):
                 continue
 
             async for message in c.history():
