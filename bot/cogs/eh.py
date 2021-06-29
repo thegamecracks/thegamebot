@@ -418,6 +418,19 @@ class EventHandlers(commands.Cog):
             await ctx.send(f'I cannot find the given emoji "{error.argument}"')
         elif isinstance(error, commands.ExpectedClosingQuoteError):
             await ctx.send('Expected a closing quotation mark.')
+        elif isinstance(error, commands.BadFlagArgument):
+            await ctx.send(
+                f'Failed to parse your input for the "{error.flag.name}" flag.')
+        elif isinstance(error, (commands.MissingFlagArgument,
+                                commands.MissingRequiredFlag)):
+            await ctx.send(
+                f'You must provide a value for the "{error.flag.name}" flag.')
+        elif isinstance(error, commands.TooManyFlags):
+            await ctx.send(
+                'Too many values were provided for the "{0.flag.name}" '
+                'flag. The max number of values allowed is '
+                '{0.flag.max_args}.'.format(error)
+            )
         elif isinstance(error, commands.InvalidEndOfQuotedStringError):
             await ctx.send('Expected a space after a closing quotation mark.')
         elif isinstance(error, commands.MaxConcurrencyReached):
