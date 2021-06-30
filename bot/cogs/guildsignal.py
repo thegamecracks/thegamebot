@@ -93,29 +93,6 @@ def is_giveaway_running(giveaway_channel_id):
     )
 
 
-class DateConverter(commands.Converter):
-    """Parse a datetime."""
-    def __init__(self, stored_tz=True):
-        self.stored_tz = stored_tz
-
-    async def convert(self, ctx, arg) -> datetime.datetime:
-        dt = await ctx.bot.loop.run_in_executor(
-            None, dateparser.parse, arg)
-
-        if dt is None:
-            raise commands.BadArgument('Could not parse date.')
-        elif dt.tzinfo is None:
-            if self.stored_tz:
-                # Since the datetime was user inputted, if it's naive
-                # it's probably in their timezone so don't assume it's UTC
-                dt = await ctx.bot.localize_datetime(
-                    ctx.author.id, dt, assume_utc=False, return_row=False)
-            else:
-                dt = dt.replace(tzinfo=datetime.timezone.utc)
-
-        return dt
-
-
 class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
     REGEX = re.compile(r'\d{17}')
@@ -1421,7 +1398,7 @@ text: The text to replace the field with. If the field is "end" and your date co
             embed.description = text
         elif field == 'end':
             try:
-                dt = await DateConverter().convert(ctx, text)
+                dt = await converters.DatetimeConverter().convert(ctx, text)
             except commands.BadArgument as e:
                 embed.timestamp = ctx.last_giveaway.created_at
                 embed.set_footer(text='Start date')
@@ -1523,7 +1500,8 @@ reason: The reason for rerolling the winner."""
 
     @client_giveaway.command(name='simulate')
     async def client_giveaway_simulate(
-            self, ctx, end: Optional[DateConverter], title, *, description):
+            self, ctx, end: Optional[converters.DatetimeConverter],
+            title, *, description):
         """Generate a giveaway message in the current channel.
 
 end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
@@ -1541,7 +1519,8 @@ description: The description of the giveaway."""
         'the giveaway before creating a new one!'
     )
     async def client_giveaway_start(
-            self, ctx, end: Optional[DateConverter], title, *, description):
+            self, ctx, end: Optional[converters.DatetimeConverter],
+            title, *, description):
         """Start a new giveaway in the giveaway channel.
 Only one giveaway can be running at a time, for now that is.
 

@@ -2,9 +2,12 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import datetime
+import functools
 import re
 from typing import Optional
 
+import dateparser
 import discord
 from discord.ext import commands
 import emoji
@@ -13,7 +16,8 @@ import pytz
 from bot import errors, utils
 
 __all__ = (
-    'CodeBlock', 'CommandConverter', 'DollarConverter', 'TimezoneConverter',
+    'CodeBlock', 'CommandConverter', 'DatetimeConverter',
+    'DollarConverter', 'TimezoneConverter',
     'UnicodeEmojiConverter'
 )
 
@@ -116,6 +120,38 @@ class CommandConverter(commands.Converter):
         except commands.CheckFailure as e:
             raise commands.BadArgument(str(e)) from e
         return c
+
+
+class DatetimeConverter(commands.Converter):
+    """Parse a datetime."""
+    def __init__(self, *, prefer_future=True, stored_tz=True):
+        self.prefer_future = prefer_future
+        self.stored_tz = stored_tz
+
+    async def convert(self, ctx, arg) -> datetime.datetime:
+        dt = await ctx.bot.loop.run_in_executor(
+            None,
+            functools.partial(
+                dateparser.parse,
+                arg,
+                settings={
+                    'PREFER_DATES_FROM': ('past', 'future')[self.prefer_future]
+                }
+            )
+        )
+
+        if dt is None:
+            raise commands.BadArgument('Could not parse your date.')
+        elif dt.tzinfo is None:
+            if self.stored_tz:
+                # Since the datetime was user inputted, if it's naive
+                # it's probably in their timezone so don't assume it's UTC
+                dt = await ctx.bot.localize_datetime(
+                    ctx.author.id, dt, assume_utc=False, return_row=False)
+            else:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+
+        return dt
 
 
 class DollarConverter(commands.Converter):
