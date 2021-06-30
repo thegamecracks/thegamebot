@@ -8,6 +8,7 @@ import io
 import itertools
 import math
 import random
+import re
 import sys
 import time
 from typing import Optional
@@ -23,7 +24,22 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import psutil
 
-from bot import converters, utils
+from bot import converters, errors, utils
+
+
+class UnknownTimestampStyle(commands.BadArgument):
+    """An unknown timestamp style was given."""
+    def __init__(self, arg):
+        super().__init__(f'"{arg}" is not a valid timestamp style.')
+
+
+class TimestampStyleConverter(commands.Converter):
+    STYLES = frozenset(('t', 'T', 'd', 'D', 'f', 'F', 'R'))
+
+    async def convert(self, ctx, arg):
+        if arg in self.STYLES:
+            return arg
+        raise UnknownTimestampStyle(arg)
 
 
 class Informative(commands.Cog):
@@ -667,6 +683,54 @@ Format referenced from the Ayana bot."""
         )
 
         await ctx.send(embed=embed)
+
+
+
+
+
+    @commands.command(name='timestamp')
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    async def client_format_timestamp(
+            self, ctx, style: TimestampStyleConverter,
+            *, date: converters.DatetimeConverter = None):
+        """Send a message with the special <t:0:f> timestamp format.
+If no date is given, uses the current date.
+
+Available styles:
+    t: Short time (22:57)
+    T: Long time (22:57:58)
+    d: Short date (17/05/2016)
+    D: Long date (17 May 2016)
+    f: Short date-time (17 May 2016 22:57)
+    F: Long date-time (Tuesday, 17 May 2016 22:57)
+    R: Relative time (5 years ago)
+The exact format of each style depends on your locale settings."""
+        if style is None:
+            return await ctx.send_help(ctx.command)
+
+        date = date or datetime.datetime.now()
+        s = discord.utils.format_dt(date, style=style)
+        # await ctx.send('{} ({})'.format(s, discord.utils.escape_markdown(s)))
+        await ctx.send(
+            '{} ({})'.format(
+                re.sub(r'[<:>]', r'\\\g<0>', s), s
+            )
+        )
+
+
+    @client_format_timestamp.error
+    async def client_format_timestamp_error(self, ctx, error):
+        handled = True
+        if isinstance(error, UnknownTimestampStyle):
+            await ctx.send(
+                'Missing timestamp style '
+                '( *t*, *T*, *d*, *D*, *f*, *F*, or *R* )'
+            )
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send(error)
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
