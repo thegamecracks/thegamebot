@@ -268,8 +268,8 @@ class Hangman(commands.Cog):
         """Handle an interaction for a hangman game.
 
         This bypasses the existing message tracking to implement its own
-        handling of views, allowing all the state to be contained in
-        the custom_ids of the components.
+        handling of views, allowing dynamic custom_ids which can
+        contain the entire game state.
 
         """
         if interaction.type != discord.InteractionType.component:
@@ -278,7 +278,6 @@ class Hangman(commands.Cog):
         # NOTE: referenced from ConnectionState.parse_interaction_create
         custom_id = interaction.data['custom_id']
         m = self.CUSTOM_ID_REGEX.match(custom_id)
-
         if m is None:
             return
 
