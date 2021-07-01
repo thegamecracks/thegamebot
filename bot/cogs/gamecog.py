@@ -229,6 +229,14 @@ class Games(commands.Cog):
         self.unturneddb = UnturnedDatabase.from_files()
 
 
+    # def cog_unload(self):
+    #     # Update commands from other cogs
+    #     for c in self.get_commands():
+    #         if hasattr(c, '_original_cog'):
+    #             c.cog = c._original_cog
+    # NOTE: doesn't seem possible to inject regular commands into other cogs
+
+
 
 
 
