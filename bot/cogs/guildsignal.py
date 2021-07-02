@@ -166,8 +166,8 @@ class ServerStatus:
         self.view = ServerStatusView(self, self.react_cooldown)
         # Make the view start listening for events
         self.bot._connection.store_view(self.view, self.message_id)
-        # NOTE: this doesn't use use bot.add_view() so discord can generate
-        # the custom_id, I don't think I need to care about it anyways
+        # NOTE: this doesn't use bot.add_view() so I don't need
+        # to provide a custom_id, which I probably don't need for my purposes
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -706,7 +706,7 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 
     @staticmethod
     async def yield_pages(tickets):
-        paginator = commands.Paginator(prefix='', suffix='', max_size=2048)
+        paginator = commands.Paginator(prefix='', suffix='', max_size=4096)
         page_number = 0
         # Yield pages as they are created
         async for line in tickets:

@@ -69,7 +69,7 @@ Note: Field title and text must both be specified.
 
 These are the limits set by Discord:
           Title: 256 characters
-    Description: 2048 characters
+    Description: 4096 characters
          Fields: 25 fields
      Field Name: 256 characters
      Field Text: 1024 characters
