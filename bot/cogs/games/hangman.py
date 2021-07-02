@@ -215,12 +215,8 @@ class HangmanView(discord.ui.View):
         )
         return embed, status
 
-    def remove_keyboard(self):
-        for i in self.children.copy():
-            self.remove_item(i)
-
     def update_keyboard(self):
-        self.remove_keyboard()
+        self.clear_items()
 
         chars = sorted(self.CHAR_SET - self.game.guesses)
         if len(chars) <= 25:
