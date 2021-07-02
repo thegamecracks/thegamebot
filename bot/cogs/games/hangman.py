@@ -191,25 +191,24 @@ class HangmanView(discord.ui.View):
         if wrong_guesses:
             guesses = '\nWrong guesses: {}'.format(', '.join(sorted(wrong_guesses)))
 
-        remaining = self.game.remaining_guesses
-        num_guesses = '\nYou have {} wrong guess{} left!'.format(
-            remaining, 'es' * (remaining != 1)
-        )
-
         status = self.game.get_status()
         finish_text = ''
         if status is True:
             finish_text = '\nYou won!'
         elif status is False:
             finish_text = f'\nYou lost! The word was {self.game.word}.'
+        else:
+            remaining = self.game.remaining_guesses
+            finish_text = '\nYou have {} wrong guess{} left!'.format(
+                remaining, 'es' * (remaining != 1)
+            )
 
         embed = discord.Embed(
-            description='{w}{g}{n}{f} ```\n{p}```'.format(
+            description='{w}{g}{f} ```\n{p}```'.format(
                 w=discord.utils.escape_markdown(
                     self.game.render_word(sep=' \u200b' * 3)
                 ),
                 g=guesses,
-                n=num_guesses,
                 f=finish_text,
                 p=self.game.render_person()
             )
@@ -284,7 +283,7 @@ class Hangman(commands.Cog):
         # Create view to handle interaction
         view = HangmanView.from_match(m)
         item = view.children[int(m.group('keyboard'))]
-        # NOTE: referenced from ViewStore
+        # NOTE: referenced from ViewStore.dispatch
         item.refresh_state(interaction)
         view.dispatch(self.bot._connection, item, interaction)
         view.stop()
@@ -314,8 +313,7 @@ The only allowed player is you (for now)."""
 def setup(bot):
     cog = Hangman(bot)
     bot.add_cog(cog)
-    # game_cog = bot.get_cog('Games') or None
-    # for c in cog.get_commands():
-    #     c.cog = game_cog
-    #     c._original_cog = cog
-    # NOTE: doesn't seem possible to inject regular commands into other cogs
+    game_cog = bot.get_cog('Games') or None
+    for c in cog.get_commands():
+        c.cog = game_cog
+        c.original_cog = cog
