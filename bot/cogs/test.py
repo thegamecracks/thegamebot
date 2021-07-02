@@ -15,21 +15,51 @@ class ArrowButton(discord.ui.Button):
         self.direction = direction
 
     async def callback(self, interaction):
-        link = 'https://discordpy.readthedocs.io/en/master/api.html#discord.InteractionResponse.send_message'
-        await interaction.response.send_message(f'You clicked [{self.direction}]({link})!', ephemeral=True)
+        link = 'https://discordpy.readthedocs.io/en/master/api.html#id11'
+        await interaction.response.send_message(
+            f'You clicked [{self.direction}]({link})!')
+        # m = await interaction.followup.fetch_message('@original')
+        # await m.edit(content='test')
+
+
+class ArrowSelect(discord.ui.Select):
+    def __init__(self, bot, *, row=None):
+        super().__init__(
+            placeholder='beep',
+            options=[
+                discord.SelectOption(label='up', description='uppity'),
+                discord.SelectOption(label='down', description='downy'),
+                discord.SelectOption(label='left', description='lefty'),
+                discord.SelectOption(label='right', description='righty')
+            ],
+            max_values=4,
+            row=row
+        )
+        self.bot = bot
+
+    async def callback(self, interaction: discord.Interaction):
+        link = 'https://discordpy.readthedocs.io/en/master/api.html#select'
+        await interaction.response.send_message(
+            'You clicked [{}]({})!'.format(
+                self.bot.inflector.join(self.values),
+                link
+            ),
+            ephemeral=True
+        )
 
 
 class ArrowView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=30)
+    def __init__(self, bot):
+        super().__init__(timeout=60)
         self.message = None
 
-        self.add_empty(row=0)
-        self.add_arrow('up', label='🠕', row=0)
-        self.add_empty(row=0)
-        self.add_arrow('left', label='🠔', row=1)
-        self.add_arrow('down', label='🠗', row=1)
-        self.add_arrow('right', label='🠖', row=1)
+        self.add_item(ArrowSelect(bot, row=0))
+        self.add_empty(row=1)
+        self.add_arrow('up', emoji='\N{UPWARDS BLACK ARROW}', row=1)
+        self.add_empty(row=1)
+        self.add_arrow('left', emoji='\N{LEFTWARDS BLACK ARROW}', row=2)
+        self.add_arrow('down', emoji='\N{DOWNWARDS BLACK ARROW}', row=2)
+        self.add_arrow('right', emoji='\N{BLACK RIGHTWARDS ARROW}', row=2)
 
     def add_arrow(self, direction, **kwargs):
         button = ArrowButton(direction, **kwargs)
@@ -47,7 +77,7 @@ class ArrowView(discord.ui.View):
         return button
 
     async def on_timeout(self):
-        await self.message.edit(content='timeout!')
+        await self.message.edit(content='buttons! timeout!', view=None)
 
 
 class Testing(commands.Cog, command_attrs={'hidden': True}):
@@ -75,7 +105,7 @@ class Testing(commands.Cog, command_attrs={'hidden': True}):
     @commands.max_concurrency(1, commands.BucketType.default)
     async def buttons(self, ctx):
         """Buttons!"""
-        view = ArrowView()
+        view = ArrowView(ctx.bot)
         message = await ctx.send('buttons!', view=view)
         view.message = message
         await view.wait()
