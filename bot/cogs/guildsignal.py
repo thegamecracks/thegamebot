@@ -112,13 +112,18 @@ class ServerStatusView(discord.ui.View):
         self.status = status
         self.cooldown = cooldown
 
+        for i in self.children:
+            if hasattr(i, 'custom_id'):
+                i.custom_id += f':{status.message_id}'
+
     async def interaction_check(self, interaction: discord.Interaction):
         return (
             not interaction.user.bot
             and not self.cooldown.update_rate_limit()
         )
 
-    @discord.ui.button(style=discord.ButtonStyle.green, emoji=REFRESH_EMOJI)
+    @discord.ui.button(style=discord.ButtonStyle.green, emoji=REFRESH_EMOJI,
+                       custom_id='signalstatus:refresh')
     async def on_refresh(self, button: discord.Button, interaction: discord.Interaction):
         await self.status.update()
 
@@ -165,9 +170,7 @@ class ServerStatus:
     def __post_init__(self):
         self.view = ServerStatusView(self, self.react_cooldown)
         # Make the view start listening for events
-        self.bot._connection.store_view(self.view, self.message_id)
-        # NOTE: this doesn't use bot.add_view() so I don't need
-        # to provide a custom_id, which I probably don't need for my purposes
+        self.bot.add_view(self.view, message_id=self.message_id)
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -361,10 +364,17 @@ class ServerStatus:
             self.server_id, start=start, stop=stop
         )
 
-        f = await self.bot.loop.run_in_executor(
-            None, self.create_player_count_graph,
-            datapoints, server, graphing_cog
-        )
+        try:
+            f = await self.bot.loop.run_in_executor(
+                None, self.create_player_count_graph,
+                datapoints, server, graphing_cog
+            )
+        except KeyError as e:
+            # thanks matplotlib
+            await self.bot.get_channel(852021637452267591).send(
+                f'{e}\n{datapoints=}'
+            )
+            raise
         graph = discord.File(f, filename='graph.png')
 
         m = await self.bot.get_channel(self.graph_channel_id).send(file=graph)
@@ -835,6 +845,7 @@ class SignalHill(commands.Cog):
     def cog_unload(self):
         for status in self.server_statuses:
             status.update_loop.cancel()
+            status.view.stop()
         self.server_status_cleanup.cancel()
 
     @property
