@@ -281,7 +281,7 @@ class Hangman(commands.Cog):
         item = view.children[int(m.group('keyboard'))]
         # NOTE: referenced from ViewStore.dispatch
         item.refresh_state(interaction)
-        view.dispatch(self.bot._connection, item, interaction)
+        view._dispatch_item(item, interaction)
         view.stop()
 
 

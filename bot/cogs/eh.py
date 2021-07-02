@@ -321,7 +321,7 @@ class EventHandlers(commands.Cog):
 
         def get_cooldown_description():
             if (not ctx.guild
-                and ctx.command._buckets._type in (
+                and error.type in (
                     commands.BucketType.channel,
                     commands.BucketType.guild)):
                 # in DMs; use member in place of channel/guild bucket
@@ -330,11 +330,11 @@ class EventHandlers(commands.Cog):
                 )
             else:
                 description = self.COOLDOWN_DESCRIPTIONS.get(
-                    ctx.command._buckets._type, 'This command is on cooldown.'
+                    error.type, 'This command is on cooldown.'
                 )
 
             return description.format(
-                here=get_cooldown_here(ctx.command._buckets._type),
+                here=get_cooldown_here(error.type),
                 times=ctx.bot.inflector.inflect(
                     '{0} plural("time", {0}) '
                     'every {1} plural("second", {1})'.format(
@@ -399,7 +399,8 @@ class EventHandlers(commands.Cog):
                            f'{error.argument.mention}.')
         elif isinstance(error, commands.CommandOnCooldown):
             embed = discord.Embed(
-                color=utils.get_bot_color(ctx.bot)
+                color=utils.get_bot_color(ctx.bot),
+                description=get_cooldown_description()
             ).set_footer(
                 text=ctx.bot.inflector.inflect(
                     'You can retry in {0} plural("second", {0}).'.format(
@@ -408,8 +409,6 @@ class EventHandlers(commands.Cog):
                 ),
                 icon_url=ctx.author.avatar.url
             )
-
-            embed.description = get_cooldown_description()
 
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
         elif isinstance(error, commands.DisabledCommand):
