@@ -790,7 +790,10 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
         embed = self.get_embed_template(menu)
         embed.description = page
         embed.set_author(
-            name=f'{embed.author.name} ({self.channel_span})'
+            name=(
+                f'{embed.author.name} ({self.channel_span})'
+                if embed.author else f'Tickets {self.channel_span}'
+            )
         ).set_footer(
             text=f'{len(self.channels)} tickets'
         )
@@ -811,6 +814,7 @@ class SignalHill(commands.Cog):
     GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
     GIVEAWAY_EMOJI_ID = 815804214470770728  # testing: 340900129114423296
     GUILD_ID = 811415496036843550
+    WHITELIST_TICKET_REGEX = re.compile(r'(?P<name>.+)-(?P<n>\d+)(?P<flags>\w*)')
     WHITELISTED_PLAYERS_CHANNEL_ID = 824486812709027880
 
     def __init__(self, bot):
@@ -1047,23 +1051,26 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
         last_message_id = settings.get('checkwhitelist-last_message_id', None)
         if (self.whitelist_channel.last_message_id != last_message_id
                 or ids is None):
-            ids = []
+            ids = {}  # Use dict to maintain order and uniqueness
 
             # Fetch IDs from channel
             async for m in self.whitelist_channel.history(limit=None):
                 for match in SteamIDConverter.REGEX.finditer(m.content):
-                    ids.append(int(match.group()))
+                    ids[int(match.group())] = None
+
+            # Turn back into list
+            ids_list = list(ids)
 
             # Cache them in settings
             settings.set(
                 'checkwhitelist-ids',
-                ids
+                ids_list
             ).set(
                 'checkwhitelist-last_message_id',
                 self.whitelist_channel.last_message_id
             ).save()
 
-        return ids
+        return ids_list
 
 
     @client_whitelist.group(name='expired', invoke_without_command=True)
@@ -1173,6 +1180,46 @@ sessions: If true, fetches session data for each player, including the last time
             await ctx.send(page)
 
 
+    @client_whitelist.command(name='sort')
+    @commands.cooldown(1, 120, commands.BucketType.default)
+    @commands.max_concurrency(1, commands.BucketType.default)
+    async def client_whitelist_sort(self, ctx, labels: bool = True):
+        """Sort all the open whitelist tickets.
+
+labels: Group channels together by their labels rather than a simple alphabetical sort."""
+        def key(x):
+            c, m = x
+            if m is None:
+                # Place unknown formats at the top
+                return f'  {c.name}'
+            elif labels:
+                new_name = '{flags}{n}{name}'.format(**m.groupdict())
+                if 'a' in m.group('flags'):
+                    # Group accepted tickets together
+                    return ' ' + new_name
+                return new_name
+            return c.name
+
+        await ctx.message.add_reaction('\N{PERMANENT PAPER SIGN}')
+
+        category = ctx.bot.get_channel(824502569652322304)
+        tickets = [
+            (c, self.WHITELIST_TICKET_REGEX.match(c.name))
+            for c in category.text_channels
+        ]
+
+        sorted_tickets = sorted(tickets, key=key)
+
+        min_pos = min(c.position for c, m in tickets)
+        for i, (ch, _) in enumerate(sorted_tickets, start=min_pos):
+            print(ch.name, '/', ch.position, i)
+            if ch.position == i:
+                continue
+            await a.edit(position=i)
+
+        await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
+
+
 
 
 
@@ -1215,9 +1262,10 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
         async with ctx.typing():
             results = await self.bm_client.match_players(
                 steam_id, type=abm.IdentifierType.STEAM_ID)
-            player_id = results[steam_id]
 
-            if player_id is None:
+            try:
+                player_id = results[steam_id]
+            except KeyError:
                 return await ctx.send('Could not find a user with that steam ID!')
 
             player = await self.bm_client.get_player_info(player_id)
@@ -1428,7 +1476,7 @@ text: The text to replace the field with. If the field is "end" and your date co
 
     @client_giveaway.command(name='finish')
     @is_giveaway_running(GIVEAWAY_CHANNEL_ID)
-    async def client_giveaway_finish(self, ctx):
+    async def client_giveaway_finish(self, ctx, ping: bool = True):
         """End the current giveaway and decide who the winner is."""
         reaction, participants = await self._giveaway_get_participants(ctx.last_giveaway)
         if reaction is None:
@@ -1453,7 +1501,7 @@ text: The text to replace the field with. If the field is "end" and your date co
                 ctx.bot.inflector.plural('Winner', len(winners)),
                 ctx.bot.inflector.join([u.mention for u in winners])
             ),
-            allowed_mentions=discord.AllowedMentions.none()
+            allowed_mentions=discord.AllowedMentions(users=ping)
         )
 
 
@@ -1475,10 +1523,12 @@ reason: The reason for rerolling the winner."""
         win_f = self._giveaway_find_field_by_name(embed, 'winner')
         previous_winners = self._giveaway_parse_winners_from_field(win_f)
 
-        try:
-            replacement_index = previous_winners.index(winner.id)
-        except ValueError:
-            return await ctx.send('That user is not one of the winners!')
+        replacement_index = -1
+        if winner:
+            try:
+                replacement_index = previous_winners.index(winner.id)
+            except ValueError:
+                return await ctx.send('That user is not one of the winners!')
 
         reaction, participants = await self._giveaway_get_participants(
             ctx.last_giveaway, ignored=(ctx.me.id, *previous_winners))

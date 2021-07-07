@@ -170,9 +170,7 @@ You can have a maximum of 5 reminders."""
             if td.seconds % 60 == 0:
                 utcnow = utcnow.replace(second=0)
 
-            utcdue = utcnow + td
-
-            await self.add_reminder(ctx.author.id, utcdue, content)
+            await self.add_reminder(ctx.author.id, when, content)
 
             await ctx.send(
                 'Your {} reminder has been added!'.format(
@@ -180,7 +178,7 @@ You can have a maximum of 5 reminders."""
                 ),
                 embed=discord.Embed(
                     color=utils.get_user_color(ctx.bot, ctx.author),
-                    timestamp=utcdue
+                    timestamp=when.replace(tzinfo=datetime.timezone.utc)
                 ).set_footer(text='Due date')
             )
         else:
@@ -274,7 +272,7 @@ To remove only one reminder, use the removereminder command."""
                 title=f'Reminder #{index:,}',
                 description=reminder['content'],
                 color=utils.get_user_color(ctx.bot, ctx.author),
-                timestamp=utcdue
+                timestamp=utcdue.replace(tzinfo=datetime.timezone.utc)
             ).add_field(
                 name='Due in',
                 value=utils.timedelta_string(

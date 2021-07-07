@@ -124,7 +124,13 @@ class CommandConverter(commands.Converter):
 
 class DatetimeConverter(commands.Converter):
     """Parse a datetime."""
-    def __init__(self, *, prefer_future=True, stored_tz=True):
+    PREFER_DATES_FROM = {
+        None: 'current_period',
+        True: 'future',
+        False: 'past'
+    }
+
+    def __init__(self, *, prefer_future=None, stored_tz=True):
         self.prefer_future = prefer_future
         self.stored_tz = stored_tz
 
@@ -135,7 +141,7 @@ class DatetimeConverter(commands.Converter):
                 dateparser.parse,
                 arg,
                 settings={
-                    'PREFER_DATES_FROM': ('past', 'future')[self.prefer_future]
+                    'PREFER_DATES_FROM': self.PREFER_DATES_FROM[self.prefer_future]
                 }
             )
         )
