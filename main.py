@@ -29,6 +29,7 @@ DISABLED_INTENTS = (
     'bans', 'integrations', 'webhooks', 'invites',
     'voice_states', 'typing'
 )
+USE_RESTART_FILE = False
 
 logger = discordlogger.get_logger()
 
@@ -164,13 +165,19 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
         return dt
 
     async def restart(self):
-        """Create a file named RESTART and logout.
-
-        The batch file running the script loop should detect
-        and recognize to rerun the bot again.
-
+        """Close the bot and inform the parent process
+        that the bot should be restarted.
         """
-        open('RESTART', 'w').close()
+        if USE_RESTART_FILE:
+            open('RESTART', 'w').close()
+        return await self.close()
+
+    async def shutdown(self):
+        """Close the bot and inform the parent process
+        that the bot should shut down.
+        """
+        if not USE_RESTART_FILE:
+            open('SHUTDOWN', 'w').close()
         return await self.close()
 
     async def setup(self):

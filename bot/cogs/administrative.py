@@ -556,7 +556,7 @@ https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
         if confirmed:
             await prompt.update('Shutting down.', prompt.emoji_yes.color)
             print(f'Initiating shutdown by {get_user_for_log(ctx)}')
-            await self.bot.close()
+            await self.bot.shutdown()
         else:
             await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
 
