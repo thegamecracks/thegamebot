@@ -19,14 +19,20 @@ class Embedding(commands.Cog):
     qualified_name = 'Embedding'
 
     embed_specs = {
-        'title':    ('--title', '-T'),
+        'title': ('--title', '-T'),
         'titleurl': ('--titleurl', '-TU'),
-        'footer':     ('--footer', '-F'),
+
+        'footer': ('--footer', '-F'),
         'footericon': ('--footericon', '-FU'),
-        'image':        ('--image', '-I'),
-        'thumbnail':        ('--thumbnail', '-TN'),
-        'author':             ('--author', '-A'),
-        'authorurl':          ('--authorurl', '-AU')
+
+        'image': ('--image', '-I'),
+
+        'thumbnail': ('--thumbnail', '-TN'),
+
+        'author': ('--author', '-A'),
+        'authorurl': ('--authorurl', '-AU'),
+
+        'timestamp': ('--timestamp', '-TS'),
     }
 
     hyperlink_regex = re.compile(r'\[.+\]\(.+\)')
@@ -65,6 +71,7 @@ you can use code block tags like so:
 -FI --field<n>     "<subtitle>"
 -FT --fieldtext<n> "<text>"
 -FO --fieldnotinline<n>
+-TS --timestamp
 Note: Field title and text must both be specified.
 
 These are the limits set by Discord:
@@ -95,6 +102,7 @@ These are the limits set by Discord:
 
         embed_dict = {'color': color, 'description': description}
         fields = {}
+        include_timestamp = False
         while args:
             argv = args.popleft()
 
@@ -130,6 +138,10 @@ These are the limits set by Discord:
                 embed_dict.setdefault('author', {})
                 embed_dict['author']['url'] = args.popleft()
 
+            elif argv in self.embed_specs['timestamp']:
+                args.popleft()
+                include_timestamp = True
+
             else:
                 chars, num = char_separate_num(argv)
                 if chars == '--field' \
@@ -137,6 +149,7 @@ These are the limits set by Discord:
                     value = args.popleft()
                     default_field(num)
                     fields[num]['name'] = value
+                    fields[num]['value'] = '\u200b'
 
                 elif chars == '--fieldtext' \
                         or chars == '-FT':
@@ -151,11 +164,12 @@ These are the limits set by Discord:
 
         if fields:
             embed_dict['fields'] = list(fields.values())
+
         embed = discord.Embed.from_dict(embed_dict)
-        # NOTE: In discord.py 2.0.0a d30fea5, if the timestamp is set
-        # through assignment instead of in constructor,
-        # it is interpreted as UTC instead of in local time
-        embed.timestamp = datetime.datetime.now()
+
+        if include_timestamp:
+            embed.timestamp = datetime.datetime.now()
+
         try:
             await ctx.send(embed=embed)
         except discord.HTTPException as e:
