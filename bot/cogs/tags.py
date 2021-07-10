@@ -12,6 +12,37 @@ from bot.classes.confirmation import AdaptiveConfirmation
 from bot import errors, utils
 
 
+def cleanup_tag_content(s: str):
+    return discord.utils.escape_mentions(
+        discord.utils.escape_markdown(s)
+    )
+
+
+class TagContentConverter(commands.Converter):
+    """Ensure a string is suitable for content of a tag.
+
+    Args:
+        param (str): The name of the parameter this converter
+            is being applied to. Used as part of the error messages.
+
+    """
+    TAG_MAX_CONTENT_LENGTH = 2000
+
+    def __init__(self, param: str):
+        self.param = param
+
+    async def convert(self, ctx, arg):
+        raw_arg = cleanup_tag_content(arg)
+
+        if len(raw_arg) > self.TAG_MAX_CONTENT_LENGTH:
+            raise errors.ErrorHandlerResponse(
+                f'Tag parameter `{self.param}` is {diff:,} '
+                'characters too long.'
+            )
+
+        return arg
+
+
 class TagNameConverter(commands.Converter):
     """Ensure a tag name is suitable.
 
@@ -20,12 +51,13 @@ class TagNameConverter(commands.Converter):
             is being applied to. Used as part of the error messages.
 
     """
-    TAG_CREATE_MAX_NAME_LENGTH = 50
+    TAG_MAX_NAME_LENGTH = 50
+
     def __init__(self, param: str):
         self.param = param
 
     async def convert(self, ctx, arg):
-        diff = len(arg) - self.TAG_CREATE_MAX_NAME_LENGTH
+        diff = len(arg) - self.TAG_MAX_NAME_LENGTH
         if diff > 0:
             raise errors.ErrorHandlerResponse(
                 f'Tag parameter `{self.param}` is {diff:,} '
@@ -146,7 +178,10 @@ class Tags(commands.Cog):
         if tag is None:
             return await ctx.send('This tag does not exist.')
 
-        await ctx.send(tag['content'])
+        await ctx.send(
+            tag['content'],
+            allowed_mentions=discord.AllowedMentions.none()
+        )
 
         await ctx.bot.dbtags.edit_tag(
             ctx.guild.id, tag['name'],
@@ -216,7 +251,7 @@ Note it may take some time before a tag loses their author."""
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def client_tag_create(
             self, ctx, name: TagNameConverter('name'),
-            *, content: commands.clean_content):
+            *, content: TagContentConverter('content')):
         """Create a tag.
 
 name: The name of the tag. When using spaces, surround it with quotes as such:
@@ -257,7 +292,7 @@ If you have Manage Server permissions you can also delete other people's tags.""
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_tag_edit(
             self, ctx, name: TagNameConverter('name'),
-            *, content: commands.clean_content):
+            *, content: TagContentConverter('content')):
         """Edit one of your tags.
 
 name: The name of the tag (aliases allowed). For names with multiple spaces, use quotes as such:
@@ -338,7 +373,7 @@ content: The new content to use."""
                 )
 
 
-        embed.title = title
+        embed.description = f'**{title}**'
         embed.set_footer(
             text=footer.format(ctx.author.display_name),
             icon_url=ctx.author.avatar.url
@@ -400,9 +435,8 @@ Useful for copy pasting any of the tag's markdown."""
         if tag is None:
             return await ctx.send('This tag does not exist.')
 
-        escaped = discord.utils.escape_markdown(tag['content'])
-        for content in utils.paginate_message(escaped):
-            await ctx.send(content)
+        escaped = cleanup_tag_content(tag['content'])
+        await ctx.send(escaped)
 
 
     @client_tag.command(name='reset')
