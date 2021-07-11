@@ -47,8 +47,8 @@ class Moderation(commands.Cog):
     """Commands to be used in moderation."""
 
     INVITE_REGEX = re.compile(r'(?:https?://)?discord(?:app)?\.(?:com/invite|gg)/(?P<code>[a-zA-Z0-9]+)/?')
-    SERVER_SETTINGS = {
-        # My Server
+    GUILD_SETTINGS = {
+        # My guild
         297463612870492160: {
             'delete-invites': True,
             'log-channel': 852021637452267591,
@@ -138,13 +138,13 @@ class Moderation(commands.Cog):
 
     @commands.Cog.listener('on_message')
     async def on_invite_message(self, message: discord.Message):
-        """Delete and record messages that have server invites in them."""
+        """Delete and record messages that have guild invites in them."""
         # Ignore DMs and bots
         if not message.guild or message.author.bot:
             return
 
         # Check if this server wants invites deleted
-        settings = self.SERVER_SETTINGS.get(message.guild.id)
+        settings = self.GUILD_SETTINGS.get(message.guild.id)
         if settings is None:
             return
         elif not settings['delete-invites']:
@@ -171,7 +171,7 @@ class Moderation(commands.Cog):
         if payload.guild_id is None:
             return
 
-        settings = self.SERVER_SETTINGS.get(payload.guild_id)
+        settings = self.GUILD_SETTINGS.get(payload.guild_id)
         if settings is None:
             return
         elif not settings['delete-invites']:
