@@ -887,6 +887,32 @@ class SignalHill(commands.Cog):
         )
 
 
+    @commands.Cog.listener('on_connect')
+    async def on_connect_toggle_server_status(self):
+        """Turn on the server statuses after connecting."""
+        running = self.server_status_running
+        if running != len(self.server_statuses):
+            self.server_status_toggle()
+            if running != 0:
+                # We just canceled the remaining loops,
+                # turn them all back on
+                self.server_status_toggle()
+
+
+    @commands.Cog.listener('on_raw_message_delete')
+    @commands.Cog.listener('on_raw_message_edit')
+    async def on_whitelist_update(self, payload):
+        """Nullify the stored last message ID for the whitelist channel
+        if a delete or edit was done inside the channel.
+        This is so the "whitelist expired" command knows to refetch
+        the list of player IDs.
+        """
+        if payload.channel_id == self.WHITELISTED_PLAYERS_CHANNEL_ID:
+            settings = self.bot.get_cog('Settings')
+            if not settings.get('checkwhitelist-last_message_id', None):
+                settings.set('checkwhitelist-last_message_id', None).save()
+
+
     @tasks.loop(seconds=SERVER_STATUS_INTERVAL)
     async def server_status_cleanup(self):
         """Clean up extra graph messages once all server statuses have
@@ -949,18 +975,6 @@ class SignalHill(commands.Cog):
             self.server_status_cleanup.start()
 
         return running
-
-
-    @commands.Cog.listener('on_connect')
-    async def server_status_toggle_on_connect(self):
-        """Turn on the server statuses after connecting."""
-        running = self.server_status_running
-        if running != len(self.server_statuses):
-            self.server_status_toggle()
-            if running != 0:
-                # We just canceled the remaining loops,
-                # turn them all back on
-                self.server_status_toggle()
 
 
 
@@ -1033,19 +1047,7 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
             await menu._event.wait()
 
 
-    @commands.Cog.listener('on_raw_message_delete')
-    @commands.Cog.listener('on_raw_message_edit')
-    async def on_whitelist_update(self, payload):
-        """Nullify the stored last message ID for the whitelist channel
-        if a delete or edit was done inside the channel.
-        """
-        if payload.channel_id == self.WHITELISTED_PLAYERS_CHANNEL_ID:
-            settings = self.bot.get_cog('Settings')
-            if not settings.get('checkwhitelist-last_message_id', None):
-                settings.set('checkwhitelist-last_message_id', None).save()
-
-
-    async def get_whitelist_channel_ids(self) -> List[int]:
+    async def _whitelist_get_player_ids(self) -> List[int]:
         settings = self.bot.get_cog('Settings')
         ids = settings.get('checkwhitelist-ids', None)
         last_message_id = settings.get('checkwhitelist-last_message_id', None)
@@ -1082,7 +1084,7 @@ This looks through the steam IDs in the <#824486812709027880> channel.
 
 sessions: If true, fetches session data for each player, including the last time they played. This may make queries slower."""
         async with ctx.typing():
-            ids = await self.get_whitelist_channel_ids()
+            ids = await self._whitelist_get_player_ids()
 
         get_session = None
         if sessions:
@@ -1129,7 +1131,7 @@ sessions: If true, fetches session data for each player, including the last time
     async def client_whitelist_expired_dump(self, ctx):
         """Send a list of the expired whitelists."""
         async with ctx.typing():
-            ids = await self.get_whitelist_channel_ids()
+            ids = await self._whitelist_get_player_ids()
 
             source = PlayerListPageSource.yield_players(
                 functools.partial(
