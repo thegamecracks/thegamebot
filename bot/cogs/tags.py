@@ -436,7 +436,7 @@ Useful for copy pasting any of the tag's markdown."""
             return await ctx.send('This tag does not exist.')
 
         escaped = cleanup_tag_content(tag['content'])
-        await ctx.send(escaped)
+        await ctx.send(escaped, allowed_mentions=discord.AllowedMentions.none())
 
 
     @client_tag.command(name='reset')
