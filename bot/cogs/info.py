@@ -623,16 +623,13 @@ streamer_friendly: If yes, hides the server ID and the owner's discriminator.
 Format referenced from the Ayana bot."""
         guild = ctx.author.guild
 
-        created = (
-            utils.timedelta_string(
-                relativedelta(
-                    datetime.datetime.now(datetime.timezone.utc),
-                    guild.created_at
-                ),
-                **self.DATETIME_DIFFERENCE_PRECISION,
-                inflector=ctx.bot.inflector
+        created = utils.timedelta_string(
+            relativedelta(
+                datetime.datetime.now(datetime.timezone.utc),
+                guild.created_at
             ),
-            await ctx.bot.strftime_user(ctx.author.id, guild.created_at)
+            **self.DATETIME_DIFFERENCE_PRECISION,
+            inflector=ctx.bot.inflector
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
@@ -669,7 +666,9 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Time of Server Creation',
-            value=f'{created[0]} ago\n({created[1]})',
+            value='{} ago\n({})'.format(
+                created, discord.utils.format_dt(guild.created_at, style='F')
+            ),
             inline=False
         )
         embed.add_field(
@@ -757,14 +756,13 @@ The exact format of each style depends on your locale settings."""
         )
         diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
-        uptime_string = await ctx.bot.strftime_user(
-            ctx.author.id, ctx.bot.uptime_last_connect)
+        timestamp = discord.utils.format_dt(
+            ctx.bot.uptime_last_connect, style='F')
 
         embed = discord.Embed(
-            title='Uptime',
-            description=f'{diff_string}\n({uptime_string})',
-            color=utils.get_bot_color(ctx.bot),
-            timestamp=self.bot.uptime_last_connect_adjusted
+            title=f'Uptime: {timestamp}',
+            description=f'{diff_string}',
+            color=utils.get_bot_color(ctx.bot)
         )
 
         await ctx.send(embed=embed)
@@ -819,16 +817,13 @@ Format referenced from the Ayana bot."""
             # If presences or members intent are disabled, d.py returns
             # None for activity
             guild = user.guild
-            joined = (
-                utils.timedelta_string(
-                    relativedelta(
-                        datetime.datetime.now(datetime.timezone.utc),
-                        user.joined_at
-                    ),
-                    **self.DATETIME_DIFFERENCE_PRECISION,
-                    inflector=ctx.bot.inflector
+            joined = utils.timedelta_string(
+                relativedelta(
+                    datetime.datetime.now(datetime.timezone.utc),
+                    user.joined_at
                 ),
-                await ctx.bot.strftime_user(ctx.author.id, user.joined_at)
+                **self.DATETIME_DIFFERENCE_PRECISION,
+                inflector=ctx.bot.inflector
             )
             nickname = user.nick
             roles = user.roles
@@ -858,16 +853,13 @@ Format referenced from the Ayana bot."""
         author = (f'{user} (Bot)' if user.bot
                   else f'{user.name}' if streamer_friendly
                   else str(user))
-        created = (
-            utils.timedelta_string(
-                relativedelta(
-                    datetime.datetime.now(datetime.timezone.utc),
-                    user.created_at
-                ),
-                **self.DATETIME_DIFFERENCE_PRECISION,
-                inflector=ctx.bot.inflector
+        created = utils.timedelta_string(
+            relativedelta(
+                datetime.datetime.now(datetime.timezone.utc),
+                user.created_at
             ),
-            await ctx.bot.strftime_user(ctx.author.id, user.created_at)
+            **self.DATETIME_DIFFERENCE_PRECISION,
+            inflector=ctx.bot.inflector
         )
 
         embed = discord.Embed(
@@ -906,12 +898,16 @@ Format referenced from the Ayana bot."""
                 joined_name = 'Time of Server Join'
             embed.add_field(
                 name=joined_name,
-                value=f'{joined[0]} ago\n({joined[1]})',
+                value='{} ago\n({})'.format(
+                    joined, discord.utils.format_dt(user.joined_at, style='F')
+                ),
                 inline=False
             )
         embed.add_field(
             name='Time of User Creation',
-            value=f'{created[0]} ago\n({created[1]})',
+            value='{} ago\n({})'.format(
+                created, discord.utils.format_dt(user.created_at, style='F')
+            ),
             inline=False
         )
         if status is not None:
