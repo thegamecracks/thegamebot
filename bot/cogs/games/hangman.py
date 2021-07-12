@@ -8,6 +8,8 @@ from typing import Optional, Set, Iterable, Tuple
 import discord
 from discord.ext import commands
 
+from . import create_setup
+
 
 def read_wordlist(filename, min_length=0) -> set:
     s = set()
@@ -306,10 +308,4 @@ The only allowed player is you (for now)."""
 
 
 
-def setup(bot):
-    cog = Hangman(bot)
-    bot.add_cog(cog)
-    game_cog = bot.get_cog('Games') or None
-    for c in cog.get_commands():
-        c.cog = game_cog
-        c.original_cog = cog
+setup = create_setup(Hangman)
