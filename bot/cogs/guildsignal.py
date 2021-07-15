@@ -373,7 +373,7 @@ class ServerStatus:
 
         # Set xticks to every two hours
         step = 1 / 12
-        start = x_max - step + (mdates.date2num(datetime.datetime.now()) - x_max)
+        start = x_max - step + (mdates.date2num(discord.utils.utcnow()) - x_max)
         ax.set_xticks(np.arange(start, x_min, -step))
         ax.xaxis.set_major_formatter(format_hour)
         ax.set_xlabel('UTC', loc='left', color=self.line_color)
