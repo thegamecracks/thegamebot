@@ -33,6 +33,15 @@ if not abm_log.hasHandlers():
     abm_log.addHandler(handler)
 
 
+# Utility functions
+def format_hour_and_minute(seconds: Union[float, int]) -> str:
+    seconds = round(seconds)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f'{hours}:{minutes:02d}h'
+
+
+# Giveaway stuff
 class GiveawayStatus(enum.Enum):
     RUNNING = 0
     CANCELED = 1
@@ -93,6 +102,7 @@ def is_giveaway_running(giveaway_channel_id):
     )
 
 
+# Converters
 class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
     REGEX = re.compile(r'\d{17}')
@@ -104,28 +114,83 @@ class SteamIDConverter(commands.Converter):
         return int(arg)
 
 
+# Server status
+class SkipInteractionResponse(Exception):
+    """Raised when a button interaction should intentionally be ignored."""
+
+
 class ServerStatusView(discord.ui.View):
     REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
 
-    def __init__(self, status, cooldown):
+    def __init__(self, status):
         super().__init__(timeout=None)
         self.status = status
-        self.cooldown = cooldown
 
         for i in self.children:
             if hasattr(i, 'custom_id'):
                 i.custom_id += f':{status.message_id}'
 
     async def interaction_check(self, interaction: discord.Interaction):
-        return (
-            not interaction.user.bot
-            and not self.cooldown.update_rate_limit()
+        return not interaction.user.bot
+
+    async def on_error(self, error, item, interaction):
+        if not isinstance(error, SkipInteractionResponse):
+            return await super().on_error(error, item, interaction)
+
+    @discord.ui.select(
+        custom_id='signalstatus:select',
+        placeholder='Extra options',
+        options=[
+            discord.SelectOption(
+                emoji='\N{VIDEO GAME}',
+                label='Playtime',
+                description='Get playtime statistics for current players',
+                value='playtime'
+            )
+        ]
+    )
+    async def on_select(self, select: discord.ui.Select, interaction: discord.Interaction):
+        if self.status.last_server is None:
+            await self.status.update()
+            if self.status.last_server is None:
+                raise SkipInteractionResponse('Failed to update the status')
+
+        method = getattr(self, 'on_select_' + select.values[0])
+        await method(interaction)
+
+    async def on_select_playtime(self, interaction: discord.Interaction):
+        players = self.status.last_server.players
+
+        if not players:
+            return await interaction.response.send_message(
+                'There are no players online to gather playtime data!',
+                ephemeral=True
+            )
+
+        total_playtime = sum(p.playtime or 0 for p in players)
+        longest_player = max(players, key=lambda p: p.playtime or 0)
+
+        message = (
+            'Total playtime: {total_playtime}\n'
+            '__{longest}__ has played the longest with {longest_playtime}!'
+        ).format(
+            total_playtime=format_hour_and_minute(total_playtime),
+            longest=longest_player.name,
+            longest_playtime=format_hour_and_minute(longest_player.playtime or 0)
         )
 
-    @discord.ui.button(style=discord.ButtonStyle.green, emoji=REFRESH_EMOJI,
-                       custom_id='signalstatus:refresh')
-    async def on_refresh(self, button: discord.Button, interaction: discord.Interaction):
-        await self.status.update()
+        await interaction.response.send_message(
+            message,
+            ephemeral=True
+        )
+
+    @discord.ui.button(
+        custom_id='signalstatus:refresh',
+        emoji=REFRESH_EMOJI,
+        style=discord.ButtonStyle.green
+    )
+    async def on_refresh(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await self.status.update(interaction)
 
 
 @dataclass
@@ -153,9 +218,6 @@ class ServerStatus:
     edit_cooldown: commands.Cooldown
     # Cooldown for graph generation
     graph_cooldown: commands.Cooldown
-    # Cooldown for clearing reaction without actually updating
-    # (improves button response without actually making more queries)
-    react_cooldown: commands.Cooldown
 
     loop_interval: int
 
@@ -168,7 +230,7 @@ class ServerStatus:
     BM_SERVER_LINK: ClassVar[str] = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
 
     def __post_init__(self):
-        self.view = ServerStatusView(self, self.react_cooldown)
+        self.view = ServerStatusView(self)
         # Make the view start listening for events
         self.bot.add_view(self.view, message_id=self.message_id)
 
@@ -383,8 +445,13 @@ class ServerStatus:
         self.last_graph = m
         return m
 
-    async def update(self):
+    async def update(self, interaction: Optional[discord.Interaction] = None):
         """Update the server status message.
+
+        Args:
+            interaction (Optional[discord.Interaction]):
+                The interaction to respond to when editing the message,
+                if needed.
 
         Returns:
             Tuple[abattlemetrics.Server, discord.Embed]:
@@ -403,7 +470,8 @@ class ServerStatus:
         try:
             server, old = await self.fetch_server(include_players=True)
         except abm.HTTPException as e:
-            if e.status >= 500:
+            if e.status >= 500 or e.status == 409:
+                # 409: Thanks cloudflare
                 return 30.0, None
             raise e
 
@@ -418,7 +486,11 @@ class ServerStatus:
         attachment = graph.attachments[0]
         embed.set_image(url=attachment)
 
-        await self.partial_message.edit(embed=embed, view=self.view)
+        if interaction:
+            await interaction.response.edit_message(embed=embed, view=self.view)
+        else:
+            await self.partial_message.edit(embed=embed, view=self.view)
+
         return server, embed
 
     def _get_next_period(self, now=None, *, inclusive=False) -> int:
@@ -467,6 +539,7 @@ class ServerStatus:
         await asyncio.sleep(next_period)
 
 
+# Menu Page Sources
 class EmbedPageSourceMixin:
     def get_embed_template(self, menu: menus.MenuPages):
         embed = discord.Embed(
@@ -491,15 +564,6 @@ class SessionPageSourceMixin:
             tzinfo=datetime.timezone.utc
         ).astimezone().replace(tzinfo=None)
 
-    @staticmethod
-    def format_playtime(s: int) -> str:
-        if s == 0:
-            return 'Session is ongoing'
-
-        m, s = divmod(s, 60)
-        h, m = divmod(m, 60)
-        return f'Session lasted for {h}:{m:02d}h'
-
     @classmethod
     def format_session(cls, session: abm.Session):
         started_at = session.stop or session.start
@@ -513,7 +577,8 @@ class SessionPageSourceMixin:
 
         return (
             started_at,
-            cls.format_playtime(playtime)
+            f'Session lasted for {format_hour_and_minute(playtime)}'
+            if playtime else 'Session is ongoing'
         )
 
 
@@ -808,7 +873,6 @@ class SignalHill(commands.Cog):
     BM_SERVER_ID_SOG = 4712021
     SERVER_STATUS_INTERVAL = 60
     SERVER_STATUS_EDIT_RATE = 10
-    SERVER_STATUS_FALSE_EDIT_RATE = 5
     SERVER_STATUS_GRAPH_DEST = 842924251954151464
     SERVER_STATUS_GRAPH_RATE = 60 * 30
     GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
@@ -874,7 +938,6 @@ class SignalHill(commands.Cog):
             'graph_channel_id': self.SERVER_STATUS_GRAPH_DEST,
             'edit_cooldown': commands.Cooldown(1, self.SERVER_STATUS_EDIT_RATE),
             'graph_cooldown': commands.Cooldown(1, self.SERVER_STATUS_GRAPH_RATE),
-            'react_cooldown': commands.Cooldown(1, self.SERVER_STATUS_FALSE_EDIT_RATE),
             'loop_interval': self.SERVER_STATUS_INTERVAL
         }
 
@@ -1278,12 +1341,10 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
                 player_id, self.BM_SERVER_ID_INA, start=start, stop=stop)
 
         total_playtime = sum(dp.value for dp in datapoints)
-        m, s = divmod(total_playtime, 60)
-        h, m = divmod(m, 60)
 
         await ctx.send(
-            'Player: {}\nPlaytime in the last month: {}:{:02d}h'.format(
-                player.name, h, m
+            'Player: {}\nPlaytime in the last month: {}'.format(
+                player.name, format_hour_and_minute(total_playtime)
             )
         )
 
