@@ -470,60 +470,6 @@ This removes any activity the bot currently has."""
 
 
 
-    @commands.command(name='reload')
-    @commands.cooldown(2, 10, commands.BucketType.user)
-    async def client_ext_reload(self, ctx, extension):
-        """Reload an extension.
-https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
-        logger = discordlogger.get_logger()
-
-        def reload(ext):
-            # Unload extension if possible then load extension
-            try:
-                self.bot.unload_extension(ext)
-            except commands.errors.ExtensionNotFound:
-                return 'Could not find the extension.'
-            except commands.errors.NoEntryPointError:
-                return 'This extension is missing a setup.'
-            except commands.errors.ExtensionNotLoaded:
-                pass
-            try:
-                self.bot.load_extension(ext)
-            except (ModuleNotFoundError, commands.errors.ExtensionNotFound):
-                return 'Could not find the extension.'
-            except commands.errors.NoEntryPointError:
-                return 'This extension is missing a setup.'
-            except commands.errors.CommandInvokeError:
-                return 'This extension failed to be reloaded.'
-
-        if extension == 'all':
-            logger.info('Attempting to reload all extensions '
-                        f'by {get_user_for_log(ctx)}')
-            await ctx.trigger_typing()
-            # NOTE: must cast dict into list as extensions is mutated
-            # during reloading
-            for ext in list(self.bot.extensions):
-                result = reload(ext)
-                if result is not None:
-                    return await ctx.send(result)
-            else:
-                logger.info(
-                    f'All extensions reloaded by {get_user_for_log(ctx)}')
-                await ctx.send('Extensions have been reloaded.')
-        else:
-            logger.info(f'Attempting to reload {extension} extension '
-                        f'by {get_user_for_log(ctx)}')
-            await ctx.trigger_typing()
-            result = reload(extension)
-            if result is not None:
-                await ctx.send(result)
-            else:
-                await ctx.send('Extension has been reloaded.')
-
-
-
-
-
     @commands.command(name='restart')
     async def client_restart(self, ctx):
         """Restarts the bot."""
