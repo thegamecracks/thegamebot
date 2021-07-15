@@ -373,7 +373,7 @@ class ServerStatus:
 
         # Set xticks to every two hours
         step = 1 / 12
-        start = x_max - step + (mdates.date2num(datetime.datetime.utcnow()) - x_max)
+        start = x_max - step + (mdates.date2num(datetime.datetime.now()) - x_max)
         ax.set_xticks(np.arange(start, x_min, -step))
         ax.xaxis.set_major_formatter(format_hour)
         ax.set_xlabel('UTC', loc='left', color=self.line_color)
@@ -557,13 +557,6 @@ class EmbedPageSourceMixin:
 
 
 class SessionPageSourceMixin:
-    @staticmethod
-    def utc_to_local(dt: datetime.datetime) -> datetime.datetime:
-        """Convert a naive UTC datetime into a naive local datetime."""
-        return dt.replace(
-            tzinfo=datetime.timezone.utc
-        ).astimezone().replace(tzinfo=None)
-
     @classmethod
     def format_session(cls, session: abm.Session):
         started_at = session.stop or session.start
@@ -572,7 +565,7 @@ class SessionPageSourceMixin:
         # NOTE: humanize.naturaltime() only supports
         # naive local datetimes
         started_at = humanize.naturaltime(
-            cls.utc_to_local(started_at)
+            started_at.astimezone().replace(tzinfo=None)
         )
 
         return (
@@ -1221,7 +1214,7 @@ sessions: If true, fetches session data for each player, including the last time
                 s_id = s_id.name if s_id else '\u200b'
 
                 started_at = session.stop or session.start
-                diff = datetime.datetime.utcnow() - started_at
+                diff = discord.utils.utcnow() - started_at
                 diff_string = utils.timedelta_abbrev(diff)
 
                 results.append((
