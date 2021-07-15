@@ -159,28 +159,41 @@ class ServerStatusView(discord.ui.View):
         await method(interaction)
 
     async def on_select_playtime(self, interaction: discord.Interaction):
-        players = self.status.last_server.players
+        players = sorted(
+            self.status.last_server.players,
+            reverse=True, key=lambda p: p.playtime or 0
+        )
 
         if not players:
             return await interaction.response.send_message(
-                'There are no players online to gather playtime data!',
+                'There are no players online.',
                 ephemeral=True
             )
 
         total_playtime = sum(p.playtime or 0 for p in players)
-        longest_player = max(players, key=lambda p: p.playtime or 0)
 
-        message = (
-            'Total playtime: {total_playtime}\n'
-            '__{longest}__ has played the longest with {longest_playtime}!'
-        ).format(
-            total_playtime=format_hour_and_minute(total_playtime),
-            longest=longest_player.name,
-            longest_playtime=format_hour_and_minute(longest_player.playtime or 0)
+        embed = discord.Embed(
+            color=self.status.line_color
+        )
+
+        items = []
+        for p in players:
+            name = discord.utils.escape_markdown(p.name)
+            playtime = ''
+            if p.playtime is not None:
+                playtime = ' ({})'.format(format_hour_and_minute(p.playtime))
+            items.append(f'{name}{playtime}')
+
+        embed = self.status.add_fields(
+            embed,
+            items,
+            name='Total playtime: {}'.format(
+                format_hour_and_minute(total_playtime)
+            )
         )
 
         await interaction.response.send_message(
-            message,
+            embed=embed,
             ephemeral=True
         )
 
@@ -201,9 +214,6 @@ class ServerStatus:
     channel_id: int
     message_id: int
 
-    # A range of active hours in the day.
-    # Determines the header to use when creating the embed.
-    active_hours: range
     # The name of the map the server is running on.
     # Set to None to use whatever battlemetrics provides.
     server_map: Optional[str]
@@ -211,8 +221,7 @@ class ServerStatus:
     # The ID of the channel to upload the graph to.
     graph_channel_id: int
     # The line color to use when creating the graph.
-    # Must be in the format '#rrggbb' (no transparency).
-    line_color: str
+    line_color: int
 
     # Cooldown for editing
     edit_cooldown: commands.Cooldown
@@ -233,6 +242,10 @@ class ServerStatus:
         self.view = ServerStatusView(self)
         # Make the view start listening for events
         self.bot.add_view(self.view, message_id=self.message_id)
+
+    @functools.cached_property
+    def line_color_hex(self) -> str:
+        return hex(self.line_color).replace('0x', '#', 1)
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -259,6 +272,38 @@ class ServerStatus:
         old, self.last_server = self.last_server, server
         return server, old
 
+    @staticmethod
+    def add_fields(
+            embed: discord.Embed, items: list, *, name: str = '\u200b'
+        ) -> discord.Embed:
+        """Add up to 3 fields in an embed for displaying a list of items.
+
+        This mutates the given embed.
+
+        Args:
+            embed (discord.Embed): The embed to add fields to.
+            items (list): A list of items to display in the fields.
+                Each item is implicitly converted to a string.
+            name (str): The name of the first field.
+
+        Returns:
+            discord.Embed
+
+        """
+        if items:
+            # Group them into 1-3 fields in sizes of 5
+            n_fields = min((len(items) + 4) // 5, 3)
+            size = -(len(items) // -n_fields)  # ceil division
+            fields = [items[i:i + size] for i in range(0, len(items), size)]
+
+            for i, p_list in enumerate(fields):
+                embed.add_field(
+                    name='\u200b' if i else name,
+                    value='\n'.join([str(x) for x in p_list])
+                )
+
+        return embed
+
     def create_embed(
             self, server: abm.Server
         ) -> discord.Embed:
@@ -280,22 +325,13 @@ class ServerStatus:
             text='Last updated'
         )
 
-        description = []
-
-        maybe_offline = (
-            '(If I am offline, scroll up or check [battlemetrics]({link}))')
-        if now.hour not in self.active_hours:
-            maybe_offline = (
-                "(I may be offline at this time, if so you can "
-                'scroll up or check [battlemetrics]({link}))'
+        description = [
+            'View in [battlemetrics]({link})'.format(
+                link=self.BM_SERVER_LINK
+            ).format(
+                game='arma3', server_id=self.server_id
             )
-        maybe_offline = maybe_offline.format(
-            link=self.BM_SERVER_LINK
-        ).format(
-            game='arma3', server_id=self.server_id
-        )
-
-        description.append(maybe_offline)
+        ]
 
         if server.status != 'online':
             description.append('Server is offline')
@@ -308,31 +344,18 @@ class ServerStatus:
             server.ip, server.port))
         description.append('Map: ' + (self.server_map or server.details['map']))
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
-        # Generate list of player names with their playtime
-        players: List[abm.Player] = sorted(
-            server.players, reverse=True, key=lambda p: p.playtime or 0)
+
+        players: List[abm.Player] = sorted(server.players, key=lambda p: p.name)
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
             if p.first_time:
                 name = f'__{name}__'
-            pt = ''
-            # if p.playtime:
-            #     minutes, seconds = divmod(int(p.playtime), 60)
-            #     hours, minutes = divmod(minutes, 60)
-            #     pt = f' ({hours}:{minutes:02d}h)'
+
             score = f' ({p.score})' if p.score is not None else ''
-            players[i] = f'{name}{pt}{score}'
+            players[i] = f'{name}{score}'
 
         players: List[str]
-        if players:
-            # Group them into 1-3 fields in sizes of 5
-            n_fields = min((len(players) + 4) // 5, 3)
-            size = -(len(players) // -n_fields)  # ceil division
-            fields = [players[i:i + size] for i in range(0, len(players), size)]
-            for i, p_list in enumerate(fields):
-                value = '\n'.join(p_list)
-                name = '\u200b' if i else 'Name (Score)'
-                embed.add_field(name=name, value=value)
+        embed = self.add_fields(embed, players, name='Name (Score)')
 
         embed.description = '\n'.join(description)
 
@@ -364,19 +387,19 @@ class ServerStatus:
         # Plot player counts
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
         x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
-        lines = ax.plot(x, y, self.line_color)  # , marker='.')
+        lines = ax.plot(x, y, self.line_color_hex)  # , marker='.')
 
         # Set limits and fill under the line
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, server.max_players + 1)
-        ax.fill_between(x, y, color=self.line_color + '55')
+        ax.fill_between(x, y, color=self.line_color_hex + '55')
 
         # Set xticks to every two hours
         step = 1 / 12
         start = x_max - step + (mdates.date2num(discord.utils.utcnow()) - x_max)
         ax.set_xticks(np.arange(start, x_min, -step))
         ax.xaxis.set_major_formatter(format_hour)
-        ax.set_xlabel('UTC', loc='left', color=self.line_color)
+        ax.set_xlabel('UTC', loc='left', color=self.line_color_hex)
 
         # Set yticks
         ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
@@ -390,7 +413,7 @@ class ServerStatus:
             spine.set_color('#00000000')
         ax.tick_params(
             labelsize=9, color='#70707066',
-            labelcolor=self.line_color
+            labelcolor=self.line_color_hex
         )
 
         # Make background fully transparent
@@ -861,7 +884,6 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 class SignalHill(commands.Cog):
     """Stuff for the Signal Hill server."""
 
-    ACTIVE_HOURS = range(6, 22)
     BM_SERVER_ID_INA = 10654566
     BM_SERVER_ID_SOG = 4712021
     SERVER_STATUS_INTERVAL = 60
@@ -887,7 +909,7 @@ class SignalHill(commands.Cog):
                 channel_id=819632332896993360,
                 message_id=842228691077431296,
                 server_map=None,
-                line_color='#F54F33',
+                line_color=0xF54F33,
                 **self.create_server_status_params()
             ),
             ServerStatus(
@@ -896,7 +918,7 @@ class SignalHill(commands.Cog):
                 channel_id=852008953968984115,
                 message_id=852009695241175080,
                 server_map='Cam Lao Nam',
-                line_color='#2FE4BF',
+                line_color=0x2FE4BF,
                 **self.create_server_status_params()
             ),
         ]
@@ -927,7 +949,6 @@ class SignalHill(commands.Cog):
 
     def create_server_status_params(self):
         return {
-            'active_hours': self.ACTIVE_HOURS,
             'graph_channel_id': self.SERVER_STATUS_GRAPH_DEST,
             'edit_cooldown': commands.Cooldown(1, self.SERVER_STATUS_EDIT_RATE),
             'graph_cooldown': commands.Cooldown(1, self.SERVER_STATUS_GRAPH_RATE),
