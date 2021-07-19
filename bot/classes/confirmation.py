@@ -14,6 +14,8 @@ Real = Union[float, int]
 class EmbedConfirmation(abc.ABC):
     """The base class for embed confirmations.
 
+    Instances of this class should be single-use.
+
     Args:
         ctx (discord.ext.commands.Context)
         color (int): The color of the embed.
@@ -182,11 +184,6 @@ class ButtonConfirmationView(discord.ui.View):
         self.add_item(yes)
         self.add_item(no)
 
-    async def on_timeout(self):
-        if self.confirmation._answer is self.confirmation._MISSING:
-            self.confirmation._answer = None
-            self.confirmation._event.set()
-
 
 class ButtonConfirmation(EmbedConfirmation):
     """An embed confirmation that takes its input using buttons.
@@ -200,8 +197,6 @@ class ButtonConfirmation(EmbedConfirmation):
             The button to use for inputting a "no" answer.
 
     """
-    _MISSING = object()
-
     def __init__(self, ctx, color=0, *, yes=None, no=None):
         super().__init__(ctx, color)
 
@@ -215,21 +210,21 @@ class ButtonConfirmation(EmbedConfirmation):
                 style=discord.ButtonStyle.red,
                 emoji='\N{HEAVY MULTIPLICATION X}'
             )
-        yes.callback = self._create_callback(True)
-        no.callback = self._create_callback(False)
+        yes.callback = self._create_callback(yes, True)
+        no.callback = self._create_callback(no, False)
 
         self.yes = yes
         self.no = no
 
-        self._answer = self._MISSING
-        self._event = asyncio.Event()
+        self._view = None
+        self._answer = None
 
-    def _create_callback(self, value: bool):
+    def _create_callback(self, button, value: bool):
         async def callback(interaction: discord.Interaction):
             if self._answer is not self._MISSING:
                 return
             self._answer = value
-            self._event.set()
+            button.view.stop()
 
         return callback
 
@@ -239,6 +234,7 @@ class ButtonConfirmation(EmbedConfirmation):
         embed = self._create_embed(title)
         message = await self.ctx.send(embed=embed, view=view)
         self.message = message
+        self._view = view
 
         return message
 
@@ -247,8 +243,7 @@ class ButtonConfirmation(EmbedConfirmation):
         return await self.get_answer(timeout=timeout)
 
     async def get_answer(self, *, timeout: Real) -> Optional[bool]:
-        # NOTE: will hang forever if the prompt was never sent
-        await self._event.wait()
+        await self._view.wait()
         return self._answer
 
     async def update(self, title: str, *, color=None):
