@@ -269,7 +269,7 @@ async def main():
     for attr in DISABLED_INTENTS:
         setattr(intents, attr, False)
 
-    bot = TheGameBot(intents=intents, strip_after_prefix=True)
+    bot = TheGameBot(intents=intents, case_insensitive=True, strip_after_prefix=True)
     await bot.setup()
 
     async def bootup_time(bot, start_time):
