@@ -18,7 +18,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot.other import discordlogger
 from bot import converters, utils
 
@@ -473,17 +473,17 @@ This removes any activity the bot currently has."""
     @commands.command(name='restart')
     async def client_restart(self, ctx):
         """Restarts the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to RESTART the bot?')
 
         if confirmed:
-            await prompt.update('Restarting.', prompt.emoji_yes.color)
+            await prompt.update('Restarting.', color=prompt.YES)
             print(f'Initiating restart by {get_user_for_log(ctx)}')
             await self.bot.restart()
         else:
-            await prompt.update('Cancelled restart.', prompt.emoji_no.color)
+            await prompt.update('Cancelled restart.', color=prompt.NO)
 
 
 
@@ -494,17 +494,17 @@ This removes any activity the bot currently has."""
         aliases=('close', 'exit', 'quit', 'stop'))
     async def client_shutdown(self, ctx):
         """Shutdown the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to SHUTDOWN the bot?')
 
         if confirmed:
-            await prompt.update('Shutting down.', prompt.emoji_yes.color)
+            await prompt.update('Shutting down.', color=prompt.YES)
             print(f'Initiating shutdown by {get_user_for_log(ctx)}')
             await self.bot.shutdown()
         else:
-            await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
+            await prompt.update('Cancelled shutdown.', color=prompt.NO)
 
 
 

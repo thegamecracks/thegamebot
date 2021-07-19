@@ -10,7 +10,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot.converters import DollarConverter
 from bot.utils import format_cents, format_dollars
 from bot import utils
@@ -204,16 +204,16 @@ class Economy(commands.Cog):
     async def client_money_reset(self, ctx):
         """Reset the economy for the server.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset the server's economy?")
 
         if confirmed:
             await self.bot.dbcurrency.wipe(ctx.guild.id)
-            await prompt.update('Completed economy wipe!', prompt.emoji_yes.color)
+            await prompt.update('Completed economy wipe!', color=prompt.YES)
         else:
-            await prompt.update('Cancelled economy wipe.', prompt.emoji_no.color)
+            await prompt.update('Cancelled economy wipe.', color=prompt.NO)
 
 
 

@@ -8,7 +8,7 @@ from typing import Optional
 import discord
 from discord.ext import commands, menus
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot import errors, utils
 
 
@@ -449,16 +449,16 @@ Useful for copy pasting any of the tag's markdown."""
     async def client_tag_reset(self, ctx):
         """Reset all tags in the server.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset the server's tags?")
 
         if confirmed:
             await self.bot.dbtags.wipe(ctx.guild.id)
-            await prompt.update('Wiped all tags!', prompt.emoji_yes.color)
+            await prompt.update('Wiped all tags!', color=prompt.YES)
         else:
-            await prompt.update('Cancelled tag reset.', prompt.emoji_no.color)
+            await prompt.update('Cancelled tag reset.', color=prompt.NO)
 
 
 

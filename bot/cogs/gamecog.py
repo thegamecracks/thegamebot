@@ -13,7 +13,7 @@ from typing import Optional, List, Union
 import discord
 from discord.ext import commands
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot.classes.games import blackjack, multimath
 from bot.classes.get_reaction import get_reaction
 from bot import utils
@@ -418,7 +418,7 @@ size: (optional) The size of the deck to use in the session.
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def client_blackjack_stats_reset(self, ctx):
         """Reset your blackjack stats."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to reset your blackjack stats?')
@@ -426,9 +426,9 @@ size: (optional) The size of the deck to use in the session.
         if confirmed:
             await self.bot.dbgames.delete_data(ctx.author.id)
             await prompt.update('Successfully wiped your stats!',
-                                prompt.emoji_yes.color)
+                                color=prompt.YES)
         else:
-            await prompt.update('Cancelled reset.', prompt.emoji_no.color)
+            await prompt.update('Cancelled reset.', color=prompt.NO)
 
 
 
