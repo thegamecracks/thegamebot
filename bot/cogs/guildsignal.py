@@ -1291,10 +1291,9 @@ labels: Group channels together by their labels rather than a simple alphabetica
 
         min_pos = min(c.position for c, m in tickets)
         for i, (ch, _) in enumerate(sorted_tickets, start=min_pos):
-            print(ch.name, '/', ch.position, i)
             if ch.position == i:
                 continue
-            await a.edit(position=i)
+            await ch.edit(position=i)
 
         await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
 
