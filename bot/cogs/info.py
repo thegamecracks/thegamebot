@@ -573,30 +573,42 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
         def round_ms(n):
             return round(n * 100_000) / 1000
 
-        # Heartbeat
-        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+        async def time_ms(coro):
+            start = time.perf_counter()
+            await coro
+            return round_ms(time.perf_counter() - start)
 
+        async def poll_database():
+            async with await ctx.bot.dbusers.connect() as conn:
+                await conn.execute('SELECT 1')
+
+        async def poll_message():
+            nonlocal message
+            message = await ctx.send(embed=embed)
+
+        message: discord.Message
         embed = discord.Embed(
             title='Pong!',
             color=utils.get_bot_color(ctx.bot)
         )
 
-        # API typing time
-        start = time.perf_counter()
-        await ctx.trigger_typing()
-        latency_typing_ms = round_ms(time.perf_counter() - start)
+        task_database = asyncio.create_task(time_ms(poll_database()))
+        task_message = asyncio.create_task(time_ms(poll_message()))
+        task_typing = asyncio.create_task(time_ms(ctx.trigger_typing()))
+        await asyncio.wait((task_typing, task_message, task_database))
 
-        # API message time
-        start = time.perf_counter()
-        message = await ctx.send(embed=embed)
-        latency_message_ms = round_ms(time.perf_counter() - start)
+        latency_database_ms = task_database.result()
+        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+        latency_message_ms = task_message.result()
+        latency_typing_ms = task_typing.result()
 
         # Format embed
         stats = []
         stats.extend((
             f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
             f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
-            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms'
+            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms',
+            f'\N{FILE CABINET} Database: {latency_database_ms:g}ms'
         ))
         stats = '\n'.join(stats)
         embed.description = stats
