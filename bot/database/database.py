@@ -16,12 +16,6 @@ class Connector:
     """An object providing a context manager for acquiring
     and releasing the lock to the underlying connection.
     Returned by ConnectionPool.get_connector().
-
-    Usage:
-        >>> pool = ConnectionPool()
-        >>> async with await pool.get_connector('foo.db', writing=True) as conn:
-        ...      await conn.execute('CREATE TABLE ...')
-
     """
     __slots__ = ('conn', 'lock', 'writing')
 
@@ -49,10 +43,14 @@ class ConnectionPool:
     """A pool of connections to different databases.
 
     Once entered, use the get_connector() method to obtain Connector objects.
+
     Usage:
         >>> pool = ConnectionPool()
-        >>> async with await pool.get_connector('foo.db', writing=True) as conn:
-        ...      await conn.execute('CREATE TABLE ...')
+        >>> async with pool:
+        ...     connector = await pool.get_connector('foo.db', writing=True)
+        ...     async with connector as conn:
+        ...         await conn.execute('CREATE TABLE ...')
+
     """
     __slots__ = ('_connections', '_running')
 
