@@ -9,9 +9,10 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Optional
+from typing import Callable, ClassVar, Dict, Optional, List, Union
 
 import abattlemetrics as abm
+import dateparser
 import discord
 from discord.ext import commands, menus, tasks
 import humanize
@@ -32,6 +33,15 @@ if not abm_log.hasHandlers():
     abm_log.addHandler(handler)
 
 
+# Utility functions
+def format_hour_and_minute(seconds: Union[float, int]) -> str:
+    seconds = round(seconds)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f'{hours}:{minutes:02d}h'
+
+
+# Giveaway stuff
 class GiveawayStatus(enum.Enum):
     RUNNING = 0
     CANCELED = 1
@@ -41,10 +51,10 @@ class GiveawayStatus(enum.Enum):
 
 def get_giveaway_status(m: discord.Message) -> GiveawayStatus:
     """Infer the status of a giveaway from the message."""
-    embed = m.embeds[0]
-    if embed is None:
+    if not m.embeds:
         return GiveawayStatus.UNKNOWN
 
+    embed = m.embeds[0]
     title = str(embed.title).lower()
     if 'finish' in title:
         return GiveawayStatus.FINISHED
@@ -60,22 +70,24 @@ def check_giveaway_status(
         bad_response: str):
     """Check if the giveaway's status matches a condition.
 
-    This will add `last_giveaway` to the context, which will
-    be the giveaway message if it exists.
+    Searches through the last 10 messages for a giveaway message,
+    i.e. where the status is not `GiveawayStatus.UNKNOWN`.
+
+    This will add a `last_giveaway` attribute to the context which will
+    be the giveaway message or None if it does not exist.
 
     """
     e = errors.ErrorHandlerResponse(bad_response)
 
     async def predicate(ctx):
         channel = ctx.bot.get_channel(giveaway_channel_id)
-        try:
-            ctx.last_giveaway = m = await channel.history(limit=1).next()
-        except discord.NoMoreItems:
-            ctx.last_giveaway = None
+
+        ctx.last_giveaway = m = await channel.history(limit=10).find(
+            lambda m: get_giveaway_status(m) != GiveawayStatus.UNKNOWN
+        )
+        if not m or not check_func(get_giveaway_status(m)):
             raise e
 
-        if not check_func(get_giveaway_status(m)):
-            raise e
         return True
 
     return commands.check(predicate)
@@ -90,27 +102,118 @@ def is_giveaway_running(giveaway_channel_id):
     )
 
 
+# Converters
 class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
-    REGEX = re.compile('\d{17}')
+    REGEX = re.compile(r'\d{17}')
     INTEGER = 10_000_000_000_000_000
+
     async def convert(self, ctx, arg):
         if not self.REGEX.match(arg):
             raise commands.BadArgument('Could not parse Steam64ID.')
         return int(arg)
 
 
+# Server status
+class SkipInteractionResponse(Exception):
+    """Raised when a button interaction should intentionally be ignored."""
+
+
+class ServerStatusView(discord.ui.View):
+    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
+
+    def __init__(self, status):
+        super().__init__(timeout=None)
+        self.status = status
+
+        for i in self.children:
+            if hasattr(i, 'custom_id'):
+                i.custom_id += f':{status.message_id}'
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        return not interaction.user.bot
+
+    async def on_error(self, error, item, interaction):
+        if not isinstance(error, SkipInteractionResponse):
+            return await super().on_error(error, item, interaction)
+
+    @discord.ui.select(
+        custom_id='signalstatus:select',
+        placeholder='Extra options',
+        options=[
+            discord.SelectOption(
+                emoji='\N{VIDEO GAME}',
+                label='Playtime',
+                description='Get playtime statistics for current players',
+                value='playtime'
+            )
+        ]
+    )
+    async def on_select(self, select: discord.ui.Select, interaction: discord.Interaction):
+        if self.status.last_server is None:
+            await self.status.update()
+            if self.status.last_server is None:
+                raise SkipInteractionResponse('Failed to update the status')
+
+        method = getattr(self, 'on_select_' + select.values[0])
+        await method(interaction)
+
+    async def on_select_playtime(self, interaction: discord.Interaction):
+        players = sorted(
+            self.status.last_server.players,
+            reverse=True, key=lambda p: p.playtime or 0
+        )
+
+        if not players:
+            return await interaction.response.send_message(
+                'There are no players online.',
+                ephemeral=True
+            )
+
+        total_playtime = sum(p.playtime or 0 for p in players)
+
+        embed = discord.Embed(
+            color=self.status.line_color
+        )
+
+        items = []
+        for p in players:
+            name = discord.utils.escape_markdown(p.name)
+            playtime = ''
+            if p.playtime is not None:
+                playtime = ' ({})'.format(format_hour_and_minute(p.playtime))
+            items.append(f'{name}{playtime}')
+
+        embed = self.status.add_fields(
+            embed,
+            items,
+            name='Total playtime: {}'.format(
+                format_hour_and_minute(total_playtime)
+            )
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
+    @discord.ui.button(
+        custom_id='signalstatus:refresh',
+        emoji=REFRESH_EMOJI,
+        style=discord.ButtonStyle.green
+    )
+    async def on_refresh(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await self.status.update(interaction)
+
+
 @dataclass
 class ServerStatus:
-    bot: discord.Client
+    bot: commands.Bot
     bm_client: abm.BattleMetricsClient
     server_id: int
     channel_id: int
     message_id: int
 
-    # A range of active hours in the day.
-    # Determines the header to use when creating the embed.
-    active_hours: range
     # The name of the map the server is running on.
     # Set to None to use whatever battlemetrics provides.
     server_map: Optional[str]
@@ -118,16 +221,12 @@ class ServerStatus:
     # The ID of the channel to upload the graph to.
     graph_channel_id: int
     # The line color to use when creating the graph.
-    # Must be in the format '#rrggbb' (no transparency).
-    line_color: str
+    line_color: int
 
     # Cooldown for editing
     edit_cooldown: commands.Cooldown
     # Cooldown for graph generation
     graph_cooldown: commands.Cooldown
-    # Cooldown for clearing reaction without actually updating
-    # (improves button response without actually making more queries)
-    react_cooldown: commands.Cooldown
 
     loop_interval: int
 
@@ -135,7 +234,18 @@ class ServerStatus:
     # Last message sent with the uploaded graph
     last_graph: Optional[discord.Message] = field(default=None, init=False)
 
+    view: ServerStatusView = field(init=False)
+
     BM_SERVER_LINK: ClassVar[str] = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
+
+    def __post_init__(self):
+        self.view = ServerStatusView(self)
+        # Make the view start listening for events
+        self.bot.add_view(self.view, message_id=self.message_id)
+
+    @functools.cached_property
+    def line_color_hex(self) -> str:
+        return hex(self.line_color).replace('0x', '#', 1)
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -162,6 +272,38 @@ class ServerStatus:
         old, self.last_server = self.last_server, server
         return server, old
 
+    @staticmethod
+    def add_fields(
+            embed: discord.Embed, items: list, *, name: str = '\u200b'
+        ) -> discord.Embed:
+        """Add up to 3 fields in an embed for displaying a list of items.
+
+        This mutates the given embed.
+
+        Args:
+            embed (discord.Embed): The embed to add fields to.
+            items (list): A list of items to display in the fields.
+                Each item is implicitly converted to a string.
+            name (str): The name of the first field.
+
+        Returns:
+            discord.Embed
+
+        """
+        if items:
+            # Group them into 1-3 fields in sizes of 5
+            n_fields = min((len(items) + 4) // 5, 3)
+            size = -(len(items) // -n_fields)  # ceil division
+            fields = [items[i:i + size] for i in range(0, len(items), size)]
+
+            for i, p_list in enumerate(fields):
+                embed.add_field(
+                    name='\u200b' if i else name,
+                    value='\n'.join([str(x) for x in p_list])
+                )
+
+        return embed
+
     def create_embed(
             self, server: abm.Server
         ) -> discord.Embed:
@@ -178,27 +320,18 @@ class ServerStatus:
 
         embed = discord.Embed(
             title=server.name,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         ).set_footer(
             text='Last updated'
         )
 
-        description = []
-
-        maybe_offline = (
-            '(If I am offline, scroll up or check [battlemetrics]({link}))')
-        if now.hour not in self.active_hours:
-            maybe_offline = (
-                "(I may be offline at this time, if so you can "
-                'scroll up or check [battlemetrics]({link}))'
+        description = [
+            'View in [battlemetrics]({link})'.format(
+                link=self.BM_SERVER_LINK
+            ).format(
+                game='arma3', server_id=self.server_id
             )
-        maybe_offline = maybe_offline.format(
-            link=self.BM_SERVER_LINK
-        ).format(
-            game='arma3', server_id=self.server_id
-        )
-
-        description.append(maybe_offline)
+        ]
 
         if server.status != 'online':
             description.append('Server is offline')
@@ -211,29 +344,18 @@ class ServerStatus:
             server.ip, server.port))
         description.append('Map: ' + (self.server_map or server.details['map']))
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
-        # Generate list of player names with their playtime
-        players = sorted(
-            server.players, reverse=True, key=lambda p: p.playtime or 0)
+
+        players: List[abm.Player] = sorted(server.players, key=lambda p: p.name)
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
             if p.first_time:
                 name = f'__{name}__'
-            pt = ''
-            # if p.playtime:
-            #     minutes, seconds = divmod(int(p.playtime), 60)
-            #     hours, minutes = divmod(minutes, 60)
-            #     pt = f' ({hours}:{minutes:02d}h)'
+
             score = f' ({p.score})' if p.score is not None else ''
-            players[i] = f'{name}{pt}{score}'
-        if players:
-            # Group them into 1-3 fields in sizes of 5
-            n_fields = min((len(players) + 4) // 5, 3)
-            size = -(len(players) // -n_fields)  # ceil division
-            fields = [players[i:i + size] for i in range(0, len(players), size)]
-            for i, p_list in enumerate(fields):
-                value = '\n'.join(p_list)
-                name = '\u200b' if i else 'Name (Score)'
-                embed.add_field(name=name, value=value)
+            players[i] = f'{name}{score}'
+
+        players: List[str]
+        embed = self.add_fields(embed, players, name='Name (Score)')
 
         embed.description = '\n'.join(description)
 
@@ -265,19 +387,19 @@ class ServerStatus:
         # Plot player counts
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
         x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
-        lines = ax.plot(x, y, self.line_color)  # , marker='.')
+        lines = ax.plot(x, y, self.line_color_hex)  # , marker='.')
 
         # Set limits and fill under the line
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, server.max_players + 1)
-        ax.fill_between(x, y, color=self.line_color + '55')
+        ax.fill_between(x, y, color=self.line_color_hex + '55')
 
         # Set xticks to every two hours
         step = 1 / 12
-        start = x_max - step + (mdates.date2num(datetime.datetime.utcnow()) - x_max)
+        start = x_max - step + (mdates.date2num(discord.utils.utcnow()) - x_max)
         ax.set_xticks(np.arange(start, x_min, -step))
         ax.xaxis.set_major_formatter(format_hour)
-        ax.set_xlabel('UTC', loc='left', color=self.line_color)
+        ax.set_xlabel('UTC', loc='left', color=self.line_color_hex)
 
         # Set yticks
         ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
@@ -291,7 +413,7 @@ class ServerStatus:
             spine.set_color('#00000000')
         ax.tick_params(
             labelsize=9, color='#70707066',
-            labelcolor=self.line_color
+            labelcolor=self.line_color_hex
         )
 
         # Make background fully transparent
@@ -313,7 +435,6 @@ class ServerStatus:
         the resulting message in self.last_graph.
 
         Args:
-            channel (discord.abc.Messageable): The channel to upload to.
             server (abattlemetrics.Server): The Server object.
                 Used to know the max number of players.
             graphing_cog (commands.Cog): The Graphing cog.
@@ -322,16 +443,23 @@ class ServerStatus:
             discord.Message
 
         """
-        stop = datetime.datetime.utcnow()
+        stop = datetime.datetime.now(datetime.timezone.utc)
         start = stop - datetime.timedelta(hours=24)
         datapoints = await self.bm_client.get_player_count_history(
             self.server_id, start=start, stop=stop
         )
 
-        f = await self.bot.loop.run_in_executor(
-            None, self.create_player_count_graph,
-            datapoints, server, graphing_cog
-        )
+        try:
+            f = await self.bot.loop.run_in_executor(
+                None, self.create_player_count_graph,
+                datapoints, server, graphing_cog
+            )
+        except KeyError as e:
+            # thanks matplotlib
+            await self.bot.get_channel(852021637452267591).send(
+                f'{e}\n{datapoints=}'
+            )
+            raise
         graph = discord.File(f, filename='graph.png')
 
         m = await self.bot.get_channel(self.graph_channel_id).send(file=graph)
@@ -340,8 +468,13 @@ class ServerStatus:
         self.last_graph = m
         return m
 
-    async def update(self):
+    async def update(self, interaction: Optional[discord.Interaction] = None):
         """Update the server status message.
+
+        Args:
+            interaction (Optional[discord.Interaction]):
+                The interaction to respond to when editing the message,
+                if needed.
 
         Returns:
             Tuple[abattlemetrics.Server, discord.Embed]:
@@ -351,7 +484,7 @@ class ServerStatus:
                 Results from either a cooldown or a 5xx response.
 
         """
-        retry_after = self.edit_cooldown.update_rate_limit(None)
+        retry_after = self.edit_cooldown.update_rate_limit()
         if retry_after:
             return retry_after, None
         # NOTE: a high cooldown period will help with preventing concurrent
@@ -360,21 +493,27 @@ class ServerStatus:
         try:
             server, old = await self.fetch_server(include_players=True)
         except abm.HTTPException as e:
-            if e.status >= 500:
+            if e.status >= 500 or e.status == 409:
+                # 409: Thanks cloudflare
                 return 30.0, None
+            raise e
 
         embed = self.create_embed(server)
 
         # Add graph to embed
         graph = self.last_graph
-        if not graph or not self.graph_cooldown.update_rate_limit(None):
+        if not graph or not self.graph_cooldown.update_rate_limit():
             graphing_cog = self.bot.get_cog('Graphing')
             if graphing_cog:
                 graph = await self.upload_graph(server, graphing_cog)
         attachment = graph.attachments[0]
         embed.set_image(url=attachment)
 
-        await self.partial_message.edit(embed=embed)
+        if interaction:
+            await interaction.response.edit_message(embed=embed, view=self.view)
+        else:
+            await self.partial_message.edit(embed=embed, view=self.view)
+
         return server, embed
 
     def _get_next_period(self, now=None, *, inclusive=False) -> int:
@@ -385,9 +524,8 @@ class ServerStatus:
         current time was HH:09:12, this would return 48s.
 
         Args:
-            interval (int): The interval per hour in seconds.
             now (Optional[datetime.datetime]): The current time.
-                Defaults to datetime.datetime.utcnow().
+                Defaults to datetime.datetime.now(datetime.timezone.utc).
             inclusive (bool): Return 0 when the current time
                 is already in sync with the interval.
 
@@ -395,7 +533,7 @@ class ServerStatus:
             int
 
         """
-        now = now or datetime.datetime.utcnow()
+        now = now or datetime.datetime.now(datetime.timezone.utc)
         seconds = now.minute * 60 + now.second
         wait_for = self.loop_interval - seconds % self.loop_interval
         if inclusive:
@@ -424,8 +562,9 @@ class ServerStatus:
         await asyncio.sleep(next_period)
 
 
+# Menu Page Sources
 class EmbedPageSourceMixin:
-    def get_embed_template(self, menu):
+    def get_embed_template(self, menu: menus.MenuPages):
         embed = discord.Embed(
             color=utils.get_bot_color(menu.bot)
         )
@@ -441,22 +580,6 @@ class EmbedPageSourceMixin:
 
 
 class SessionPageSourceMixin:
-    @staticmethod
-    def utc_to_local(dt: datetime.datetime) -> datetime.datetime:
-        """Convert a naive UTC datetime into a naive local datetime."""
-        return dt.replace(
-            tzinfo=datetime.timezone.utc
-        ).astimezone().replace(tzinfo=None)
-
-    @staticmethod
-    def format_playtime(s: int) -> str:
-        if s == 0:
-            return 'Session is ongoing'
-
-        m, s = divmod(s, 60)
-        h, m = divmod(m, 60)
-        return f'Session lasted for {h}:{m:02d}h'
-
     @classmethod
     def format_session(cls, session: abm.Session):
         started_at = session.stop or session.start
@@ -465,21 +588,22 @@ class SessionPageSourceMixin:
         # NOTE: humanize.naturaltime() only supports
         # naive local datetimes
         started_at = humanize.naturaltime(
-            cls.utc_to_local(started_at)
+            started_at.astimezone().replace(tzinfo=None)
         )
 
         return (
             started_at,
-            cls.format_playtime(playtime)
+            f'Session lasted for {format_hour_and_minute(playtime)}'
+            if playtime else 'Session is ongoing'
         )
 
 
 class LastSessionAsyncPageSource(
         SessionPageSourceMixin, EmbedPageSourceMixin,
         menus.AsyncIteratorPageSource):
-    def __init__(self, bm_client, ids, *, per_page, **kwargs):
+    def __init__(self, bm_client, server_id, ids, *, per_page, **kwargs):
         super().__init__(
-            self.yield_sessions(bm_client, per_page + 1, ids),
+            self.yield_sessions(bm_client, server_id, per_page + 1, ids),
             # NOTE: per_page + 1 since AsyncIteratorPageSource fetches
             # one extra to know if it has to paginate or not
             per_page=per_page,
@@ -487,12 +611,14 @@ class LastSessionAsyncPageSource(
         )
 
     @staticmethod
-    async def yield_sessions(bm_client, group_size, ids: list):
+    async def yield_sessions(
+            bm_client, server_id: int, group_size: int, ids: list):
         """Yield the most recent sessions of a given list of steam/player IDs.
 
         Args:
             bm_client (abattlemetrics.BattleMetricsClient):
                 The client to use for fetching sessions.
+            server_id (int): The server's ID to get sessions from.
             group_size (int):
                 When there are multiple steam64IDs, this specifies
                 how many of those IDs are all matched at once.
@@ -512,7 +638,7 @@ class LastSessionAsyncPageSource(
                     return (orig, None, None)
 
                 session = await bm_client.get_player_session_history(
-                    p_id, limit=1, server_ids=(10654566,)
+                    p_id, limit=1, server_ids=(server_id,)
                 ).flatten()
                 if not session:
                     return (orig, p_id, None)
@@ -671,39 +797,69 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 
     @staticmethod
     async def yield_pages(tickets):
-        paginator = commands.Paginator(prefix='', suffix='', max_size=2048)
+        paginator = commands.Paginator(prefix='', suffix='', max_size=4096)
         page_number = 0
+        # Yield pages as they are created
         async for line in tickets:
-            # Yield pages as they are created
-            pages = paginator.pages
-            if len(pages) - 1 > page_number:
+            paginator.add_line(line)
+
+            # Use _pages to not prematurely close the current page
+            pages = paginator._pages
+            if len(pages) > page_number:
                 yield pages[page_number]
                 page_number += 1
-
-            paginator.add_line(line)
 
         yield paginator.pages[-1]
 
     @staticmethod
     async def yield_tickets(channels):
-        def check(m):
+        async def check(m):
             nonlocal match
+            if m.author.bot:
+                return False
+
+            author = member_cache.get(m.author.id)
+            if author is None:
+                author = m.author
+            elif isinstance(author, int):
+                return author
+
+            if not isinstance(author, discord.Member):
+                try:
+                    author = await m.guild.fetch_member(author.id)
+                except discord.NotFound:
+                    # Return ID to indicate the player has left
+                    member_cache[author.id] = author.id
+                    return author.id
+                member_cache[author.id] = author
+
             # Optimized way of checking for staff role
-            if not m.author._roles.get(811415496075247649):
+            if not author._roles.get(811415496075247649):
                 return False
             match = converters.CodeBlock.from_search(m.content)
             return match is not None and SteamIDConverter.REGEX.search(match.code)
 
-        match = None
+        member_cache: Dict[int, Union[discord.Member, int]] = {}
+
+        match: Optional[converters.CodeBlock] = None
         for c in channels:
-            message = await c.history().find(check)
-            if message is None:
-                yield f'{c.mention}: no message found'
+            if not re.match(r'.+-\d+', c.name):
+                continue
+
+            async for message in c.history():
+                status = await check(message)
+                if status:
+                    break
             else:
+                yield f'{c.mention}: no message found'
+                continue
+
+            if isinstance(status, int):
+                yield f'{c.mention}: <@{status}> has left'
+            else:
+                match: converters.CodeBlock
                 yield (
-                    '{c}: {a} `{m}`\n'
-                    '\u200b \u200b \u200b \u200b '
-                    '([Jump to message]({j}))'.format(
+                    '{c}: {a} ([Jump to message]({j}))\n`{m}`'.format(
                         c=c.mention,
                         a=message.author.mention,
                         m=match.code,
@@ -715,7 +871,10 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
         embed = self.get_embed_template(menu)
         embed.description = page
         embed.set_author(
-            name=f'{embed.author.name} ({self.channel_span})'
+            name=(
+                f'{embed.author.name} ({self.channel_span})'
+                if embed.author else f'Tickets {self.channel_span}'
+            )
         ).set_footer(
             text=f'{len(self.channels)} tickets'
         )
@@ -725,16 +884,17 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 class SignalHill(commands.Cog):
     """Stuff for the Signal Hill server."""
 
-    ACTIVE_HOURS = range(6, 22)
+    BM_SERVER_ID_INA = 10654566
+    BM_SERVER_ID_SOG = 4712021
     SERVER_STATUS_INTERVAL = 60
     SERVER_STATUS_EDIT_RATE = 10
-    SERVER_STATUS_FALSE_EDIT_RATE = 5
     SERVER_STATUS_GRAPH_DEST = 842924251954151464
     SERVER_STATUS_GRAPH_RATE = 60 * 30
-    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
     GIVEAWAY_CHANNEL_ID = 850965403328708659  # testing: 850953633671020576
     GIVEAWAY_EMOJI_ID = 815804214470770728  # testing: 340900129114423296
     GUILD_ID = 811415496036843550
+    WHITELIST_TICKET_REGEX = re.compile(r'(?P<name>.+)-(?P<n>\d+)(?P<flags>\w*)')
+    WHITELISTED_PLAYERS_CHANNEL_ID = 824486812709027880
 
     def __init__(self, bot):
         self.bot = bot
@@ -743,24 +903,22 @@ class SignalHill(commands.Cog):
             token=os.getenv('BattlemetricsToken')
         )
         self.server_statuses = [
-            # I&A server
             ServerStatus(
                 bot, self.bm_client,
-                server_id=10654566,
+                server_id=self.BM_SERVER_ID_INA,
                 channel_id=819632332896993360,
                 message_id=842228691077431296,
                 server_map=None,
-                line_color='#F54F33',
+                line_color=0xF54F33,
                 **self.create_server_status_params()
             ),
-            # SOG server
             ServerStatus(
                 bot, self.bm_client,
-                server_id=4712021,
+                server_id=self.BM_SERVER_ID_SOG,
                 channel_id=852008953968984115,
                 message_id=852009695241175080,
                 server_map='Cam Lao Nam',
-                line_color='#2FE4BF',
+                line_color=0x2FE4BF,
                 **self.create_server_status_params()
             ),
         ]
@@ -770,6 +928,7 @@ class SignalHill(commands.Cog):
     def cog_unload(self):
         for status in self.server_statuses:
             status.update_loop.cancel()
+            status.view.stop()
         self.server_status_cleanup.cancel()
 
     @property
@@ -784,54 +943,17 @@ class SignalHill(commands.Cog):
     def guild(self):
         return self.bot.get_guild(self.GUILD_ID)
 
+    @property
+    def whitelist_channel(self):
+        return self.bot.get_channel(self.WHITELISTED_PLAYERS_CHANNEL_ID)
+
     def create_server_status_params(self):
         return {
-            'active_hours': self.ACTIVE_HOURS,
             'graph_channel_id': self.SERVER_STATUS_GRAPH_DEST,
-            'edit_cooldown': commands.Cooldown(
-                1, self.SERVER_STATUS_EDIT_RATE,
-                commands.BucketType.default
-            ),
-            'graph_cooldown': commands.Cooldown(
-                1, self.SERVER_STATUS_GRAPH_RATE,
-                commands.BucketType.default
-            ),
-            'react_cooldown': 
-                commands.Cooldown(
-                1, self.SERVER_STATUS_FALSE_EDIT_RATE,
-                commands.BucketType.default
-            ),
+            'edit_cooldown': commands.Cooldown(1, self.SERVER_STATUS_EDIT_RATE),
+            'graph_cooldown': commands.Cooldown(1, self.SERVER_STATUS_GRAPH_RATE),
             'loop_interval': self.SERVER_STATUS_INTERVAL
         }
-
-
-    @commands.Cog.listener('on_raw_reaction_add')
-    async def server_status_react(self, payload):
-        """Update a server status manually with a reaction."""
-        if (    str(payload.emoji) != self.REFRESH_EMOJI
-                or getattr(payload.member, 'bot', False)):
-            return
-
-        status = discord.utils.get(
-            self.server_statuses,
-            channel_id=payload.channel_id,
-            message_id=payload.message_id
-        )
-        if status is None:
-            return
-
-        server, embed = await status.update()
-        # NOTE: loop could decide to update right after this
-
-        if embed or not status.react_cooldown.update_rate_limit(None):
-            # Update successful or can pretend to update
-            message = status.partial_message
-            try:
-                await message.clear_reaction(self.REFRESH_EMOJI)
-            except discord.HTTPException:
-                pass
-            else:
-                await message.add_reaction(self.REFRESH_EMOJI)
 
 
     @property
@@ -840,6 +962,32 @@ class SignalHill(commands.Cog):
         return sum(
             status.update_loop.is_running() for status in self.server_statuses
         )
+
+
+    @commands.Cog.listener('on_connect')
+    async def on_connect_toggle_server_status(self):
+        """Turn on the server statuses after connecting."""
+        running = self.server_status_running
+        if running != len(self.server_statuses):
+            self.server_status_toggle()
+            if running != 0:
+                # We just canceled the remaining loops,
+                # turn them all back on
+                self.server_status_toggle()
+
+
+    @commands.Cog.listener('on_raw_message_delete')
+    @commands.Cog.listener('on_raw_message_edit')
+    async def on_whitelist_update(self, payload):
+        """Nullify the stored last message ID for the whitelist channel
+        if a delete or edit was done inside the channel.
+        This is so the "whitelist expired" command knows to refetch
+        the list of player IDs.
+        """
+        if payload.channel_id == self.WHITELISTED_PLAYERS_CHANNEL_ID:
+            settings = self.bot.get_cog('Settings')
+            if not settings.get('checkwhitelist-last_message_id', None):
+                settings.set('checkwhitelist-last_message_id', None).save()
 
 
     @tasks.loop(seconds=SERVER_STATUS_INTERVAL)
@@ -906,28 +1054,34 @@ class SignalHill(commands.Cog):
         return running
 
 
-    @commands.Cog.listener('on_connect')
-    async def server_status_toggle_on_connect(self):
-        """Turn on the server statuses after connecting."""
-        running = self.server_status_running
-        if running != len(self.server_statuses):
-            self.server_status_toggle()
-            if running != 0:
-                # We just canceled the remaining loops,
-                # turn them all back on
-                self.server_status_toggle()
 
 
 
 
-
-
-    @commands.command(name='togglesignalstatus', aliases=('tss',))
+    @commands.group(name='signalstatus')
     @commands.max_concurrency(1)
     @commands.is_owner()
-    async def client_toggle_server_status(self, ctx):
+    async def client_server_status(self, ctx):
+        """Manage the Signal Hill server statuses."""
+
+
+    @client_server_status.command(name='create')
+    async def client_server_status_create(self, ctx, channel: discord.TextChannel):
+        """Create a message with the server status view and temporary embed."""
+        embed = discord.Embed(
+            color=utils.get_bot_color(ctx.bot),
+            description='Server status coming soon',
+            timestamp=datetime.datetime.now()
+        )
+        view = ServerStatusView(None, None)
+        await channel.send(embed=embed, view=view)
+        view.stop()
+
+
+    @client_server_status.command(name='toggle')
+    async def client_server_status_toggle(self, ctx):
         """Toggle the Signal Hill server statuses.
-Turns back on when the bot connects."""
+Automatically turns back on when the bot connects."""
         enabled = self.server_status_toggle() == 0
         emoji = '\N{LARGE GREEN CIRCLE}' if enabled else '\N{LARGE RED CIRCLE}'
         await ctx.message.add_reaction(emoji)
@@ -946,10 +1100,13 @@ Turns back on when the bot connects."""
     @client_whitelist.command(name='accepted')
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_whitelist_accepted(self, ctx):
+    async def client_whitelist_accepted(self, ctx, open=False):
         """List whitelist tickets that have been approved.
-This searches up to 100 messages in each whitelist ticket for acceptance from staff."""
-        category = ctx.bot.get_channel(824502569652322304)
+This searches up to 100 messages in each whitelist ticket for acceptance from staff.
+
+open: If True, looks through the open whitelist tickets instead of closed tickets."""
+        category_id = 824502569652322304 if open else 824502754751152138
+        category = ctx.bot.get_channel(category_id)
 
         if not category.text_channels:
             return await ctx.send('No whitelist tickets are open!')
@@ -967,7 +1124,35 @@ This searches up to 100 messages in each whitelist ticket for acceptance from st
             await menu._event.wait()
 
 
-    @client_whitelist.command(name='expired')
+    async def _whitelist_get_player_ids(self) -> List[int]:
+        settings = self.bot.get_cog('Settings')
+        ids = settings.get('checkwhitelist-ids', None)
+        last_message_id = settings.get('checkwhitelist-last_message_id', None)
+        if (self.whitelist_channel.last_message_id != last_message_id
+                or ids is None):
+            ids = {}  # Use dict to maintain order and uniqueness
+
+            # Fetch IDs from channel
+            async for m in self.whitelist_channel.history(limit=None):
+                for match in SteamIDConverter.REGEX.finditer(m.content):
+                    ids[int(match.group())] = None
+
+            # Turn back into list
+            ids_list = list(ids)
+
+            # Cache them in settings
+            settings.set(
+                'checkwhitelist-ids',
+                ids_list
+            ).set(
+                'checkwhitelist-last_message_id',
+                self.whitelist_channel.last_message_id
+            ).save()
+
+        return ids_list
+
+
+    @client_whitelist.group(name='expired', invoke_without_command=True)
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
     async def client_whitelist_expired(self, ctx, sessions: bool = False):
@@ -975,35 +1160,14 @@ This searches up to 100 messages in each whitelist ticket for acceptance from st
 This looks through the steam IDs in the <#824486812709027880> channel.
 
 sessions: If true, fetches session data for each player, including the last time they played. This may make queries slower."""
-        whitelist_channel = ctx.bot.get_channel(824486812709027880)
-
-        settings = ctx.bot.get_cog('Settings')
-        ids = settings.get('checkwhitelist-ids', None)
-        last_message_id = settings.get('checkwhitelist-last_message_id', 0)
-        # NOTE: this does not take into consideration whether
-        # a message was edited or deleted
-        if ids is None or whitelist_channel.last_message_id != last_message_id:
-            ids = []
-
-            # Fetch IDs from channel
-            async with ctx.typing():
-                async for m in whitelist_channel.history(limit=None):
-                    for match in SteamIDConverter.REGEX.finditer(m.content):
-                        ids.append(int(match.group()))
-
-            # Cache them in settings
-            settings.set(
-                'checkwhitelist-ids', ids
-            ).set(
-                'checkwhitelist-last_message_id',
-                whitelist_channel.last_message_id
-            ).save()
+        async with ctx.typing():
+            ids = await self._whitelist_get_player_ids()
 
         get_session = None
         if sessions:
             get_session = functools.partial(
                 self.bm_client.get_player_session_history,
-                server_ids=(10654566,)
+                server_ids=(self.BM_SERVER_ID_INA,)
             )
 
         menu = menus.MenuPages(
@@ -1014,7 +1178,7 @@ sessions: If true, fetches session data for each player, including the last time
                     search='|'.join([str(n) for n in ids]),
                     # thankfully battlemetrics does not care how
                     # long the query string is
-                    last_seen_before=datetime.datetime.utcnow()
+                    last_seen_before=datetime.datetime.now(datetime.timezone.utc)
                                      - datetime.timedelta(weeks=2),
                     include_identifiers=True
                 ),
@@ -1039,6 +1203,102 @@ sessions: If true, fetches session data for each player, including the last time
             await menu._event.wait()
 
 
+    @client_whitelist_expired.command(name='dump')
+    @commands.cooldown(1, 120, commands.BucketType.default)
+    async def client_whitelist_expired_dump(self, ctx):
+        """Send a list of the expired whitelists."""
+        async with ctx.typing():
+            ids = await self._whitelist_get_player_ids()
+
+            source = PlayerListPageSource.yield_players(
+                functools.partial(
+                    self.bm_client.list_players,
+                    public=False,
+                    search='|'.join([str(n) for n in ids]),
+                    last_seen_before=datetime.datetime.now(datetime.timezone.utc)
+                                     - datetime.timedelta(weeks=2),
+                    include_identifiers=True
+                ),
+                functools.partial(
+                    self.bm_client.get_player_session_history,
+                    server_ids=(self.BM_SERVER_ID_INA,)
+                ),
+                ids
+            )
+
+            results = []
+            async for player, session in source:
+                s_id = discord.utils.get(
+                    player.identifiers,
+                    type=abm.IdentifierType.STEAM_ID
+                )
+                s_id = s_id.name if s_id else '\u200b'
+
+                started_at = session.stop or session.start
+                diff = discord.utils.utcnow() - started_at
+                diff_string = utils.timedelta_abbrev(diff)
+
+                results.append((
+                    '{} = {} [{} {}]'.format(
+                        player.name,
+                        s_id,
+                        started_at.strftime('%m/%d').lstrip('0'),
+                        diff_string
+                    ),
+                    diff
+                ))
+
+        # Sort by most recent
+        results.sort(key=lambda x: x[1])
+
+        paginator = commands.Paginator(prefix='', suffix='')
+        for line, _ in results:
+            paginator.add_line(line)
+
+        for page in paginator.pages:
+            await ctx.send(page)
+
+
+    @client_whitelist.command(name='sort')
+    @commands.bot_has_guild_permissions(manage_channels=True)
+    @commands.cooldown(1, 120, commands.BucketType.default)
+    @commands.max_concurrency(1, commands.BucketType.default)
+    async def client_whitelist_sort(self, ctx, labels: bool = True):
+        """Sort all the open whitelist tickets.
+
+labels: Group channels together by their labels rather than a simple alphabetical sort."""
+        def key(x):
+            c, m = x
+            if m is None:
+                # Place unknown formats at the top
+                return f'  {c.name}'
+            elif labels:
+                new_name = '{flags}{n}{name}'.format(**m.groupdict())
+                if 'a' in m.group('flags'):
+                    # Group accepted tickets together
+                    return ' ' + new_name
+                return new_name
+            return c.name
+
+        await ctx.message.add_reaction('\N{PERMANENT PAPER SIGN}')
+
+        category = ctx.bot.get_channel(824502569652322304)
+        tickets = [
+            (c, self.WHITELIST_TICKET_REGEX.match(c.name))
+            for c in category.text_channels
+        ]
+
+        sorted_tickets = sorted(tickets, key=key)
+
+        min_pos = min(c.position for c, m in tickets)
+        for i, (ch, _) in enumerate(sorted_tickets, start=min_pos):
+            if ch.position == i:
+                continue
+            await ch.edit(position=i)
+
+        await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
+
+
 
 
 
@@ -1049,15 +1309,15 @@ sessions: If true, fetches session data for each player, including the last time
     async def client_last_session(self, ctx, *ids: int):
         """Get one or more players' last session played on the I&A server.
 
-ids: A space-separated list of steam64IDs or battlemetrics player IDs to check.
-Use battlemetrics IDs when possible since it can take a long time to find someone by steam ID."""
+ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."""
         if len(ids) > 100:
             return await ctx.send('You are only allowed to provide 100 IDs at a time.')
         # Remove duplicates while retaining order using dict
         ids = dict.fromkeys(ids)
 
         menu = menus.MenuPages(
-            LastSessionAsyncPageSource(self.bm_client, ids, per_page=6),
+            LastSessionAsyncPageSource(
+                self.bm_client, self.BM_SERVER_ID_INA, ids, per_page=6),
             clear_reactions_after=True
         )
         async with ctx.typing():
@@ -1081,25 +1341,24 @@ Use battlemetrics IDs when possible since it can take a long time to find someon
         async with ctx.typing():
             results = await self.bm_client.match_players(
                 steam_id, type=abm.IdentifierType.STEAM_ID)
-            player_id = results[steam_id]
 
-            if player_id is None:
+            try:
+                player_id = results[steam_id]
+            except KeyError:
                 return await ctx.send('Could not find a user with that steam ID!')
 
             player = await self.bm_client.get_player_info(player_id)
 
-            stop = datetime.datetime.utcnow()
+            stop = datetime.datetime.now(datetime.timezone.utc)
             start = stop - datetime.timedelta(days=30)
             datapoints = await self.bm_client.get_player_time_played_history(
-                player_id, 10654566, start=start, stop=stop)
+                player_id, self.BM_SERVER_ID_INA, start=start, stop=stop)
 
         total_playtime = sum(dp.value for dp in datapoints)
-        m, s = divmod(total_playtime, 60)
-        h, m = divmod(m, 60)
 
         await ctx.send(
-            'Player: {}\nPlaytime in the last month: {}:{:02d}h'.format(
-                player.name, h, m
+            'Player: {}\nPlaytime in the last month: {}'.format(
+                player.name, format_hour_and_minute(total_playtime)
             )
         )
 
@@ -1125,59 +1384,75 @@ Use battlemetrics IDs when possible since it can take a long time to find someon
             return None
 
 
-    def _giveaway_create_embed(self, title, description):
+    def _giveaway_create_embed(
+            self, end_date: Optional[datetime.datetime],
+            title: str, description: str):
         """Create the running giveaway embed."""
         embed = discord.Embed(
             color=discord.Color.gold(),
             description=description,
             title=title,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=end_date or datetime.datetime.now()
         ).set_footer(
-            text='Started at'
+            text='End date' if end_date else 'Start date'
         )
 
         return embed
 
 
-    def _giveaway_finish_embed(self, embed, winner, total):
+    def _giveaway_finish_embed(self, embed, winners, total):
         """Edit a running embed so the giveaway is finished."""
+        plural = self.bot.inflector.plural
+        k = len(winners)
+
         embed.color = discord.Color.green()
 
-        embed.title = 'This giveaway has finished with {:,} {}!'.format(
-            total, self.bot.inflector.plural('participant', total)
+        embed.title = '{}\nThis giveaway has finished with {:,} {}!'.format(
+            embed.title, total, plural('participant', total)
         )
 
         embed.add_field(
-            name='The winner is:',
-            value=f'{winner.mention}\n'
-                  'Please create a support ticket to receive your reward!'
+            name='The {} {}:'.format(
+                plural('winner', k), plural('is', k)
+            ),
+            value='{}\n Please create a support ticket to '
+                  'receive your reward!'.format(
+                self.bot.inflector.join([u.mention for u in winners])
+            )
         ).set_footer(
-            text='Finished at'
+            text='Finish date'
         )
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
 
         return embed
 
 
-    def _giveaway_reroll_embed(self, embed, winner, total, reason):
-        """Edit a finished embed to replace the winner."""
-        embed.title = 'This giveaway has finished with {:,} {}!'.format(
-            total, self.bot.inflector.plural('participant', total)
+    def _giveaway_reroll_embed(self, embed, winners, total, reason):
+        """Edit a finished embed to replace the winners."""
+        plural = self.bot.inflector.plural
+        k = len(winners)
+
+        embed.title = '{}\nThis giveaway has finished with {:,} {}!'.format(
+            embed.title.split('\n')[0], total, plural('participant', total)
         )
 
         embed.clear_fields()
 
         embed.add_field(
-            name='The (rerolled) winner is:',
-            value=f'{winner.mention}\n'
-                  'Please create a support ticket to receive your reward!'
+            name='The (rerolled) {} {}:'.format(
+                plural('winner', k), plural('is', k)
+            ),
+            value='{}\n Please create a support ticket to '
+                  'receive your reward!'.format(
+                self.bot.inflector.join([u.mention for u in winners])
+            )
         ).add_field(
             name='Reason for rerolling:',
             value=reason
         ).set_footer(
             text='Rerolled at'
         )
-        embed.timestamp = datetime.datetime.utcnow()
+        embed.timestamp = datetime.datetime.now()
 
         return embed
 
@@ -1205,11 +1480,19 @@ Use battlemetrics IDs when possible since it can take a long time to find someon
         return reaction, participants
 
 
-    def _giveaway_parse_winner_from_field(
+    def _giveaway_get_winners(self, embed, participants):
+        m = re.match('\d+', embed.title)
+        k = int(m.group() if m else 1)
+        return random.choices(participants, k=k)
+
+
+    def _giveaway_parse_winners_from_field(
             self, field) -> Optional[discord.Object]:
         """Parse the winner mention from the winner field."""
-        match = re.search('<@!?(\d+)>', field.value)
-        return int(match.group(1)) if match else None
+        return [
+            int(m.group(1))
+            for m in re.finditer(r'<@!?(\d+)>', field.value)
+        ]
 
 
     @client_giveaway.command(name='cancel')
@@ -1240,8 +1523,8 @@ The giveaway message is deleted if no description is given."""
     async def client_giveaway_edit(self, ctx, field, *, text):
         """Edit a field in the giveaway message.
 
-field: "title" or "description"
-text: The text to replace the field with."""
+field: "end", "title", or "description"
+text: The text to replace the field with. If the field is "end" and your date could not be parsed, the end date is removed."""
         field = field.lower()
 
         embed = ctx.last_giveaway.embeds[0]
@@ -1249,6 +1532,15 @@ text: The text to replace the field with."""
             embed.title = text
         elif field == 'description':
             embed.description = text
+        elif field == 'end':
+            try:
+                dt = await converters.DatetimeConverter().convert(ctx, text)
+            except commands.BadArgument as e:
+                embed.timestamp = ctx.last_giveaway.created_at
+                embed.set_footer(text='Start date')
+            else:
+                embed.timestamp = dt
+                embed.set_footer(text='End date')
         else:
             return await ctx.send(
                 'Please specify the field to edit '
@@ -1261,7 +1553,7 @@ text: The text to replace the field with."""
 
     @client_giveaway.command(name='finish')
     @is_giveaway_running(GIVEAWAY_CHANNEL_ID)
-    async def client_giveaway_finish(self, ctx):
+    async def client_giveaway_finish(self, ctx, ping: bool = True):
         """End the current giveaway and decide who the winner is."""
         reaction, participants = await self._giveaway_get_participants(ctx.last_giveaway)
         if reaction is None:
@@ -1270,22 +1562,23 @@ text: The text to replace the field with."""
         elif not participants:
             return await ctx.send('There are no participants to choose from!')
 
-        winner = random.choice(participants)
+        embed = ctx.last_giveaway.embeds[0]
+        winners = self._giveaway_get_winners(embed, participants)
 
         # Update embed
         embed = self._giveaway_finish_embed(
-            ctx.last_giveaway.embeds[0],
-            winner,
+            embed, winners,
             total=len(participants)
         )
         await ctx.last_giveaway.edit(embed=embed)
 
         await ctx.send(
-            '# of participants: {:,}\nWinner: {}'.format(
+            '# of participants: {:,}\n{}: {}'.format(
                 len(participants),
-                winner.mention
+                ctx.bot.inflector.plural('Winner', len(winners)),
+                ctx.bot.inflector.join([u.mention for u in winners])
             ),
-            allowed_mentions=discord.AllowedMentions.none()
+            allowed_mentions=discord.AllowedMentions(users=ping)
         )
 
 
@@ -1295,17 +1588,27 @@ text: The text to replace the field with."""
         lambda s: s == GiveawayStatus.FINISHED,
         'You can only reroll the winner when there is a finished giveaway!'
     )
-    async def client_giveaway_reroll(self, ctx, *, reason):
+    async def client_giveaway_reroll(
+            self, ctx, winner: Optional[discord.User], *, reason):
         """Reroll the winner for a giveaway that has already finished.
+This will include members that reacted after the giveaway has finished.
 
+winner: The specific winner to reroll.
 reason: The reason for rerolling the winner."""
         embed = ctx.last_giveaway.embeds[0]
 
         win_f = self._giveaway_find_field_by_name(embed, 'winner')
-        previous_winner = self._giveaway_parse_winner_from_field(win_f)
+        previous_winners = self._giveaway_parse_winners_from_field(win_f)
+
+        replacement_index = -1
+        if winner:
+            try:
+                replacement_index = previous_winners.index(winner.id)
+            except ValueError:
+                return await ctx.send('That user is not one of the winners!')
 
         reaction, participants = await self._giveaway_get_participants(
-            ctx.last_giveaway, ignored=(ctx.me.id, previous_winner))
+            ctx.last_giveaway, ignored=(ctx.me.id, *previous_winners))
         if reaction is None:
             return await ctx.send(
                 'Giveaway is missing reaction: {}'.format(self.giveaway_emoji))
@@ -1313,11 +1616,20 @@ reason: The reason for rerolling the winner."""
             return await ctx.send(
                 'There are no other participants to choose from!')
 
-        winner = random.choice(participants)
+        if winner:
+            replacement = random.choice(participants)
+            new_winners = previous_winners.copy()
+            new_winners[replacement_index] = replacement
+            # Convert the rest into discord.Users
+            for i, v in enumerate(new_winners):
+                if isinstance(v, int):
+                    new_winners[i] = await ctx.bot.fetch_user(v)
+        else:
+            new_winners = self._giveaway_get_winners(embed, participants)
 
         embed = self._giveaway_reroll_embed(
-            embed, winner,
-            total=len(participants),
+            embed, new_winners,
+            total=len(participants) + (len(previous_winners) - 1) * bool(winner),
             reason=reason
         )
         await ctx.last_giveaway.edit(embed=embed)
@@ -1325,9 +1637,15 @@ reason: The reason for rerolling the winner."""
 
 
     @client_giveaway.command(name='simulate')
-    async def client_giveaway_simulate(self, ctx, title, *, description):
-        """Generate a giveaway message in the current channel."""
-        embed = self._giveaway_create_embed(title, description)
+    async def client_giveaway_simulate(
+            self, ctx, end: Optional[converters.DatetimeConverter],
+            title, *, description):
+        """Generate a giveaway message in the current channel.
+
+end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+title: The title of the giveaway.
+description: The description of the giveaway."""
+        embed = self._giveaway_create_embed(end, title, description)
         await ctx.send(embed=embed)
 
 
@@ -1338,12 +1656,20 @@ reason: The reason for rerolling the winner."""
         'There is already a giveaway running! Please "finish" or "cancel" '
         'the giveaway before creating a new one!'
     )
-    async def client_giveaway_start(self, ctx, title, *, description):
+    async def client_giveaway_start(
+            self, ctx, end: Optional[converters.DatetimeConverter],
+            title, *, description):
         """Start a new giveaway in the giveaway channel.
-Only one giveaway can be running at a time, for now that is."""
-        embed = self._giveaway_create_embed(title, description)
+Only one giveaway can be running at a time, for now that is.
 
-        message = await self.giveaway_channel.send(embed=embed)
+The number of winners is determined by a prefixed number in the title, i.e. "2x Apex DLCs". If this number is not present, defaults to 1 winner.end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+
+end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+title: The title of the giveaway.
+description: The description of the giveaway."""
+        embed = self._giveaway_create_embed(end, title, description)
+
+        message = await self.giveaway_channel.send('@everyone', embed=embed)
 
         try:
             await message.add_reaction(self.giveaway_emoji)

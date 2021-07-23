@@ -6,9 +6,6 @@ import asyncio
 import random
 
 from discord.ext import commands
-from discord_slash.utils import manage_commands
-from discord_slash import cog_ext as dslash_cog
-from discord_slash import SlashContext
 
 from bot import utils
 
@@ -184,23 +181,6 @@ Design based on https://repl.it/@AllAwesome497/ASB-DEV-again."""
 
 
 
-    @dslash_cog.cog_slash(
-        name='8ball',
-        options=[manage_commands.create_option(
-            name='question',
-            description='The question to ask. Can be left empty.',
-            option_type=3,
-            required=False
-        )]
-    )
-    async def client_slash_eightball(self, ctx: SlashContext, question=''):
-        """Shake an eight-ball for a question."""
-        await ctx.send(random.choice(CLIENT_EIGHTBALL))
-
-
-
-
-
     @commands.command(
         name='pick',
         aliases=('choose', 'select'))
@@ -215,41 +195,6 @@ Ayana command used as reference."""
         await ctx.trigger_typing()
         await asyncio.sleep(1)
         await ctx.send(selected, reference=ctx.message)
-
-    @dslash_cog.cog_slash(
-        name='pick',
-        options=[manage_commands.create_option(
-            name='first',
-            description='The first option.',
-            option_type=3,
-            required=True
-        ), manage_commands.create_option(
-            name='second',
-            description='The second option.',
-            option_type=3,
-            required=True
-        ), manage_commands.create_option(
-            name='extra',
-            description='Extra options, separated by spaces. '
-                        'Use quotes for multi-word choices ("one choice").',
-            option_type=3,
-            required=False
-        )]
-    )
-    async def client_slash_pick(self, ctx: SlashContext,
-                                choice1, choice2, extra=None):
-        """Choose one of the given options."""
-        if extra is not None:
-            choices = utils.parse_var_positional(extra)
-        else:
-            choices = []
-        choices.append(choice1)
-        choices.append(choice2)
-
-        selected = random.choice(CLIENT_PICK_DIALOGUE).format(
-            choice=random.choice(choices))
-
-        await ctx.send(selected)
 
 
 

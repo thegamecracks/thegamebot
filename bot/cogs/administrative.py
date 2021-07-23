@@ -18,7 +18,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot.other import discordlogger
 from bot import converters, utils
 
@@ -106,7 +106,7 @@ class Administrative(commands.Cog):
         elif per < 0:
             return await ctx.send('`per` cannot be negative.')
 
-        buckets = commands.CooldownMapping(commands.Cooldown(rate, per, type))
+        buckets = commands.CooldownMapping(commands.Cooldown(rate, per), type)
         command._buckets = buckets
 
         await ctx.send(f'Updated cooldown for {command.name}.')
@@ -139,12 +139,15 @@ command: The name of the command to reset."""
     async def client_cooldown_remove(
             self, ctx, *, command: converters.CommandConverter):
         """Remove a command's cooldown."""
+        def no_op(message):
+            return
+
         command: commands.Command
 
         if not command._buckets.valid:
             return await ctx.send('This command does not have a cooldown.')
 
-        buckets = commands.CooldownMapping(None)
+        buckets = commands.CooldownMapping(None, no_op)
         command._buckets = buckets
 
         await ctx.send(f'Removed cooldown for {command.name}.')
@@ -311,7 +314,7 @@ Based off of https://repl.it/@AllAwesome497/ASB-DEV-again and RoboDanny."""
     @commands.group(name='presence', invoke_without_command=True)
     @commands.cooldown(2, 40, commands.BucketType.default)
     async def client_presence(self, ctx):
-        """Commands to change the bot's presence. Restricted to admins."""
+        """Commands to change the bot's presence."""
         await ctx.send(f'Unknown {ctx.command.name} subcommand given.')
 
 
@@ -467,164 +470,20 @@ This removes any activity the bot currently has."""
 
 
 
-    @commands.command(name='reload')
-    @commands.cooldown(2, 10, commands.BucketType.user)
-    async def client_ext_reload(self, ctx, extension):
-        """Reload an extension.
-https://repl.it/@AllAwesome497/ASB-DEV-again used as reference."""
-        logger = discordlogger.get_logger()
-
-        def reload(ext):
-            # Unload extension if possible then load extension
-            try:
-                self.bot.unload_extension(ext)
-            except commands.errors.ExtensionNotFound:
-                return 'Could not find the extension.'
-            except commands.errors.NoEntryPointError:
-                return 'This extension is missing a setup.'
-            except commands.errors.ExtensionNotLoaded:
-                pass
-            try:
-                self.bot.load_extension(ext)
-            except (ModuleNotFoundError, commands.errors.ExtensionNotFound):
-                return 'Could not find the extension.'
-            except commands.errors.NoEntryPointError:
-                return 'This extension is missing a setup.'
-            except commands.errors.CommandInvokeError:
-                return 'This extension failed to be reloaded.'
-
-        if extension == 'all':
-            logger.info('Attempting to reload all extensions '
-                        f'by {get_user_for_log(ctx)}')
-            await ctx.trigger_typing()
-            # NOTE: must cast dict into list as extensions is mutated
-            # during reloading
-            for ext in list(self.bot.extensions):
-                result = reload(ext)
-                if result is not None:
-                    return await ctx.send(result)
-            else:
-                logger.info(
-                    f'All extensions reloaded by {get_user_for_log(ctx)}')
-                await ctx.send('Extensions have been reloaded.')
-        else:
-            logger.info(f'Attempting to reload {extension} extension '
-                        f'by {get_user_for_log(ctx)}')
-            await ctx.trigger_typing()
-            result = reload(extension)
-            if result is not None:
-                await ctx.send(result)
-            else:
-                await ctx.send('Extension has been reloaded.')
-
-
-
-
-
-    @commands.command(name='send')
-    @commands.cooldown(2, 10, commands.BucketType.user)
-    async def client_sendmessage(self, ctx, channelID, *, message):
-        """Sends a message to a given channel. Restricted to admins.
-
-BUG (2020/06/21): An uneven amount of colons will prevent
-    custom emoji from being detected."""
-
-        def convert_emojis_in_message(message, guild):
-
-            def partition_emoji(s, start=0):
-                """Find a substring encapsulated in colons
-                and partition it, stripping the colons."""
-                left = s.find(':', start)
-                right = s.find(':', left + 1)
-                if left == -1 or right == -1:
-                    return None
-                return s[:left], s[left + 1:right], s[right + 1:]
-
-            # NOTE: While not very memory efficient to create a dictionary
-            # of emojis, the send command is sparsely used
-            emojis = {e.name: e for e in guild.emojis}
-
-            # BUG: Emojis not separated from other words by spaces don't
-            # get seen
-##            word_list = message.split(' ')
-##
-##            for i, word in enumerate(word_list):
-##                if word.startswith(':') and word.endswith(':'):
-##                    word = word[1:-1]
-##
-##                    e = emojis.get(word, None)
-##
-##                    if e is not None:
-##                        # Emoji found; replace word with converted text
-##                        word_list[i] = '<:{}:{}>'.format(word, e.id)
-##
-##            return ' '.join(word_list)
-
-            # BUG: this revision breaks when there are an odd number of colons
-            # NOTE: After this, `message` will no longer contain
-            # the original message
-            parts = []
-            while message:
-                search = partition_emoji(message)
-                if search is None:
-                    parts.append(message)
-                    break
-                left, e, message = search
-                parts.append(left)
-                parts.append(e)
-
-            # Iterate through the emojis found in the message
-            # NOTE: `parts` should always have an odd length
-            # (1 for no emoji, then 2 * [# of emoji] + 1)
-            for i in range(1, len(parts), 2):
-                name = parts[i]
-                # Search for custom emoji with matching names
-                e = emojis.get(name)
-
-                if e is not None:
-                    # Emoji found; replace word with converted text
-                    parts[i] = f'<:{name}:{e.id}>'
-
-            return ''.join(parts)
-
-        if channelID == 'here':
-            channel = ctx.channel
-        else:
-            channel = self.bot.get_channel(int(channelID))
-        message = convert_emojis_in_message(message, channel.guild)
-        # NOTE: Emoji conversion could result in an oversized message.
-        await channel.send(message)
-
-
-    @client_sendmessage.error
-    async def client_sendmessage_error(self, ctx, error):
-        error = getattr(error, 'original', error)
-        if isinstance(error, AttributeError):
-            if "'NoneType' object has no attribute" in str(error):
-                await ctx.send('I cannot find the given channel.')
-                ctx.handled = True
-        elif isinstance(error, discord.Forbidden):
-            await ctx.send('I cannot access this given channel.')
-            ctx.handled = True
-
-
-
-
-
     @commands.command(name='restart')
     async def client_restart(self, ctx):
         """Restarts the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to RESTART the bot?')
 
         if confirmed:
-            await prompt.update('Restarting.', prompt.emoji_yes.color)
+            await prompt.update('Restarting.', color=prompt.YES)
             print(f'Initiating restart by {get_user_for_log(ctx)}')
             await self.bot.restart()
         else:
-            await prompt.update('Cancelled restart.', prompt.emoji_no.color)
+            await prompt.update('Cancelled restart.', color=prompt.NO)
 
 
 
@@ -635,30 +494,17 @@ BUG (2020/06/21): An uneven amount of colons will prevent
         aliases=('close', 'exit', 'quit', 'stop'))
     async def client_shutdown(self, ctx):
         """Shutdown the bot."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             'Are you sure you want to SHUTDOWN the bot?')
 
         if confirmed:
-            await prompt.update('Shutting down.', prompt.emoji_yes.color)
+            await prompt.update('Shutting down.', color=prompt.YES)
             print(f'Initiating shutdown by {get_user_for_log(ctx)}')
-            await self.bot.close()
+            await self.bot.shutdown()
         else:
-            await prompt.update('Cancelled shutdown.', prompt.emoji_no.color)
-
-
-
-
-
-    @commands.command(name='syncslash')
-    @commands.cooldown(1, 15)
-    async def client_sync_slash(self, ctx):
-        """Synchronize slash commands."""
-        async with ctx.typing():
-            await self.bot.slash.sync_all_commands()
-
-        await ctx.send('Synced slash commands.')
+            await prompt.update('Cancelled shutdown.', color=prompt.NO)
 
 
 

@@ -13,7 +13,6 @@ import os
 import aiohttp
 import discord
 from discord.ext import commands
-import discord_slash as dslash
 from dotenv import load_dotenv
 import inflect
 import matplotlib
@@ -30,6 +29,7 @@ DISABLED_INTENTS = (
     'bans', 'integrations', 'webhooks', 'invites',
     'voice_states', 'typing'
 )
+USE_RESTART_FILE = False
 
 logger = discordlogger.get_logger()
 
@@ -45,7 +45,8 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'economy',
             'eh',
             'embedding',
-            'games',
+            'gamecog',
+            'games.hangman',
             'graphing',
             'guildirish',
             'guildsignal',
@@ -94,11 +95,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             self.uptime_total_downtime = datetime.timedelta()
             self.uptime_is_online = False
 
-        # Setup slash command system
-        with utils.update_text('Adding slash command extension',
-                               'Added slash command extension'):
-            self.slash = dslash.SlashCommand(self)
-
         # Load extensions
         for i, name in enumerate(self.EXT_LIST, start=1):
             print(f'Loading extension {i}/{len(self.EXT_LIST)}',
@@ -117,12 +113,12 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
                 or user.id in self.get_cog('Settings').get('owner_ids'))
 
     async def localize_datetime(
-            self, user, dt, prefer_utc=True, return_row=False):
+            self, user, dt, assume_utc=True, return_row=False):
         """Localize a datetime to the user's region from the database,
         if they have one assigned.
 
         The datetime can be either naive or aware;
-        the former is assumed to be in UTC.
+        the former is assumed to be in UTC if `assume_utc` is True.
 
         Always returns an aware timezone.
 
@@ -132,16 +128,16 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
                 Technically the database entry could be any object so long
                 as the "id" and "timezone" keys exist.
             dt (datetime.datetime): The datetime to localize.
-            prefer_utc (bool): If the datetime has a timezone,
-                localize to UTC first before going to their timezone.
-                This results in datetimes always being UTC if the user
-                does not have a timezone set.
+            assume_utc (bool):
+                If True, assumes naive datetimes to be in UTC.
+                If False, assumes naive datetimes are in the
+                user's timezone if available, UTC otherwise.
             return_row (bool): If true, return the user's database
                 entry along with the datetime.
                 If `user` is not an integer, this will return the same object.
 
         Returns:
-            datetime.datetime: The localized datetime.
+            datetime.datetime: The localized datetime (always aware).
             Tuple[datetime.datetime, sqlite3.Row]:
                 The localized datetime along with the user's database entry
                 if return_row is True.
@@ -154,24 +150,34 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
 
         if dt.tzinfo is None:
             dt = pytz.UTC.localize(dt)
-        elif prefer_utc:
+        else:
             dt = dt.astimezone(pytz.UTC)
+            assume_utc = True
 
         if timezone is not None:
-            dt = dt.astimezone(timezone)
+            if assume_utc:
+                dt = dt.astimezone(timezone)
+            else:
+                dt = timezone.localize(dt.replace(tzinfo=None))
 
         if return_row:
             return dt, user
         return dt
 
     async def restart(self):
-        """Create a file named RESTART and logout.
-
-        The batch file running the script loop should detect
-        and recognize to rerun the bot again.
-
+        """Close the bot and inform the parent process
+        that the bot should be restarted.
         """
-        open('RESTART', 'w').close()
+        if USE_RESTART_FILE:
+            open('RESTART', 'w').close()
+        return await self.close()
+
+    async def shutdown(self):
+        """Close the bot and inform the parent process
+        that the bot should shut down.
+        """
+        if not USE_RESTART_FILE:
+            open('SHUTDOWN', 'w').close()
         return await self.close()
 
     async def setup(self):
@@ -263,7 +269,7 @@ async def main():
     for attr in DISABLED_INTENTS:
         setattr(intents, attr, False)
 
-    bot = TheGameBot(intents=intents, strip_after_prefix=True)
+    bot = TheGameBot(intents=intents, case_insensitive=True, strip_after_prefix=True)
     await bot.setup()
 
     async def bootup_time(bot, start_time):

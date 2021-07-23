@@ -2,15 +2,45 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import datetime
 import sqlite3
 from typing import Optional
 
 import discord
 from discord.ext import commands, menus
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot import errors, utils
+
+
+def cleanup_tag_content(s: str):
+    return discord.utils.escape_mentions(
+        discord.utils.escape_markdown(s)
+    )
+
+
+class TagContentConverter(commands.Converter):
+    """Ensure a string is suitable for content of a tag.
+
+    Args:
+        param (str): The name of the parameter this converter
+            is being applied to. Used as part of the error messages.
+
+    """
+    TAG_MAX_CONTENT_LENGTH = 2000
+
+    def __init__(self, param: str):
+        self.param = param
+
+    async def convert(self, ctx, arg):
+        raw_arg = cleanup_tag_content(arg)
+
+        if len(raw_arg) > self.TAG_MAX_CONTENT_LENGTH:
+            raise errors.ErrorHandlerResponse(
+                f'Tag parameter `{self.param}` is {diff:,} '
+                'characters too long.'
+            )
+
+        return arg
 
 
 class TagNameConverter(commands.Converter):
@@ -21,12 +51,13 @@ class TagNameConverter(commands.Converter):
             is being applied to. Used as part of the error messages.
 
     """
-    TAG_CREATE_MAX_NAME_LENGTH = 50
+    TAG_MAX_NAME_LENGTH = 50
+
     def __init__(self, param: str):
         self.param = param
 
     async def convert(self, ctx, arg):
-        diff = len(arg) - self.TAG_CREATE_MAX_NAME_LENGTH
+        diff = len(arg) - self.TAG_MAX_NAME_LENGTH
         if diff > 0:
             raise errors.ErrorHandlerResponse(
                 f'Tag parameter `{self.param}` is {diff:,} '
@@ -83,7 +114,7 @@ class TagPageSource(menus.AsyncIteratorPageSource):
         self.bot = bot
         self.format = format
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu: menus.MenuPages, entries):
         start = menu.current_page * self.per_page
         return discord.Embed(
             color=utils.get_bot_color(self.bot),
@@ -118,7 +149,7 @@ class Tags(commands.Cog):
         m = m or ctx.message
         can_delete = (
             m.author == ctx.me
-            or ctx.me.permissions_in(m.channel).manage_messages
+            or m.channel.permissions_for(ctx.me).manage_messages
         )
 
         if can_delete:
@@ -147,7 +178,10 @@ class Tags(commands.Cog):
         if tag is None:
             return await ctx.send('This tag does not exist.')
 
-        await ctx.send(tag['content'])
+        await ctx.send(
+            tag['content'],
+            allowed_mentions=discord.AllowedMentions.none()
+        )
 
         await ctx.bot.dbtags.edit_tag(
             ctx.guild.id, tag['name'],
@@ -217,7 +251,7 @@ Note it may take some time before a tag loses their author."""
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def client_tag_create(
             self, ctx, name: TagNameConverter('name'),
-            *, content: commands.clean_content):
+            *, content: TagContentConverter('content')):
         """Create a tag.
 
 name: The name of the tag. When using spaces, surround it with quotes as such:
@@ -241,8 +275,8 @@ If you have Manage Server permissions you can also delete other people's tags.""
         tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
         if tag is None:
             return await ctx.send('That tag does not exist!')
-        elif tag['user_id'] != ctx.author.id and not ctx.author.permissions_in(
-                ctx.channel).manage_guild:
+        elif tag['user_id'] != ctx.author.id and not ctx.channel.permissions_for(
+                ctx.author).manage_guild:
             return await ctx.send('Cannot delete a tag made by someone else.')
 
         is_alias = tag['name'] != name
@@ -258,7 +292,7 @@ If you have Manage Server permissions you can also delete other people's tags.""
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_tag_edit(
             self, ctx, name: TagNameConverter('name'),
-            *, content: commands.clean_content):
+            *, content: TagContentConverter('content')):
         """Edit one of your tags.
 
 name: The name of the tag (aliases allowed). For names with multiple spaces, use quotes as such:
@@ -339,10 +373,10 @@ content: The new content to use."""
                 )
 
 
-        embed.title = title
+        embed.description = f'**{title}**'
         embed.set_footer(
             text=footer.format(ctx.author.display_name),
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -401,9 +435,8 @@ Useful for copy pasting any of the tag's markdown."""
         if tag is None:
             return await ctx.send('This tag does not exist.')
 
-        escaped = discord.utils.escape_markdown(tag['content'])
-        for content in utils.paginate_message(escaped):
-            await ctx.send(content)
+        escaped = cleanup_tag_content(tag['content'])
+        await ctx.send(escaped, allowed_mentions=discord.AllowedMentions.none())
 
 
     @client_tag.command(name='reset')
@@ -416,16 +449,16 @@ Useful for copy pasting any of the tag's markdown."""
     async def client_tag_reset(self, ctx):
         """Reset all tags in the server.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset the server's tags?")
 
         if confirmed:
             await self.bot.dbtags.wipe(ctx.guild.id)
-            await prompt.update('Wiped all tags!', prompt.emoji_yes.color)
+            await prompt.update('Wiped all tags!', color=prompt.YES)
         else:
-            await prompt.update('Cancelled tag reset.', prompt.emoji_no.color)
+            await prompt.update('Cancelled tag reset.', color=prompt.NO)
 
 
 

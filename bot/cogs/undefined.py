@@ -6,12 +6,11 @@ import asyncio
 import calendar
 import random
 import time
-from typing import Union
 
 import discord
 from discord.ext import commands
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot import utils
 
 WORDLIST_PATH = 'data/wordlist.txt'
@@ -225,18 +224,17 @@ https://stackoverflow.com/q/64080277/"""
 
 This will remove data about your server but not any associated user
 information such as notes or game scores."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm('Are you sure you want me to leave?')
 
         if confirmed:
-            await prompt.update('Goodbye world!', prompt.emoji_no.color)
+            await prompt.update('Goodbye world!', color=prompt.NO)
             await ctx.guild.leave()
             # TODO: remove user information after some time
             await self.bot.dbguilds.remove_guild(ctx.guild.id)
         else:
-            await prompt.update('Thanks for keeping me along!',
-                                prompt.emoji_yes.color)
+            await prompt.update('Thanks for keeping me along!', color=prompt.YES)
 
 
 

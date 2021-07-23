@@ -2,9 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import asyncio
 import collections
-import contextlib
 import datetime
 import decimal
 import functools
@@ -25,7 +23,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 
-from bot import checks
 from bot import utils
 
 
@@ -208,7 +205,7 @@ or the last message that was sent."""
                 return False, 'There is no text to analyse.'
 
         ref = ctx.message.reference
-        perms = ctx.me.permissions_in(ctx.channel)
+        perms = ctx.channel.permissions_for(ctx.me)
 
         if not text and ref is not None:
             # Try recursing into the message the user replied to.

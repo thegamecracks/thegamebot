@@ -7,8 +7,6 @@ import string
 
 from discord.ext import commands
 
-from bot import utils
-
 CIPHER_ATBASH_TABLE = str.maketrans(
     string.ascii_letters,
     string.ascii_lowercase[::-1] + string.ascii_uppercase[::-1])

@@ -31,7 +31,8 @@ class HelpCommand(commands.HelpCommand):
         super().__init__(
             command_attrs={
                 'help': 'Shows help about the bot, a command, or a category',
-                'cooldown': commands.Cooldown(2, 3, commands.BucketType.user)
+                'cooldown': commands.CooldownMapping.from_cooldown(
+                    2, 3, commands.BucketType.user)
             }
         )
 
@@ -133,7 +134,7 @@ class HelpCommand(commands.HelpCommand):
                 'Type {0}help [command] for more info on a command.\n'
                 'You can also type {0}help [category] for '
                 'more info on a category (do not type spaces in the '
-                "category's name).".format(self.clean_prefix)
+                "category's name).".format(self.context.clean_prefix)
             )
         )
 
@@ -194,7 +195,7 @@ class HelpCommand(commands.HelpCommand):
             title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
             color=utils.get_bot_color(self.context.bot),
             description=(
-                f'{cog.description}\nType {self.clean_prefix}help [command] '
+                f'{cog.description}\nType {self.context.clean_prefix}help [command] '
                 'for more info on a command.'
             )
         )
@@ -334,7 +335,7 @@ class HelpCommand(commands.HelpCommand):
         for com in group.commands:
             embed.add_field(
                 name=com.name,
-                value=com.short_doc if com.short_doc else 'No description.'
+                value=com.short_doc or 'No description.'
             )
 
         await self.send(embed=embed)
@@ -373,4 +374,4 @@ def setup(bot):
 def teardown(bot):
     bot.help_command = help_command = _original_help_command
     if help_command is not None:
-        help_command.cog = self.bot.get_cog('Informative') or None
+        help_command.cog = bot.get_cog('Informative') or None

@@ -2,9 +2,12 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import datetime
+import functools
 import re
 from typing import Optional
 
+import dateparser
 import discord
 from discord.ext import commands
 import emoji
@@ -13,7 +16,8 @@ import pytz
 from bot import errors, utils
 
 __all__ = (
-    'CodeBlock', 'CommandConverter', 'DollarConverter', 'TimezoneConverter',
+    'CodeBlock', 'CommandConverter', 'DatetimeConverter',
+    'DollarConverter', 'TimezoneConverter',
     'UnicodeEmojiConverter'
 )
 
@@ -93,7 +97,7 @@ class CommandConverter(commands.Converter):
         finally:
             ctx.command = original
 
-    async def convert(self, ctx, argument):
+    async def convert(self, ctx, argument) -> commands.Command:
         """
         Args:
             ctx (commands.Context)
@@ -106,7 +110,7 @@ class CommandConverter(commands.Converter):
             BadArgument
 
         """
-        c = ctx.bot.get_command(argument)
+        c: Optional[commands.Command] = ctx.bot.get_command(argument)
         try:
             if c is None:
                 raise commands.BadArgument(
@@ -116,6 +120,44 @@ class CommandConverter(commands.Converter):
         except commands.CheckFailure as e:
             raise commands.BadArgument(str(e)) from e
         return c
+
+
+class DatetimeConverter(commands.Converter):
+    """Parse a datetime."""
+    PREFER_DATES_FROM = {
+        None: 'current_period',
+        True: 'future',
+        False: 'past'
+    }
+
+    def __init__(self, *, prefer_future=None, stored_tz=True):
+        self.prefer_future = prefer_future
+        self.stored_tz = stored_tz
+
+    async def convert(self, ctx, arg) -> datetime.datetime:
+        dt = await ctx.bot.loop.run_in_executor(
+            None,
+            functools.partial(
+                dateparser.parse,
+                arg,
+                settings={
+                    'PREFER_DATES_FROM': self.PREFER_DATES_FROM[self.prefer_future]
+                }
+            )
+        )
+
+        if dt is None:
+            raise commands.BadArgument('Could not parse your date.')
+        elif dt.tzinfo is None:
+            if self.stored_tz:
+                # Since the datetime was user inputted, if it's naive
+                # it's probably in their timezone so don't assume it's UTC
+                dt = await ctx.bot.localize_datetime(
+                    ctx.author.id, dt, assume_utc=False, return_row=False)
+            else:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+
+        return dt
 
 
 class DollarConverter(commands.Converter):

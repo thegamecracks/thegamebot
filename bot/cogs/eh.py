@@ -321,7 +321,7 @@ class EventHandlers(commands.Cog):
 
         def get_cooldown_description():
             if (not ctx.guild
-                and error.cooldown.type in (
+                and error.type in (
                     commands.BucketType.channel,
                     commands.BucketType.guild)):
                 # in DMs; use member in place of channel/guild bucket
@@ -330,11 +330,11 @@ class EventHandlers(commands.Cog):
                 )
             else:
                 description = self.COOLDOWN_DESCRIPTIONS.get(
-                    error.cooldown.type, 'This command is on cooldown.'
+                    error.type, 'This command is on cooldown.'
                 )
 
             return description.format(
-                here=get_cooldown_here(error.cooldown.type),
+                here=get_cooldown_here(error.type),
                 times=ctx.bot.inflector.inflect(
                     '{0} plural("time", {0}) '
                     'every {1} plural("second", {1})'.format(
@@ -368,8 +368,8 @@ class EventHandlers(commands.Cog):
         # Send an error message
         if isinstance(error, commands.BadBoolArgument):
             # error.param is instance of inspect.Parameter
-            await ctx.send('Expected a boolean answer for parameter '
-                           f'"{error.argument.name}".\n'
+            await ctx.send('Expected a boolean (true/false) answer '
+                           f'instead of "{error.argument}".\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.BotMissingPermissions):
             await ctx.send(
@@ -399,17 +399,16 @@ class EventHandlers(commands.Cog):
                            f'{error.argument.mention}.')
         elif isinstance(error, commands.CommandOnCooldown):
             embed = discord.Embed(
-                color=utils.get_bot_color(ctx.bot)
+                color=utils.get_bot_color(ctx.bot),
+                description=get_cooldown_description()
             ).set_footer(
                 text=ctx.bot.inflector.inflect(
                     'You can retry in {0} plural("second", {0}).'.format(
                         round(error.retry_after * 10) / 10
                     )
                 ),
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
-
-            embed.description = get_cooldown_description()
 
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
         elif isinstance(error, commands.DisabledCommand):
@@ -418,6 +417,19 @@ class EventHandlers(commands.Cog):
             await ctx.send(f'I cannot find the given emoji "{error.argument}"')
         elif isinstance(error, commands.ExpectedClosingQuoteError):
             await ctx.send('Expected a closing quotation mark.')
+        elif isinstance(error, commands.BadFlagArgument):
+            await ctx.send(
+                f'Failed to parse your input for the "{error.flag.name}" flag.')
+        elif isinstance(error, (commands.MissingFlagArgument,
+                                commands.MissingRequiredFlag)):
+            await ctx.send(
+                f'You must provide a value for the "{error.flag.name}" flag.')
+        elif isinstance(error, commands.TooManyFlags):
+            await ctx.send(
+                'Too many values were provided for the "{0.flag.name}" '
+                'flag. The max number of values allowed is '
+                '{0.flag.max_args}.'.format(error)
+            )
         elif isinstance(error, commands.InvalidEndOfQuotedStringError):
             await ctx.send('Expected a space after a closing quotation mark.')
         elif isinstance(error, commands.MaxConcurrencyReached):
@@ -425,7 +437,7 @@ class EventHandlers(commands.Cog):
                 color=utils.get_bot_color(ctx.bot)
             ).set_footer(
                 text=get_concurrency_description(),
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             await ctx.send(embed=embed)
@@ -495,7 +507,7 @@ class EventHandlers(commands.Cog):
                 )
             ).set_author(
                 name=ctx.author.display_name,
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
             await ctx.send(embed=embed)
             raise error
@@ -509,7 +521,7 @@ class EventHandlers(commands.Cog):
                     'You can retry in {0} plural("second", {0}).'.format(
                         round(error.retry_after * 10) / 10)
                 ),
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
@@ -532,7 +544,7 @@ class EventHandlers(commands.Cog):
                 )
             ).set_author(
                 name=ctx.author.display_name,
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
             await ctx.send(embed=embed)
             raise error

@@ -1,25 +1,23 @@
-abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@v0.4.2
+abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@v0.5.0
 aiohttp==3.7.4
 asqlite @ git+https://github.com/Rapptz/asqlite@43fbf58097adf1d9cc62040ec4c49e5bcc3a5320
 astunparse==1.6.3
 async-timeout==3.0.1
 attrs==19.3.0
 autopep8==1.5.7
-braceexpand==0.1.6
+braceexpand==0.1.7
 chardet==3.0.4
 colorama==0.4.4
 cycler==0.10.0
 dateparser==1.0.0
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@309c70222eec33acacb8c21bbb0fbe9bc57de661
-discord-py-slash-command==1.2.0
-discord.py==1.7.3
-disputils==0.1.3
+discord.py @ git+https://github.com/Rapptz/discord.py@f153154b7aaec3df6fa01eb525fd518bab63a252
 emoji==1.2.0
-humanize==3.1.0
+humanize==3.9.0
 idna==2.10
 import-expression==1.1.4
 inflect==5.2.0
-jishaku==1.20.0.220
+jishaku==2.0.0
 kiwisolver==1.3.1
 matplotlib==3.4.2
 multidict==4.7.6

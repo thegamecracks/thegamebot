@@ -5,13 +5,12 @@
 import datetime
 import decimal
 import random
-import textwrap
 from typing import Optional
 
 import discord
 from discord.ext import commands
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot.converters import DollarConverter
 from bot.utils import format_cents, format_dollars
 from bot import utils
@@ -59,7 +58,7 @@ class Economy(commands.Cog):
             color=utils.get_user_color(ctx.bot, user)
         ).set_author(
             name=user.display_name,
-            icon_url=user.avatar_url
+            icon_url=user.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -186,7 +185,7 @@ class Economy(commands.Cog):
         embed = discord.Embed(
             color=utils.get_bot_color(ctx.bot),
             description=description,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         )
 
         await ctx.send(embed=embed)
@@ -205,16 +204,16 @@ class Economy(commands.Cog):
     async def client_money_reset(self, ctx):
         """Reset the economy for the server.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset the server's economy?")
 
         if confirmed:
             await self.bot.dbcurrency.wipe(ctx.guild.id)
-            await prompt.update('Completed economy wipe!', prompt.emoji_yes.color)
+            await prompt.update('Completed economy wipe!', color=prompt.YES)
         else:
-            await prompt.update('Cancelled economy wipe.', prompt.emoji_no.color)
+            await prompt.update('Cancelled economy wipe.', color=prompt.NO)
 
 
 

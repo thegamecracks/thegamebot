@@ -4,6 +4,7 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import decimal
 import math
+from typing import Union
 
 SAFE_EVAL_WHITELIST = frozenset(
     '0123456789'
@@ -17,10 +18,12 @@ SAFE_EVAL_WHITELIST = frozenset(
 )
 
 
-def convert_base(base_in: int, base_out: int, n,
-                 mapping=('0123456789'
-                          'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-                          'abcdefghijklmnopqrstuvwxyz-_')):
+def convert_base(
+        base_in: int, base_out: int, n: Union[int, str],
+        mapping=('0123456789'
+                 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                 'abcdefghijklmnopqrstuvwxyz-_')
+        ) -> Union[int, str]:
     """Converts a number to another base.
     Accepted bases are 2, 36, and all in-between.
     Base 36 uses 0-9 and a-z (case-insensitive).
@@ -29,8 +32,11 @@ def convert_base(base_in: int, base_out: int, n,
     Args:
         base_in (int): The number's base.
         base_out (int): The base to output as.
-        n (int): The number to convert.
+        n (Union[int, str]): The number to convert.
         mapping (str): The string mapping.
+
+    Returns:
+        Union[int, str]
 
     """
     if max(base_in, base_out) > len(mapping):
@@ -38,28 +44,28 @@ def convert_base(base_in: int, base_out: int, n,
     elif min(base_in, base_out) < 2:
         raise ValueError('Given base is less than 2.')
 
-    mapping_normal = mapping.startswith('0123456789ABCDEFGHJIKLMNOPQRSTUVWXYZ')
+    mapping_is_normal = mapping.startswith('0123456789ABCDEFGHJIKLMNOPQRSTUVWXYZ')
 
-    if base_out == 10 and base_in <= 36 and mapping_normal:
+    if base_out == 10 and base_in <= 36 and mapping_is_normal:
         # use int() for optimization
         return int(n, base_in)
 
-    if base_in <= 36 and mapping_normal:
+    if base_in <= 36 and mapping_is_normal:
         n_int = int(n, base_in)
     else:
         n_int = 0
         for place, i_val in enumerate(n[::-1]):
             n_int += mapping.index(i_val) * base_in ** place
     n_max_place = int(math.log(n_int, base_out))
-    n_out = ''
+    n_out = []
 
     # For every digit place
     for i in range(n_max_place, -1, -1):
         i_val = n_int // base_out ** i
-        n_out += mapping[i_val]
+        n_out.append(mapping[i_val])
         n_int -= base_out ** i * i_val
 
-    return n_out
+    return ''.join(n_out)
 
 
 def dec_addi(x, y):

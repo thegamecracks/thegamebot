@@ -7,7 +7,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from bot.classes.confirmation import AdaptiveConfirmation
+from bot.classes.confirmation import ButtonConfirmation
 from bot import utils
 
 
@@ -194,7 +194,7 @@ class IrishSquad(commands.Cog):
     async def client_charges_reset(self, ctx):
         """Reset the number of charges everyone has.
 This requires a confirmation."""
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to reset Irish Squad's number of charges?")
@@ -204,11 +204,9 @@ This requires a confirmation."""
             async with await db.connect(writing=True) as conn:
                 await conn.execute(f'DELETE FROM {db.TABLE_NAME}')
 
-            await prompt.update('Completed charge wipe!',
-                                prompt.emoji_yes.color)
+            await prompt.update('Completed charge wipe!', color=prompt.YES)
         else:
-            await prompt.update('Cancelled charge wipe.',
-                                prompt.emoji_no.color)
+            await prompt.update('Cancelled charge wipe.', color=prompt.NO)
 
 
 
@@ -223,13 +221,13 @@ This requires a confirmation."""
             return await ctx.send('This is currently disabled as the bot '
                                   'cannot fetch member data at this time.')
 
-        prompt = AdaptiveConfirmation(ctx, utils.get_bot_color(ctx.bot))
+        prompt = ButtonConfirmation(ctx, utils.get_bot_color(ctx.bot))
 
         confirmed = await prompt.confirm(
             "Are you sure you want to vacuum the database?")
 
         if not confirmed:
-            return await prompt.update('Cancelled clean up.', prompt.emoji_no.color)
+            return await prompt.update('Cancelled clean up.', color=prompt.NO)
 
         db = self.bot.dbirish.users
         guild = self.guild
@@ -265,7 +263,7 @@ This requires a confirmation."""
             "vacuumed.".format(len(invalid_users))
         )
 
-        await prompt.update(message, prompt.emoji_yes.color)
+        await prompt.update(message, color=prompt.YES)
 
 
 

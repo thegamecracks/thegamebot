@@ -8,6 +8,7 @@ import io
 import itertools
 import math
 import random
+import re
 import sys
 import time
 from typing import Optional
@@ -15,10 +16,6 @@ from typing import Optional
 from dateutil.relativedelta import relativedelta
 import discord
 from discord.ext import commands
-from discord_slash.utils import manage_commands
-from discord_slash import cog_ext as dslash_cog
-from discord_slash import SlashContext
-import discord_slash as dslash
 import humanize
 import matplotlib
 from matplotlib import colors
@@ -27,7 +24,22 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import psutil
 
-from bot import converters, utils
+from bot import converters, errors, utils
+
+
+class UnknownTimestampStyle(commands.BadArgument):
+    """An unknown timestamp style was given."""
+    def __init__(self, arg):
+        super().__init__(f'"{arg}" is not a valid timestamp style.')
+
+
+class TimestampStyleConverter(commands.Converter):
+    STYLES = frozenset(('t', 'T', 'd', 'D', 'f', 'F', 'R'))
+
+    async def convert(self, ctx, arg):
+        if arg in self.STYLES:
+            return arg
+        raise UnknownTimestampStyle(arg)
 
 
 class Informative(commands.Cog):
@@ -92,10 +104,10 @@ Optional settings:
             ),
             color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
-            url=self.bot.user.avatar_url
+            url=self.bot.user.avatar.url
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         vp = sys.version_info
@@ -193,7 +205,7 @@ This only counts channels that both you and the bot can see."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -217,7 +229,8 @@ This only counts channels that both you and the bot can see."""
 
         # Search for the command
         try:
-            command = await converters.CommandConverter().convert(ctx, command)
+            command: commands.Command = \
+                await converters.CommandConverter().convert(ctx, command)
         except commands.BadArgument:
             return await ctx.send("That command doesn't exist.")
 
@@ -227,7 +240,7 @@ This only counts channels that both you and the bot can see."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         stats = self.bot.info_processed_commands
@@ -262,13 +275,16 @@ This only counts channels that both you and the bot can see."""
             description.append('Is hidden: \N{WHITE HEAVY CHECK MARK}')
 
         # Insert cooldown
-        cooldown: commands.Cooldown = command._buckets._cooldown
+        cooldown: commands.CooldownMapping = command._buckets
         if cooldown is not None:
             cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
-                cooldown.type, '')
+                cooldown._type, '')
             description.append(
-                'Cooldown settings: '
-                f'{cooldown.rate}/{cooldown.per:.0f}s {cooldown_type}'
+                'Cooldown settings: {}/{:.0f}s {}'.format(
+                    cooldown._cooldown.rate,
+                    cooldown._cooldown.per,
+                    cooldown_type
+                )
             )
 
         # Insert concurrency limit
@@ -286,6 +302,7 @@ This only counts channels that both you and the bot can see."""
         uses = stats[command.qualified_name]
         if is_group:
             # Include total count of subcommands
+            command: commands.Group
             uses += get_group_uses(stats, command)
 
         if command == ctx.command:
@@ -490,7 +507,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                 colour=utils.get_bot_color(ctx.bot)
             ).set_footer(
                 text=f'Requested by {ctx.author.display_name}',
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar.url
             )
 
             graph = None
@@ -540,18 +557,10 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
-
-
-    @dslash_cog.cog_slash(name='invite')
-    async def client_slash_invite(self, ctx: SlashContext):
-        """Get the invite link for the bot."""
-        link = self.get_invite_link()
-
-        await ctx.send(content=link, hidden=True)
 
 
 
@@ -564,37 +573,49 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
         def round_ms(n):
             return round(n * 100_000) / 1000
 
-        # Heartbeat
-        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+        async def time_ms(coro):
+            start = time.perf_counter()
+            await coro
+            return round_ms(time.perf_counter() - start)
 
+        async def poll_database():
+            async with await ctx.bot.dbusers.connect() as conn:
+                await conn.execute('SELECT 1')
+
+        async def poll_message():
+            nonlocal message
+            message = await ctx.send(embed=embed)
+
+        message: discord.Message
         embed = discord.Embed(
             title='Pong!',
             color=utils.get_bot_color(ctx.bot)
         )
 
-        # API typing time
-        start = time.perf_counter()
-        await ctx.trigger_typing()
-        latency_typing_ms = round_ms(time.perf_counter() - start)
+        task_database = asyncio.create_task(time_ms(poll_database()))
+        task_message = asyncio.create_task(time_ms(poll_message()))
+        task_typing = asyncio.create_task(time_ms(ctx.trigger_typing()))
+        await asyncio.wait((task_typing, task_message, task_database))
 
-        # API message time
-        start = time.perf_counter()
-        message = await ctx.send(embed=embed)
-        latency_message_ms = round_ms(time.perf_counter() - start)
+        latency_database_ms = task_database.result()
+        latency_heartbeat_ms = round_ms(ctx.bot.latency)
+        latency_message_ms = task_message.result()
+        latency_typing_ms = task_typing.result()
 
         # Format embed
         stats = []
         stats.extend((
             f'\N{TABLE TENNIS PADDLE AND BALL} API: {latency_message_ms:g}ms',
             f'\N{KEYBOARD} Typing: {latency_typing_ms:g}ms',
-            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms'
+            f'\N{HEAVY BLACK HEART} Heartbeat: {latency_heartbeat_ms:g}ms',
+            f'\N{FILE CABINET} Database: {latency_database_ms:g}ms'
         ))
         stats = '\n'.join(stats)
         embed.description = stats
 
         embed.set_footer(
             text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await message.edit(embed=embed)
@@ -614,29 +635,26 @@ streamer_friendly: If yes, hides the server ID and the owner's discriminator.
 Format referenced from the Ayana bot."""
         guild = ctx.author.guild
 
-        created = (
-            utils.timedelta_string(
-                relativedelta(
-                    datetime.datetime.utcnow(),
-                    guild.created_at
-                ),
-                **self.DATETIME_DIFFERENCE_PRECISION,
-                inflector=ctx.bot.inflector
+        created = utils.timedelta_string(
+            relativedelta(
+                datetime.datetime.now(datetime.timezone.utc),
+                guild.created_at
             ),
-            await ctx.bot.strftime_user(ctx.author.id, guild.created_at)
+            **self.DATETIME_DIFFERENCE_PRECISION,
+            inflector=ctx.bot.inflector
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
-        owner = guild.owner.name if streamer_friendly else str(guild.owner)
+        owner = guild.owner or await guild.fetch_member(guild.owner_id)
         roles = guild.roles
 
         embed = discord.Embed(
             color=utils.get_user_color(ctx.bot, ctx.author),
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         )
 
         embed.set_author(name=guild.name)
-        embed.set_thumbnail(url=guild.icon_url)
+        embed.set_thumbnail(url=guild.icon.url)
         if not streamer_friendly:
             embed.add_field(
                 name='ID',
@@ -656,11 +674,13 @@ Format referenced from the Ayana bot."""
         )
         embed.add_field(
             name='Owner',
-            value=owner
+            value=owner.display_name if streamer_friendly else str(owner)
         )
         embed.add_field(
             name='Time of Server Creation',
-            value=f'{created[0]} ago\n({created[1]})',
+            value='{} ago\n({})'.format(
+                created, discord.utils.format_dt(guild.created_at, style='F')
+            ),
             inline=False
         )
         embed.add_field(
@@ -670,10 +690,58 @@ Format referenced from the Ayana bot."""
         )
         embed.set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)
+
+
+
+
+
+    @commands.command(name='timestamp')
+    @commands.cooldown(1, 2, commands.BucketType.member)
+    async def client_format_timestamp(
+            self, ctx, style: TimestampStyleConverter,
+            *, date: converters.DatetimeConverter = None):
+        """Send a message with the special <t:0:f> timestamp format.
+If no date is given, uses the current date.
+
+Available styles:
+    t: Short time (22:57)
+    T: Long time (22:57:58)
+    d: Short date (17/05/2016)
+    D: Long date (17 May 2016)
+    f: Short date-time (17 May 2016 22:57)
+    F: Long date-time (Tuesday, 17 May 2016 22:57)
+    R: Relative time (5 years ago)
+The exact format of each style depends on your locale settings."""
+        if style is None:
+            return await ctx.send_help(ctx.command)
+
+        date = date or datetime.datetime.now()
+        s = discord.utils.format_dt(date, style=style)
+        # await ctx.send('{} ({})'.format(s, discord.utils.escape_markdown(s)))
+        await ctx.send(
+            '{} ({})'.format(
+                re.sub(r'[<:>]', r'\\\g<0>', s), s
+            )
+        )
+
+
+    @client_format_timestamp.error
+    async def client_format_timestamp_error(self, ctx, error):
+        handled = True
+        if isinstance(error, UnknownTimestampStyle):
+            await ctx.send(
+                'Missing timestamp style '
+                '( *t*, *T*, *d*, *D*, *f*, *F*, or *R* )'
+            )
+        elif isinstance(error, commands.BadArgument):
+            await ctx.send(error)
+        else:
+            handled = False
+        ctx.handled = handled
 
 
 
@@ -700,14 +768,16 @@ Format referenced from the Ayana bot."""
         )
         diff_string = utils.timedelta_string(diff, inflector=ctx.bot.inflector)
 
-        uptime_string = await ctx.bot.strftime_user(
-            ctx.author.id, ctx.bot.uptime_last_connect)
+        timestamp = discord.utils.format_dt(
+            ctx.bot.uptime_last_connect, style='F')
 
-        await ctx.send(embed=discord.Embed(
-            title='Uptime',
-            description=f'{diff_string}\n({uptime_string})',
+        embed = discord.Embed(
+            title=f'Uptime: {timestamp}',
+            description=f'{diff_string}',
             color=utils.get_bot_color(ctx.bot)
-        ))
+        )
+
+        await ctx.send(embed=embed)
 
 
 
@@ -759,16 +829,13 @@ Format referenced from the Ayana bot."""
             # If presences or members intent are disabled, d.py returns
             # None for activity
             guild = user.guild
-            joined = (
-                utils.timedelta_string(
-                    relativedelta(
-                        datetime.datetime.utcnow(),
-                        user.joined_at
-                    ),
-                    **self.DATETIME_DIFFERENCE_PRECISION,
-                    inflector=ctx.bot.inflector
+            joined = utils.timedelta_string(
+                relativedelta(
+                    datetime.datetime.now(datetime.timezone.utc),
+                    user.joined_at
                 ),
-                await ctx.bot.strftime_user(ctx.author.id, user.joined_at)
+                **self.DATETIME_DIFFERENCE_PRECISION,
+                inflector=ctx.bot.inflector
             )
             nickname = user.nick
             roles = user.roles
@@ -798,26 +865,23 @@ Format referenced from the Ayana bot."""
         author = (f'{user} (Bot)' if user.bot
                   else f'{user.name}' if streamer_friendly
                   else str(user))
-        created = (
-            utils.timedelta_string(
-                relativedelta(
-                    datetime.datetime.utcnow(),
-                    user.created_at
-                ),
-                **self.DATETIME_DIFFERENCE_PRECISION,
-                inflector=ctx.bot.inflector
+        created = utils.timedelta_string(
+            relativedelta(
+                datetime.datetime.now(datetime.timezone.utc),
+                user.created_at
             ),
-            await ctx.bot.strftime_user(ctx.author.id, user.created_at)
+            **self.DATETIME_DIFFERENCE_PRECISION,
+            inflector=ctx.bot.inflector
         )
 
         embed = discord.Embed(
             color=utils.get_user_color(ctx.bot, user),
             description=description,
-            timestamp=datetime.datetime.utcnow()
+            timestamp=datetime.datetime.now()
         )
 
-        embed.set_author(name=author)  # icon_url=user.avatar_url
-        embed.set_thumbnail(url=user.avatar_url)
+        embed.set_author(name=author)  # icon_url=user.avatar.url
+        embed.set_thumbnail(url=user.avatar.url)
         if not streamer_friendly:
             embed.add_field(
                 name='ID',
@@ -846,12 +910,16 @@ Format referenced from the Ayana bot."""
                 joined_name = 'Time of Server Join'
             embed.add_field(
                 name=joined_name,
-                value=f'{joined[0]} ago\n({joined[1]})',
+                value='{} ago\n({})'.format(
+                    joined, discord.utils.format_dt(user.joined_at, style='F')
+                ),
                 inline=False
             )
         embed.add_field(
             name='Time of User Creation',
-            value=f'{created[0]} ago\n({created[1]})',
+            value='{} ago\n({})'.format(
+                created, discord.utils.format_dt(user.created_at, style='F')
+            ),
             inline=False
         )
         if status is not None:
@@ -888,7 +956,7 @@ Format referenced from the Ayana bot."""
             )
         embed.set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar_url
+            icon_url=ctx.author.avatar.url
         )
 
         await ctx.send(embed=embed)

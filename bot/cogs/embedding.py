@@ -10,10 +10,6 @@ import re
 
 import discord
 from discord.ext import commands
-from discord_slash.utils import manage_commands
-from discord_slash import cog_ext as dslash_cog
-from discord_slash import SlashContext
-import discord_slash as dslash
 
 from bot import utils
 
@@ -23,17 +19,23 @@ class Embedding(commands.Cog):
     qualified_name = 'Embedding'
 
     embed_specs = {
-        'title':    ('--title', '-T'),
+        'title': ('--title', '-T'),
         'titleurl': ('--titleurl', '-TU'),
-        'footer':     ('--footer', '-F'),
+
+        'footer': ('--footer', '-F'),
         'footericon': ('--footericon', '-FU'),
-        'image':        ('--image', '-I'),
-        'thumbnail':        ('--thumbnail', '-TN'),
-        'author':             ('--author', '-A'),
-        'authorurl':          ('--authorurl', '-AU')
+
+        'image': ('--image', '-I'),
+
+        'thumbnail': ('--thumbnail', '-TN'),
+
+        'author': ('--author', '-A'),
+        'authorurl': ('--authorurl', '-AU'),
+
+        'timestamp': ('--timestamp', '-TS'),
     }
 
-    hyperlink_regex = re.compile('\[.+\]\(.+\)')
+    hyperlink_regex = re.compile(r'\[.+\]\(.+\)')
 
     def __init__(self, bot):
         self.bot = bot
@@ -69,11 +71,12 @@ you can use code block tags like so:
 -FI --field<n>     "<subtitle>"
 -FT --fieldtext<n> "<text>"
 -FO --fieldnotinline<n>
+-TS --timestamp
 Note: Field title and text must both be specified.
 
 These are the limits set by Discord:
           Title: 256 characters
-    Description: 2048 characters
+    Description: 4096 characters
          Fields: 25 fields
      Field Name: 256 characters
      Field Text: 1024 characters
@@ -99,6 +102,7 @@ These are the limits set by Discord:
 
         embed_dict = {'color': color, 'description': description}
         fields = {}
+        include_timestamp = False
         while args:
             argv = args.popleft()
 
@@ -134,6 +138,10 @@ These are the limits set by Discord:
                 embed_dict.setdefault('author', {})
                 embed_dict['author']['url'] = args.popleft()
 
+            elif argv in self.embed_specs['timestamp']:
+                args.popleft()
+                include_timestamp = True
+
             else:
                 chars, num = char_separate_num(argv)
                 if chars == '--field' \
@@ -141,6 +149,7 @@ These are the limits set by Discord:
                     value = args.popleft()
                     default_field(num)
                     fields[num]['name'] = value
+                    fields[num]['value'] = '\u200b'
 
                 elif chars == '--fieldtext' \
                         or chars == '-FT':
@@ -155,8 +164,12 @@ These are the limits set by Discord:
 
         if fields:
             embed_dict['fields'] = list(fields.values())
+
         embed = discord.Embed.from_dict(embed_dict)
-        embed.timestamp = datetime.datetime.now().astimezone()
+
+        if include_timestamp:
+            embed.timestamp = datetime.datetime.now()
+
         try:
             await ctx.send(embed=embed)
         except discord.HTTPException as e:
@@ -227,7 +240,7 @@ You will be DM'd for your parameters."""
             title=f'{ctx.author.display_name}',
             description=f'[{text}]({link})',
             color=utils.get_user_color(ctx.bot, ctx.author),
-            timestamp=datetime.datetime.now().astimezone()
+            timestamp=datetime.datetime.now()
         )
 
         await ctx.send(embed=embed)
@@ -249,7 +262,8 @@ You will be DM'd for your parameters."""
                 content=f'~~{message.content}~~ Canceled hyperlink.')
 
         def check(message):
-            return message.channel == ctx.author.dm_channel
+            return (message.channel == ctx.author.dm_channel
+                    and message.author == ctx.author)
 
         message_request = await ctx.author.send(
             'Send your message here to embed it:')
@@ -270,34 +284,10 @@ You will be DM'd for your parameters."""
             title=f'{ctx.author.display_name}',
             description=message.content,
             color=utils.get_user_color(ctx.bot, ctx.author),
-            timestamp=datetime.datetime.now().astimezone()
+            timestamp=datetime.datetime.now()
         )
 
         await ctx.send(embed=embed)
-
-
-
-
-
-    @dslash_cog.cog_slash(
-        name='hyperlink',
-        options=[manage_commands.create_option(
-            name='message',
-            description="The message to format. Example: text [display text](https://mylink.com/) text",
-            option_type=3,
-            required=True
-        )]
-    )
-    async def client_slash_hyperlink(self, ctx: SlashContext, message):
-        """Send a message with the ability to replace links with custom text."""
-        if not self.hyperlink_regex.search(message):
-            return await ctx.send(
-                'Your message should use a custom text hyperlink at least once.\n'
-                'See the example in the message option.',
-                hidden=True
-            )
-        content = f"**Hyperlink message by {ctx.author.mention}**\n{message}"
-        await ctx.send(content, allowed_mentions=discord.AllowedMentions.none())
 
 
 
