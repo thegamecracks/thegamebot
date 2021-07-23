@@ -450,8 +450,8 @@ class ServerStatus:
         )
 
         try:
-            f = await self.bot.loop.run_in_executor(
-                None, self.create_player_count_graph,
+            f = await asyncio.to_thread(
+                self.create_player_count_graph,
                 datapoints, server, graphing_cog
             )
         except KeyError as e:

@@ -149,19 +149,16 @@ class UnturnedDatabase:
 
     @classmethod
     async def _get_items_from_files_nonblocking(cls):
-        loop = asyncio.get_running_loop()
-
         with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
-            recipes = json.loads(await loop.run_in_executor(None, f.read))
+            recipes = json.loads(await asyncio.to_thread(f.read))
 
         with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
-            raw_lines = await loop.run_in_executor(None, f.readlines)
+            raw_lines = await asyncio.to_thread(f.readlines)
 
         items = {}
         reader = csv.reader(raw_lines)
 
-        return await loop.run_in_executor(
-            None, cls._parse_recipes, recipes, reader)
+        return await asyncio.to_thread(cls._parse_recipes, recipes, reader)
 
     def reload_items(self):
         """Regenerate self.items from the data files."""

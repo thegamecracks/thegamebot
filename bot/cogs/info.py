@@ -2,6 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
 import collections
 import datetime
 import io
@@ -516,8 +517,8 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
             if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
                 # Generate graph
-                f = await ctx.bot.loop.run_in_executor(
-                    None, self.message_count_graph,
+                f = await asyncio.to_thread(
+                    self.message_count_graph,
                     graphing_cog, uptime_cog, messages, now, cumulative
                 )
                 graph = discord.File(f, filename='graph.png')

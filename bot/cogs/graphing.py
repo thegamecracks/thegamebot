@@ -2,10 +2,10 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
 import collections
 import datetime
 import decimal
-import functools
 import io
 import itertools
 from pathlib import Path
@@ -413,9 +413,9 @@ periods: The number of compounding periods in each term."""
                 'The principal/term/periods are too large to calculate.')
 
         with ctx.typing():
-            f, content = await ctx.bot.loop.run_in_executor(
-                None, self.interest_stackplot, ctx,
-                principal, rate, term, periods
+            f, content = await asyncio.to_thread(
+                self.interest_stackplot,
+                ctx, principal, rate, term, periods
             )
 
         await ctx.send(
@@ -515,8 +515,7 @@ To see the different methods you can use to provide text, check the help message
             return await ctx.send(text)
 
         with ctx.typing():
-            f = await ctx.bot.loop.run_in_executor(
-                None, self.frequency_analysis, ctx, text)
+            f = await asyncio.to_thread(self.frequency_analysis, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Frequency Analysis.png'))
 
@@ -649,8 +648,7 @@ To see the different methods you can use to provide text, check the help message
             return await ctx.send(text)
 
         with ctx.typing():
-            f = await ctx.bot.loop.run_in_executor(
-                None, self.word_count_pie, ctx, text)
+            f = await asyncio.to_thread(self.word_count_pie, ctx, text)
 
         await ctx.send(file=discord.File(f, 'Word Count Pie Chart.png'))
 
@@ -738,8 +736,10 @@ To see the different methods you can use to provide text, check the help message
             self, ctx, elevation: int = None, azimuth: int = None):
         """Generate a graph with some random data."""
         with ctx.typing():
-            f = await ctx.bot.loop.run_in_executor(
-                None, self.test_bar_graphs_3d_image, elevation, azimuth)
+            f = await asyncio.to_thread(
+                self.test_bar_graphs_3d_image,
+                elevation, azimuth
+            )
 
         await ctx.send(file=discord.File(f, '3D Graph Test.png'))
 
@@ -815,14 +815,12 @@ To see the different methods you can use to provide text, check the help message
         if frames < 1:
             return await ctx.send('There must be at least 1 frame.')
 
-        func = functools.partial(
-            self.test_bar_graphs_3d_gif,
-            frames=frames,
-            duration=duration
-        )
-
         with ctx.typing():
-            fp = await ctx.bot.loop.run_in_executor(None, func)
+            fp = await asyncio.to_thread(
+                self.test_bar_graphs_3d_gif,
+                frames=frames,
+                duration=duration
+            )
 
         filesize_limit = (ctx.guild.filesize_limit if ctx.guild is not None
                           else 8_000_000)

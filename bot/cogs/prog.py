@@ -64,9 +64,7 @@ class Programming(commands.Cog):
             return await ctx.send('The code block must be python!')
         code.language = 'py'
 
-        code.code = await ctx.bot.loop.run_in_executor(
-            None, autopep8.fix_code, code.code
-        )
+        code.code = await asyncio.to_thread(autopep8.fix_code, code.code)
 
         prefix, reply = ctx.author.mention, True
         try:
