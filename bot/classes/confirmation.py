@@ -221,7 +221,7 @@ class ButtonConfirmation(EmbedConfirmation):
 
     def _create_callback(self, button, value: bool):
         async def callback(interaction: discord.Interaction):
-            if self._answer is not self._MISSING:
+            if self._answer is not None:
                 return
             self._answer = value
             button.view.stop()
