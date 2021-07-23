@@ -1260,6 +1260,7 @@ sessions: If true, fetches session data for each player, including the last time
 
 
     @client_whitelist.command(name='sort')
+    @commands.bot_has_guild_permissions(manage_channels=True)
     @commands.cooldown(1, 120, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.default)
     async def client_whitelist_sort(self, ctx, labels: bool = True):
