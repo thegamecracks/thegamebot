@@ -27,6 +27,7 @@ Pillow==8.3.1
 Pint==0.16.1
 prettify.py @ git+https://github.com/ShineyDev/prettify.py@735d007b72f06256b3c4dfc4692f32a1011315db
 psutil==5.8.0
+pycodestyle==2.7.0
 pyparsing==2.4.7
 python-dateutil==2.8.1
 python-dotenv==0.17.1
