@@ -885,6 +885,29 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
         return embed
 
 
+# Flags
+class GiveawayStartFlags(commands.FlagConverter, delimiter=' ', prefix='--'):
+    end: Optional[converters.DatetimeConverter]
+    description: str
+    title: str
+
+class GiveawayEditFlags(commands.FlagConverter, delimiter=' ', prefix='--'):
+    end: Optional[converters.DatetimeConverter]
+    description: Optional[str]
+    title: Optional[str]
+
+    @classmethod
+    async def convert(cls, ctx, argument):
+        instance = await super().convert(ctx, argument)
+
+        # Make sure at least one flag was specified
+        if all(getattr(instance, f.attribute) is None for f in cls.get_flags().values()):
+            raise errors.ErrorHandlerResponse(
+                'At least one giveaway embed field must be specified to edit.')
+
+        return instance
+
+
 class SignalHill(commands.Cog):
     """Stuff for the Signal Hill server."""
 
@@ -1389,16 +1412,16 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
 
 
     def _giveaway_create_embed(
-            self, end_date: Optional[datetime.datetime],
+            self, end: Optional[datetime.datetime],
             title: str, description: str):
         """Create the running giveaway embed."""
         embed = discord.Embed(
             color=discord.Color.gold(),
             description=description,
             title=title,
-            timestamp=end_date or datetime.datetime.now()
+            timestamp=end or datetime.datetime.now()
         ).set_footer(
-            text='End date' if end_date else 'Start date'
+            text='End date' if end else 'Start date'
         )
 
         return embed
@@ -1524,32 +1547,30 @@ The giveaway message is deleted if no description is given."""
 
     @client_giveaway.command(name='edit')
     @is_giveaway_running(GIVEAWAY_CHANNEL_ID)
-    async def client_giveaway_edit(self, ctx, field, *, text):
-        """Edit a field in the giveaway message.
+    async def client_giveaway_edit(self, ctx, *, flags: GiveawayEditFlags):
+        """Edit the giveaway message.
 
-field: "end", "title", or "description"
-text: The text to replace the field with. If the field is "end" and your date could not be parsed, the end date is removed."""
-        field = field.lower()
+Usage:
+--title 3x Apex DLCs --description Hello again! --end unknown
 
+end: A date when the giveaway is expected to end. The end date can be removed by inputting a non-date. Assumes UTC if you don't have a timezone set with the bot.
+title: The title of the giveaway.
+description: The description of the giveaway."""
         embed = ctx.last_giveaway.embeds[0]
-        if field == 'title':
-            embed.title = text
-        elif field == 'description':
-            embed.description = text
-        elif field == 'end':
+
+        if flags.title is not None:
+            embed.title = flags.title
+        if flags.description is not None:
+            embed.description = flags.description
+        if flags.end is not None:
             try:
-                dt = await converters.DatetimeConverter().convert(ctx, text)
+                dt = await converters.DatetimeConverter().convert(ctx, flags.end)
             except commands.BadArgument as e:
                 embed.timestamp = ctx.last_giveaway.created_at
                 embed.set_footer(text='Start date')
             else:
                 embed.timestamp = dt
                 embed.set_footer(text='End date')
-        else:
-            return await ctx.send(
-                'Please specify the field to edit '
-                '("title" or "description")'
-            )
 
         await ctx.last_giveaway.edit(embed=embed)
         await ctx.message.add_reaction('\N{WHITE HEAVY CHECK MARK}')
@@ -1641,15 +1662,16 @@ reason: The reason for rerolling the winner."""
 
 
     @client_giveaway.command(name='simulate')
-    async def client_giveaway_simulate(
-            self, ctx, end: Optional[converters.DatetimeConverter],
-            title, *, description):
+    async def client_giveaway_simulate(self, ctx, *, flags: GiveawayStartFlags):
         """Generate a giveaway message in the current channel.
 
-end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+Usage:
+--title 2x Apex DLCs --description Hello world! --end in 1 day
+
+end: An optional date when the giveaway is expected to end. Assumes UTC if you don't have a timezone set with the bot.
 title: The title of the giveaway.
 description: The description of the giveaway."""
-        embed = self._giveaway_create_embed(end, title, description)
+        embed = self._giveaway_create_embed(**dict(flags))
         await ctx.send(embed=embed)
 
 
@@ -1660,18 +1682,19 @@ description: The description of the giveaway."""
         'There is already a giveaway running! Please "finish" or "cancel" '
         'the giveaway before creating a new one!'
     )
-    async def client_giveaway_start(
-            self, ctx, end: Optional[converters.DatetimeConverter],
-            title, *, description):
+    async def client_giveaway_start(self, ctx, *, flags: GiveawayStartFlags):
         """Start a new giveaway in the giveaway channel.
 Only one giveaway can be running at a time, for now that is.
 
-The number of winners is determined by a prefixed number in the title, i.e. "2x Apex DLCs". If this number is not present, defaults to 1 winner.end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+The number of winners is determined by a prefixed number in the title, i.e. "2x Apex DLCs". If this number is not present, defaults to 1 winner.
 
-end: An optional date when the giveaway is expected to end. Assumes your timezone if you have one set with the bot, UTC otherwise.
+Usage:
+--title 2x Apex DLCs --description Hello world! --end in 1 day
+
+end: An optional date when the giveaway is expected to end. Assumes UTC if you don't have a timezone set with the bot.
 title: The title of the giveaway.
 description: The description of the giveaway."""
-        embed = self._giveaway_create_embed(end, title, description)
+        embed = self._giveaway_create_embed(**dict(flags))
 
         message = await self.giveaway_channel.send('@everyone', embed=embed)
 
