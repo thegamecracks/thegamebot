@@ -320,7 +320,7 @@ class ServerStatus:
 
         embed = discord.Embed(
             title=server.name,
-            timestamp=datetime.datetime.now()
+            timestamp=now
         ).set_footer(
             text='Last updated'
         )
@@ -344,7 +344,11 @@ class ServerStatus:
             server.ip, server.port))
         description.append('Map: ' + (self.server_map or server.details['map']))
         description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
-
+        description.append(
+            'Last updated {}'.format(
+                discord.utils.format_dt(now, style='R')
+            )
+        )
         players: List[abm.Player] = sorted(server.players, key=lambda p: p.name)
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
