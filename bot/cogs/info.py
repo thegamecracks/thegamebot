@@ -545,7 +545,10 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                 speak=True
             )
 
-        return discord.utils.oauth_url(self.bot.user.id, perms)
+        return discord.utils.oauth_url(
+            self.bot.user.id, permissions=perms,
+            scopes=('bot', 'applications.commands')
+        )
 
 
     @commands.command(name='invite')
