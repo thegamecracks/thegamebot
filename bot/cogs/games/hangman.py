@@ -130,7 +130,7 @@ class KeyboardSelect(discord.ui.Select['HangmanView']):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await self.view.update(interaction.message, self.values[0])
+        await self.view.update(interaction, self.values[0])
 
 
 CharFlag = enum.Flag('CharFlag', 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z')
@@ -235,15 +235,15 @@ class HangmanView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == self.player_id
 
-    async def update(self, message: discord.Message, guess: str):
+    async def update(self, interaction: discord.Interaction, guess: str):
         self.game.guess(guess)
 
         embed, status = self.get_embed()
         if status is None:
             self.update_keyboard()
-            await message.edit(view=self, embed=embed)
+            await interaction.response.edit_message(embed=embed, view=self)
         else:
-            await message.edit(view=None, embed=embed)
+            await interaction.response.edit_message(embed=embed, view=None)
 
     async def send_initial_message(self, channel: discord.abc.Messageable):
         embed, status = self.get_embed()
