@@ -47,6 +47,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'embedding',
             'gamecog',
             'games.hangman',
+            'games.memory',
             'graphing',
             'guildirish',
             'guildsignal',
