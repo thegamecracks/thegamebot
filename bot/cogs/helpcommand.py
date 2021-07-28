@@ -6,6 +6,7 @@
 import collections
 import itertools
 import math
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -36,6 +37,31 @@ class HelpCommand(commands.HelpCommand):
                     2, 3, commands.BucketType.user)
             }
         )
+
+    def get_bot_mapping(self):
+        """Retrieves the bot mapping passed to :meth:`send_bot_help`.
+
+        Hacked to check each command for the `injected_cog` attribute
+        and assign them to the appropriate cog.
+
+        """
+        bot = self.context.bot
+        mapping, to_inject = {}, []
+
+        for cog in bot.cogs.values():
+            commands = []
+            for c in cog.get_commands():
+                if hasattr(c, 'injected_cog'):
+                    to_inject.append(c)
+                else:
+                    commands.append(c)
+            mapping[cog] = commands
+
+        for c in to_inject:
+            cog = self.context.bot.get_cog(c.injected_cog)
+            mapping[cog].append(c)
+
+        return mapping
 
     def command_not_found(self, string):
         """A method called when a command is not found in the help command.
@@ -114,14 +140,15 @@ class HelpCommand(commands.HelpCommand):
         else:
             await destination.send(content, embed=embed, *args, **kwargs)
 
-    async def create_help_category_page(self, *, page_num):
+    async def create_help_category_page(self, mapping=None, *, page_num):
         """Create an embed showing a page of categories."""
-        categories: list = await self.get_commands()
+        if mapping is None:
+            mapping = self.get_bot_mapping()
 
-        total_pages = math.ceil(
-            len(categories) / self.help_categories_per_page)
+        categories = self.mapping_to_list(mapping)
 
         # Check if page num is valid
+        total_pages = math.ceil(len(categories) / self.help_categories_per_page)
         if page_num not in range(1, total_pages + 1):
             if total_pages == 1:
                 raise ValueError('Page number must be 1.')
@@ -162,9 +189,13 @@ class HelpCommand(commands.HelpCommand):
 
         return embed
 
-    async def create_help_cog_page(self, cog, *, page_num):
+    async def create_help_cog_page(self, cog, cmds=None, *, page_num):
         """Create an embed showing a page of commands in a cog."""
-        cmds = await self.filter_commands(cog.get_commands(), sort=True)
+        if cmds is None:            
+            cmds = await self.filter_commands(
+                self.get_bot_mapping()[cog],  # includes injected commands
+                sort=True
+            )
 
         total_pages = math.ceil(len(cmds) / self.help_cog_commands_per_page)
 
@@ -207,29 +238,26 @@ class HelpCommand(commands.HelpCommand):
     def get_cog_name(self, cog):
         return getattr(cog, 'qualified_name', self.no_category)
 
-    async def get_commands(self):
-        """Return all sorted commands the bot has, categorized by sorted cogs.
-
-        Returns:
-            List[Optional[commands.Cog], List[commands.Command]]
-
+    def mapping_to_list(
+            self, mapping
+        ) -> list[tuple[Optional[commands.Cog], commands.Command]]:
+        """Convert the mapping returned by `get_bot_mapping()`
+        to a list sorted by cog name and command name.
         """
-        categories = collections.defaultdict(list)
+        # Remove items with no commands
+        to_remove = [k for k, v in mapping.items() if not v]
+        for k in to_remove:
+            del mapping[k]
 
-        for cmd in await self.filter_commands(self.context.bot.commands):
-            categories[cmd.cog].append(cmd)
-
-        # Create a paired list of of the dictionary
-        categories_list = sorted(
-            categories.items(),
+        items = sorted(
+            mapping.items(),
             key=lambda x: self.get_cog_name(x[0])
         )
 
-        # Sort each command by name
-        for _, cmds in categories_list:
+        for _, cmds in items:
             cmds.sort(key=lambda x: x.qualified_name)
 
-        return categories_list
+        return items
 
     async def send_error_message(self, error):
         """Sends a help page if the user asks for a specific page.
@@ -282,13 +310,18 @@ class HelpCommand(commands.HelpCommand):
 
     async def send_bot_help(self, mapping):
         """Sends help when no arguments are given."""
-        embed = await self.create_help_category_page(page_num=1)
+        embed = await self.create_help_category_page(mapping, page_num=1)
 
         await self.send(embed=embed)
 
     async def send_cog_help(self, cog):
         """Sends help for a specific cog."""
-        if all(c.hidden for c in cog.get_commands()):
+        cmds = await self.filter_commands(
+            self.get_bot_mapping()[cog],  # includes injected commands
+            sort=True
+        )
+
+        if all(c.hidden for c in cmds):
             # Cog has no visible commands; pretend it doesn't exist
             ctx = self.context
             content = self.context.message.content.replace(
@@ -296,7 +329,7 @@ class HelpCommand(commands.HelpCommand):
             return await self.send_error_message(
                 self.command_not_found(content))
 
-        embed = await self.create_help_cog_page(cog, page_num=1)
+        embed = await self.create_help_cog_page(cog, cmds, page_num=1)
 
         await self.send(embed=embed)
 
@@ -337,9 +370,15 @@ class HelpCommand(commands.HelpCommand):
             color=utils.get_bot_color(self.context.bot),
             description=''.join(description)
         )
-        if command.cog is not None:
+
+        cog = None
+        if hasattr(command, 'injected_cog'):
+            cog = self.context.bot.get_cog(command.injected_cog)
+        cog = cog or command.cog
+
+        if cog:
             embed.set_author(
-                name=f'In {self.get_cog_name(command.cog)} category')
+                name=f'In {self.get_cog_name(cog)} category')
 
         await self.send(embed=embed)
 

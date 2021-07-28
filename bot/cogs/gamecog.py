@@ -225,19 +225,6 @@ class Games(commands.Cog):
         self.bot = bot
         self.unturneddb = UnturnedDatabase.from_files()
 
-        # Find commands located in bot.cogs.games and update their cog
-        for c in self.bot.commands:
-            if (hasattr(c, 'original_cog')
-                    and c.original_cog.__module__.startswith('bot.cogs.games')):
-                c.cog = self
-
-
-    def cog_unload(self):
-        # Update commands from other cogs
-        for c in self.bot.commands:
-            if c.cog == self and hasattr(c, 'original_cog'):
-                c.cog = None
-
 
 
 
