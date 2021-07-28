@@ -909,6 +909,7 @@ class SignalHill(commands.Cog):
 
     BM_SERVER_ID_INA = 10654566
     BM_SERVER_ID_SOG = 4712021
+    BM_SERVER_ID_EXL = 12255260
     SERVER_STATUS_INTERVAL = 60
     SERVER_STATUS_EDIT_RATE = 10
     SERVER_STATUS_GRAPH_DEST = 842924251954151464
@@ -942,6 +943,15 @@ class SignalHill(commands.Cog):
                 message_id=852009695241175080,
                 server_map='Cam Lao Nam',
                 line_color=0x2FE4BF,
+                **self.create_server_status_params()
+            ),
+            ServerStatus(
+                bot, self.bm_client,
+                server_id=self.BM_SERVER_ID_EXL,
+                channel_id=869725276458864680,
+                message_id=869725975502528552,
+                server_map=None,
+                line_color=0xEC33F5,
                 **self.create_server_status_params()
             ),
         ]
