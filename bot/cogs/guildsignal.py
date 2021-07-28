@@ -115,10 +115,6 @@ class SteamIDConverter(commands.Converter):
 
 
 # Server status
-class SkipInteractionResponse(Exception):
-    """Raised when a button interaction should intentionally be ignored."""
-
-
 class ServerStatusView(discord.ui.View):
     REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
 
@@ -134,7 +130,7 @@ class ServerStatusView(discord.ui.View):
         return not interaction.user.bot
 
     async def on_error(self, error, item, interaction):
-        if not isinstance(error, SkipInteractionResponse):
+        if not isinstance(error, errors.SkipInteractionResponse):
             return await super().on_error(error, item, interaction)
 
     @discord.ui.select(
@@ -153,7 +149,7 @@ class ServerStatusView(discord.ui.View):
         if self.status.last_server is None:
             await self.status.update()
             if self.status.last_server is None:
-                raise SkipInteractionResponse('Failed to update the status')
+                raise errors.SkipInteractionResponse('Failed to update the status')
 
         method = getattr(self, 'on_select_' + select.values[0])
         await method(interaction)
