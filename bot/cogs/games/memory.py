@@ -145,15 +145,14 @@ class MemoryView(discord.ui.View):
             return self.worker
 
 
-class Memory(commands.Cog):
+class _Memory(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.command(name='memory')
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def client_memory(self, ctx, everyone: bool = False):
-        """Starts a memory game.
-The only allowed player is you (for now)."""
+        """Starts a memory game."""
         view = MemoryView(
             None if everyone else ctx.author.id,
             timeout=180
@@ -169,4 +168,4 @@ The only allowed player is you (for now)."""
 
 
 
-setup = create_setup(Memory)
+setup = create_setup(_Memory)

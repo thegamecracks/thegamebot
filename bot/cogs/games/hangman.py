@@ -250,7 +250,7 @@ class HangmanView(discord.ui.View):
         await channel.send(f'<@{self.player_id}>', embed=embed, view=self)
 
 
-class Hangman(commands.Cog):
+class _Hangman(commands.Cog):
     CUSTOM_ID_REGEX = re.compile(
         r'hangman:(?P<player_id>\d+):(?P<keyboard>\d+):'
         r'(?P<word>.+):(?P<guesses>\d+)'
@@ -308,4 +308,4 @@ The only allowed player is you (for now)."""
 
 
 
-setup = create_setup(Hangman)
+setup = create_setup(_Hangman)
