@@ -4,6 +4,7 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import collections
+import itertools
 import math
 
 import discord
@@ -140,15 +141,9 @@ class HelpCommand(commands.HelpCommand):
 
         # Create fields
         fields = []
-        skip_to = self.help_categories_per_page * (page_num - 1)
-        categories_to_add = self.help_categories_per_page
-        for category, cmds in categories:
-            if skip_to:
-                skip_to -= 1
-                continue
-            if not categories_to_add:
-                break
-
+        start = self.help_categories_per_page * (page_num - 1)
+        end = start + self.help_categories_per_page
+        for category, cmds in itertools.islice(categories, start, end):
             # Create string listing commands
             field_text = []
             for i, com in enumerate(cmds, 1):
@@ -161,8 +156,6 @@ class HelpCommand(commands.HelpCommand):
             field_text = '\n'.join(field_text)
 
             fields.append((self.get_cog_name(category), field_text))
-
-            categories_to_add -= 1
 
         for field in fields:
             embed.add_field(name=field[0], value=field[1])
@@ -201,25 +194,13 @@ class HelpCommand(commands.HelpCommand):
         )
 
         # Create fields
-        fields = []
-        skip_to = self.help_cog_commands_per_page * (page_num - 1)
-        categories_to_add = self.help_cog_commands_per_page
-        for com in cmds:
-            if skip_to:
-                skip_to -= 1
-                continue
-            if not categories_to_add:
-                break
-
-            fields.append(
-                (com.qualified_name,
-                 com.short_doc if com.short_doc else 'No description.')
+        start = self.help_cog_commands_per_page * (page_num - 1)
+        end = start + self.help_cog_commands_per_page
+        for com in itertools.islice(cmds, start, end):
+            embed.add_field(
+                name=com.qualified_name,
+                value=com.short_doc if com.short_doc else 'No description.'
             )
-
-            categories_to_add -= 1
-
-        for field in fields:
-            embed.add_field(name=field[0], value=field[1])
 
         return embed
 
