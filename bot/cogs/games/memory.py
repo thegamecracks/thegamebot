@@ -97,18 +97,25 @@ class MemoryView(discord.ui.View):
         return self.player_id is None or interaction.user.id == self.player_id
 
     async def update(self, interaction):
-        if interaction.response.is_done():
-            await interaction.edit_original_message(view=self)
+        try:
+            if interaction.response.is_done():
+                await interaction.edit_original_message(view=self)
+            else:
+                await interaction.response.edit_message(view=self)
+        except discord.HTTPException:
+            pass
         else:
-            await interaction.response.edit_message(view=self)
-
-        if all(b.disabled for b in self.children):
-            self.stop()
+            if all(b.disabled for b in self.children):
+                self.stop()
 
     async def memory_worker(self):
         while self.is_dispatching():
             button, interaction = await self.queue.get()
             emoji = button.stored
+
+            if button == self.current:
+                # Thanks discord
+                return await interaction.response.defer()
 
             button.disabled = True
             button.emoji = emoji
@@ -133,7 +140,7 @@ class MemoryView(discord.ui.View):
                 self.current = None
                 await self.update(interaction)
 
-    async def start(self, ctx, wait=True) -> Optional[asyncio.Task]:
+    async def start(self, ctx, *, wait=True) -> Optional[asyncio.Task]:
         self.message = await ctx.send('\u200b', view=self)
         if wait:
             await self.memory_worker()
