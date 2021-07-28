@@ -1096,9 +1096,7 @@ class SignalHill(commands.Cog):
             description='Server status coming soon',
             timestamp=datetime.datetime.now()
         )
-        view = ServerStatusView(None, None)
-        await channel.send(embed=embed, view=view)
-        view.stop()
+        await channel.send(embed=embed)
 
 
     @client_server_status.command(name='toggle')
