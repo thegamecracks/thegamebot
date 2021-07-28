@@ -41,24 +41,13 @@ class Programming(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self._cooldown = commands.CooldownMapping.from_cooldown(
-            1, 5, commands.BucketType.user
-        )
-
-    def cog_check(self, ctx):
-        retry_after = self._cooldown.update_rate_limit(ctx.message)
-        if retry_after:
-            raise commands.CommandOnCooldown(
-                self._cooldown._cooldown,  # commands.Cooldown
-                retry_after
-            )
-        return True
 
 
 
 
 
     @commands.command(name='pep8')
+    @commands.cooldown(1, 5, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.member)
     async def client_pep8(self, ctx, *, code: CodeBlock):
         """Format Python code using autopep8."""
