@@ -91,7 +91,9 @@ class MemoryView(discord.ui.View):
     async def on_timeout(self):
         if self.worker is not None:
             self.worker.cancel()
-        await self.message.edit(content='Timed out!')
+        for button in self.children:
+            button.disabled = True
+        await self.message.edit(content='(ended from inactivity)', view=self)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return self.player_id is None or interaction.user.id == self.player_id
@@ -152,16 +154,22 @@ class MemoryView(discord.ui.View):
             return self.worker
 
 
+class MemoryFlags(commands.FlagConverter):
+    everyone: bool = False
+
+
 class _Memory(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.command(name='memory')
     @commands.cooldown(1, 30, commands.BucketType.member)
-    async def client_memory(self, ctx, everyone: bool = False):
-        """Starts a memory game."""
+    async def client_memory(self, ctx, flags: MemoryFlags):
+        """Starts a memory game.
+
+Times out after: 180s"""
         view = MemoryView(
-            None if everyone else ctx.author.id,
+            None if flags.everyone else ctx.author.id,
             timeout=180
         )
         await view.start(ctx)
