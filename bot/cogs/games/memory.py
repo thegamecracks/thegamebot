@@ -19,6 +19,7 @@ On player action (MemoryView.memory_worker()):
 """
 import asyncio
 import collections
+import datetime
 import random
 import re
 from typing import Optional, Sequence
@@ -82,6 +83,11 @@ class MemoryView(discord.ui.View):
         for i, e in enumerate(emojis):
             self.add_item(MemoryButton(*divmod(i, 5), e))
 
+    @property
+    def timeout_timestamp(self) -> str:
+        ends = datetime.datetime.now() + datetime.timedelta(seconds=self.timeout)
+        return discord.utils.format_dt(ends, style='R')
+
     async def on_error(self, error, item, interaction):
         if not isinstance(
                 error, (errors.SkipInteractionResponse, asyncio.QueueFull)
@@ -93,21 +99,32 @@ class MemoryView(discord.ui.View):
             self.worker.cancel()
         for button in self.children:
             button.disabled = True
-        await self.message.edit(content='(ended from inactivity)', view=self)
+        timestamp = discord.utils.format_dt(datetime.datetime.now(), style='R')
+        await self.message.edit(
+            content=f'(ended {timestamp} from inactivity)',
+            view=self
+        )
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.bot:
+            return False
         return self.player_id is None or interaction.user.id == self.player_id
 
     async def update(self, interaction):
+        finished = all(b.disabled for b in self.children)
+        content = '\u200b' if finished else f'(ends {self.timeout_timestamp})'
+
         try:
             if interaction.response.is_done():
-                await interaction.edit_original_message(view=self)
+                await interaction.edit_original_message(
+                    content=content, view=self)
             else:
-                await interaction.response.edit_message(view=self)
+                await interaction.response.edit_message(
+                    content=content, view=self)
         except discord.HTTPException:
             pass
         else:
-            if all(b.disabled for b in self.children):
+            if finished:
                 self.stop()
 
     async def memory_worker(self):
@@ -143,7 +160,10 @@ class MemoryView(discord.ui.View):
                 await self.update(interaction)
 
     async def start(self, ctx, *, wait=True) -> Optional[asyncio.Task]:
-        self.message = await ctx.send('\u200b', view=self)
+        self.message = await ctx.send(
+            f'(ends {self.timeout_timestamp})',
+            view=self
+        )
         if wait:
             await self.memory_worker()
         else:
@@ -166,7 +186,6 @@ class _Memory(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def client_memory(self, ctx, flags: MemoryFlags):
         """Starts a memory game.
-
 Times out after: 180s"""
         view = MemoryView(
             None if flags.everyone else ctx.author.id,

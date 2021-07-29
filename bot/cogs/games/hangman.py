@@ -233,6 +233,8 @@ class HangmanView(discord.ui.View):
                 )
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.bot:
+            return False
         return interaction.user.id == self.player_id
 
     async def update(self, interaction: discord.Interaction, guess: str):
