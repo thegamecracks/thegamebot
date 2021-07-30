@@ -6,7 +6,6 @@
 # TODO: remove guild from database when removed
 import re
 
-import discord
 from discord.ext import commands
 
 

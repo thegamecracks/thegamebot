@@ -22,17 +22,15 @@ On player action (MemoryView.memory_worker()):
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import asyncio
-import collections
 import datetime
 import random
-import re
-from typing import Optional, Sequence
+from typing import Optional
 
 import discord
 from discord.ext import commands
 
-from . import create_setup
 from bot import errors
+from . import create_setup
 
 
 class MemoryButton(discord.ui.Button["MemoryView"]):

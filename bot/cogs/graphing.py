@@ -404,10 +404,12 @@ principal: The initial investment.
 rate: The interest rate. Can be specified as a percentage.
 term: The number of terms.
 periods: The number of compounding periods in each term."""
+        principal: int
+        rate: decimal.Decimal
         if not 0 < rate <= 100:
             return await ctx.send(
                 'The interest rate must be between 0% and 100,000%.')
-        elif term * periods > min(36500, 36500000 / principal):
+        elif term * periods > min(36500.0, 36500000 / principal):
             # This tries keeping the numbers within a reasonable amount
             return await ctx.send(
                 'The principal/term/periods are too large to calculate.')

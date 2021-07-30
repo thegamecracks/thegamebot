@@ -5,13 +5,12 @@
 import abc
 import asyncio
 import datetime
-from typing import Any, Iterable, Optional, Union
+from typing import Iterable, Optional, Union
 
 import discord
 from discord.ext import commands
 
 from . import create_setup
-
 
 UM = Union[discord.User, discord.Member]
 
@@ -103,7 +102,7 @@ class RPSDuelView(BaseRPSView):
 
     def __init__(
             self, buttons: Iterable[RPSButton],
-            players: Iterable[UM],
+            players: set[UM],
             *args, **kwargs):
         super().__init__(buttons, *args, **kwargs)
         self.players = players

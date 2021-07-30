@@ -2,8 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import collections
-
+import discord
 from discord.ext import commands
 
 
@@ -30,7 +29,7 @@ def used_in_guild(*guild_ids):
 
 def is_in_guild(*guild_ids):
     """Check if the author is part of a given set of guilds."""
-    async def check_guild(guild_id):
+    async def check_guild(ctx, guild_id):
         guild = ctx.bot.get_guild(guild_id)
         if guild is None:
             return False
@@ -46,7 +45,7 @@ def is_in_guild(*guild_ids):
     async def predicate(ctx):
         if ctx.guild and ctx.guild.id in guild_ids:
             return True
-        return any(await check_guild(n) for n in guild_ids)
+        return any(await check_guild(ctx, n) for n in guild_ids)
 
     return commands.check(predicate)
 

@@ -3,7 +3,6 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import collections
 import itertools
 import math
 from typing import Optional
@@ -18,7 +17,6 @@ cooldown_message_length = commands.CooldownMapping.from_cooldown(
 
 
 class HelpCommand(commands.HelpCommand):
-
     help_categories_per_page = 9  # Max of 25 fields
     help_commands_per_category = 5
 
@@ -191,7 +189,7 @@ class HelpCommand(commands.HelpCommand):
 
     async def create_help_cog_page(self, cog, cmds=None, *, page_num):
         """Create an embed showing a page of commands in a cog."""
-        if cmds is None:            
+        if cmds is None:
             cmds = await self.filter_commands(
                 self.get_bot_mapping()[cog],  # includes injected commands
                 sort=True
@@ -239,8 +237,8 @@ class HelpCommand(commands.HelpCommand):
         return getattr(cog, 'qualified_name', self.no_category)
 
     def mapping_to_list(
-            self, mapping
-        ) -> list[tuple[Optional[commands.Cog], commands.Command]]:
+        self, mapping
+    ) -> list[tuple[Optional[commands.Cog], list[commands.Command]]]:
         """Convert the mapping returned by `get_bot_mapping()`
         to a list sorted by cog name and command name.
         """

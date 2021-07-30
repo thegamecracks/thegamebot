@@ -7,7 +7,7 @@ import enum
 import random
 import re
 import string
-from typing import Optional, Set, Iterable, Tuple
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -126,7 +126,7 @@ class HangmanGame:
 
 
 class KeyboardSelect(discord.ui.Select['HangmanView']):
-    def __init__(self, chars: Iterable[str], **kwargs):
+    def __init__(self, chars: list[str], **kwargs):
         super().__init__(
             options=[discord.SelectOption(label=c) for c in chars],
             placeholder=f'{chars[0]}-{chars[-1]}' if len(chars) > 1 else chars[0],
@@ -155,7 +155,7 @@ class HangmanView(discord.ui.View):
         self.update_keyboard()
 
     @staticmethod
-    def decode_guesses(guesses: str) -> Set[str]:
+    def decode_guesses(guesses: str) -> set[str]:
         members, uncovered = enum._decompose(CharFlag, int(guesses))
         return {m._name_.lower() for m in members}
 
@@ -191,7 +191,7 @@ class HangmanView(discord.ui.View):
             g=self.encode_guesses()
         )
 
-    def get_embed(self) -> Tuple[discord.Embed, Optional[bool]]:
+    def get_embed(self) -> tuple[discord.Embed, Optional[bool]]:
         guesses = ''
         wrong_guesses = self.game.wrong_guesses
         if wrong_guesses:

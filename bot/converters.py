@@ -4,7 +4,6 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import asyncio
 import datetime
-import functools
 import re
 from typing import Optional
 

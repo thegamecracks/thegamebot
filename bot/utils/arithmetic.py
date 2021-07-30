@@ -128,10 +128,10 @@ def num(x):
         if hasattr(x, 'is_integer') and not x.is_integer():
             raise ValueError
         return int(x)
-    except Exception:
+    except (TypeError, ValueError):
         try:
             return float(x)
-        except Exception:
+        except (TypeError, ValueError):
             n = complex(x)
             if n.imag == 0:
                 return num(n.real)

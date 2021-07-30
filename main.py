@@ -286,5 +286,5 @@ async def main():
 if __name__ == '__main__':
     try:
         asyncio.run(main())
-    except Exception:
+    except BaseException:
         logger.exception('Exception logged by asyncio.run()')

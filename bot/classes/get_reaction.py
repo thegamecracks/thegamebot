@@ -51,7 +51,8 @@ async def get_reaction(client, message, reactions=None,
     raw = 'raw_' if raw else ''
     events = (f'{raw}reaction_add', f'{raw}reaction_remove')
 
-    pending_tasks = [client.wait_for(e, check=check) for e in events]
+    completed_tasks = ()
+    pending_tasks = (client.wait_for(e, check=check) for e in events)
     try:
         completed_tasks, pending_tasks = await asyncio.wait(
             pending_tasks, return_when=asyncio.FIRST_COMPLETED,

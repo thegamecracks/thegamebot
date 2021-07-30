@@ -376,7 +376,7 @@ class EventHandlers(commands.Cog):
                 'I am {}'.format(
                     missing_x_to_run(
                         'permission',
-                        convert_perms_to_english(error.missing_perms)
+                        convert_perms_to_english(error.missing_permissions)
                     )
                 )
             )
@@ -452,7 +452,7 @@ class EventHandlers(commands.Cog):
                 'You are {}'.format(
                     missing_x_to_run(
                         'permission',
-                        convert_perms_to_english(error.missing_perms)
+                        convert_perms_to_english(error.missing_permissions)
                     )
                 )
             )

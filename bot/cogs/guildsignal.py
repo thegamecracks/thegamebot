@@ -13,10 +13,9 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Dict, Optional, List, Union
+from typing import Callable, ClassVar, Optional, Union
 
 import abattlemetrics as abm
-import dateparser
 import discord
 from discord.ext import commands, menus, tasks
 import humanize
@@ -349,7 +348,7 @@ class ServerStatus:
                 discord.utils.format_dt(now, style='R')
             )
         )
-        players: List[abm.Player] = sorted(server.players, key=lambda p: p.name)
+        players: list[abm.Player] = sorted(server.players, key=lambda p: p.name)
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
             if p.first_time:
@@ -358,7 +357,7 @@ class ServerStatus:
             score = f' ({p.score})' if p.score is not None else ''
             players[i] = f'{name}{score}'
 
-        players: List[str]
+        players: list[str]
         embed = self.add_fields(embed, players, name='Name (Score)')
 
         embed.description = '\n'.join(description)
@@ -645,9 +644,9 @@ class LastSessionAsyncPageSource(
                     p_id, limit=1, server_ids=(server_id,)
                 ).flatten()
                 if not session:
-                    return (orig, p_id, None)
+                    return orig, p_id, None
 
-                return (orig, p_id, session[0])
+                return orig, p_id, session[0]
 
             # Separate steam IDs and player IDs
             steam_ids, player_ids = [], []
@@ -674,7 +673,7 @@ class LastSessionAsyncPageSource(
             async for result in fetch_group():
                 yield result
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu: menus.MenuPages, entries):
         embed = self.get_embed_template(menu)
         for i, p_id, session in entries:
             if p_id is None:
@@ -745,7 +744,7 @@ class PlayerListPageSource(
 
                 yield (p, session)
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu: menus.MenuPages, entries):
         embed = self.get_embed_template(menu)
 
         embed.set_footer(
@@ -843,7 +842,7 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
             match = converters.CodeBlock.from_search(m.content)
             return match is not None and SteamIDConverter.REGEX.search(match.code)
 
-        member_cache: Dict[int, Union[discord.Member, int]] = {}
+        member_cache: dict[int, Union[discord.Member, int]] = {}
 
         match: Optional[converters.CodeBlock] = None
         for c in channels:
@@ -871,7 +870,7 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
                     )
                 )
 
-    async def format_page(self, menu, page: str):
+    async def format_page(self, menu: menus.MenuPages, page: str):
         embed = self.get_embed_template(menu)
         embed.description = page
         embed.set_author(
@@ -1132,7 +1131,7 @@ Automatically turns back on when the bot connects."""
         """Commands for managing whitelists."""
 
 
-    async def _whitelist_get_player_ids(self) -> List[int]:
+    async def _whitelist_get_player_ids(self) -> list[int]:
         settings = self.bot.get_cog('Settings')
         ids = settings.get('checkwhitelist-ids', None)
         last_message_id = settings.get('checkwhitelist-last_message_id', None)
@@ -1440,6 +1439,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def client_playtime(self, ctx, steam_id: SteamIDConverter):
         """Get someone's server playtime in the last month for the I&A server."""
+        steam_id: int
         async with ctx.typing():
             results = await self.bm_client.match_players(
                 steam_id, type=abm.IdentifierType.STEAM_ID)
@@ -1589,7 +1589,7 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
 
 
     def _giveaway_parse_winners_from_field(
-            self, field) -> Optional[discord.Object]:
+            self, field) -> list[int]:
         """Parse the winner mention from the winner field."""
         return [
             int(m.group(1))

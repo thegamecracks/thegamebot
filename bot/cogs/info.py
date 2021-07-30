@@ -12,7 +12,7 @@ import random
 import re
 import sys
 import time
-from typing import Optional
+from typing import Optional, Literal
 
 from dateutil.relativedelta import relativedelta
 import discord
@@ -25,7 +25,7 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import psutil
 
-from bot import converters, errors, utils
+from bot import converters, utils
 
 
 class UnknownTimestampStyle(commands.BadArgument):
@@ -37,7 +37,7 @@ class UnknownTimestampStyle(commands.BadArgument):
 class TimestampStyleConverter(commands.Converter):
     STYLES = frozenset(('t', 'T', 'd', 'D', 'f', 'F', 'R'))
 
-    async def convert(self, ctx, arg):
+    async def convert(self, ctx, arg) -> Literal[tuple(STYLES)]:
         if arg in self.STYLES:
             return arg
         raise UnknownTimestampStyle(arg)
@@ -515,7 +515,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
             graphing_cog = ctx.bot.get_cog('Graphing')
             uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
-            if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
+            if count and graphing_cog and (uptime_cog or not require_uptime_cog):
                 # Generate graph
                 f = await asyncio.to_thread(
                     self.message_count_graph,
@@ -720,9 +720,6 @@ Available styles:
     F: Long date-time (Tuesday, 17 May 2016 22:57)
     R: Relative time (5 years ago)
 The exact format of each style depends on your locale settings."""
-        if style is None:
-            return await ctx.send_help(ctx.command)
-
         date = date or datetime.datetime.now()
         s = discord.utils.format_dt(date, style=style)
         # await ctx.send('{} ({})'.format(s, discord.utils.escape_markdown(s)))
