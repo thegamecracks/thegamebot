@@ -1128,6 +1128,98 @@ Automatically turns back on when the bot connects."""
         """Commands for managing whitelists."""
 
 
+    async def _whitelist_get_player_ids(self) -> List[int]:
+        settings = self.bot.get_cog('Settings')
+        ids = settings.get('checkwhitelist-ids', None)
+        last_message_id = settings.get('checkwhitelist-last_message_id', None)
+        if (self.whitelist_channel.last_message_id != last_message_id
+                or ids is None):
+            ids = {}  # Use dict to maintain order and uniqueness
+
+            # Fetch IDs from channel
+            async for m in self.whitelist_channel.history(
+                    limit=None, oldest_first=True):
+                for match in SteamIDConverter.REGEX.finditer(m.content):
+                    ids[int(match.group())] = None
+
+            # Turn back into list
+            ids = list(ids)
+
+            # Cache them in settings
+            settings.set(
+                'checkwhitelist-ids', ids
+            ).set(
+                'checkwhitelist-last_message_id',
+                self.whitelist_channel.last_message_id
+            ).save()
+
+        return ids
+
+
+    @client_whitelist.command(name='active')
+    @commands.cooldown(1, 120, commands.BucketType.default)
+    async def client_whitelist_active(self, ctx):
+        """Upload a file with two lists for active and expired whitelists."""
+        def get_steam_or_bm_id(player: abm.Player) -> int:
+            s_id = discord.utils.get(
+                player.identifiers,
+                type=abm.IdentifierType.STEAM_ID
+            )
+            return int(s_id.name) if s_id else player.id
+
+        def write_players(players: list[abm.Player]):
+            for p in players:
+                f.write('{} = {}\n'.format(
+                    p.name,
+                    get_steam_or_bm_id(p)
+                ))
+
+        def sorted_players(players: list[abm.Player]) -> list[abm.Player]:
+            mapping = {get_steam_or_bm_id(p): p for p in players}
+            new = []
+            for i in ids:
+                p = mapping.pop(i, None)
+                if p is not None:
+                    new.append(p)
+            new.extend(mapping.values())
+            return new
+
+        async with ctx.typing():
+            ids = await self._whitelist_get_player_ids()
+
+            # Fetch all whitelisted players
+            source = PlayerListPageSource.yield_players(
+                functools.partial(
+                    self.bm_client.list_players,
+                    public=False,
+                    search='|'.join([str(n) for n in ids]),
+                    include_identifiers=True
+                ),
+                functools.partial(
+                    self.bm_client.get_player_session_history,
+                    server_ids=(self.BM_SERVER_ID_INA,)
+                ),
+                ids
+            )
+
+            active, expired = [], []
+            old = discord.utils.utcnow() - datetime.timedelta(weeks=2)
+            async for player, session in source:
+                if session is None or (session.stop or session.start) < old:
+                    expired.append(player)
+                else:
+                    active.append(player)
+
+            f = io.StringIO()
+            f.write('===== ACTIVE =====\n\n')
+            write_players(sorted_players(active))
+            f.write('\n===== EXPIRED =====\n\n')
+            write_players(sorted_players(expired))
+
+        f.seek(0)
+        await ctx.send(file=discord.File(f, filename='whitelists.txt'))
+
+
     @client_whitelist.command(name='accepted')
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
@@ -1155,34 +1247,6 @@ open: If True, looks through the open whitelist tickets instead of closed ticket
             await menu._event.wait()
 
 
-    async def _whitelist_get_player_ids(self) -> List[int]:
-        settings = self.bot.get_cog('Settings')
-        ids = settings.get('checkwhitelist-ids', None)
-        last_message_id = settings.get('checkwhitelist-last_message_id', None)
-        if (self.whitelist_channel.last_message_id != last_message_id
-                or ids is None):
-            ids = {}  # Use dict to maintain order and uniqueness
-
-            # Fetch IDs from channel
-            async for m in self.whitelist_channel.history(limit=None):
-                for match in SteamIDConverter.REGEX.finditer(m.content):
-                    ids[int(match.group())] = None
-
-            # Turn back into list
-            ids_list = list(ids)
-
-            # Cache them in settings
-            settings.set(
-                'checkwhitelist-ids',
-                ids_list
-            ).set(
-                'checkwhitelist-last_message_id',
-                self.whitelist_channel.last_message_id
-            ).save()
-
-        return ids_list
-
-
     @client_whitelist.group(name='expired', invoke_without_command=True)
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
@@ -1207,10 +1271,7 @@ sessions: If true, fetches session data for each player, including the last time
                     self.bm_client.list_players,
                     public=False,
                     search='|'.join([str(n) for n in ids]),
-                    # thankfully battlemetrics does not care how
-                    # long the query string is
-                    last_seen_before=datetime.datetime.now(datetime.timezone.utc)
-                                     - datetime.timedelta(weeks=2),
+                    last_seen_before=discord.utils.utcnow() - datetime.timedelta(weeks=2),
                     include_identifiers=True
                 ),
                 get_session,
@@ -1240,14 +1301,14 @@ sessions: If true, fetches session data for each player, including the last time
         """Send a list of the expired whitelists."""
         async with ctx.typing():
             ids = await self._whitelist_get_player_ids()
+            now = discord.utils.utcnow()
 
             source = PlayerListPageSource.yield_players(
                 functools.partial(
                     self.bm_client.list_players,
                     public=False,
                     search='|'.join([str(n) for n in ids]),
-                    last_seen_before=datetime.datetime.now(datetime.timezone.utc)
-                                     - datetime.timedelta(weeks=2),
+                    last_seen_before=now - datetime.timedelta(weeks=2),
                     include_identifiers=True
                 ),
                 functools.partial(
@@ -1259,28 +1320,34 @@ sessions: If true, fetches session data for each player, including the last time
 
             results = []
             async for player, session in source:
-                s_id = discord.utils.get(
+                s_id: Optional[abm.Identifier] = discord.utils.get(
                     player.identifiers,
                     type=abm.IdentifierType.STEAM_ID
                 )
-                s_id = s_id.name if s_id else '\u200b'
+                id_: str = s_id.name if s_id else f'{player.id} (BM ID)'
 
-                started_at = session.stop or session.start
-                diff = discord.utils.utcnow() - started_at
-                diff_string = utils.timedelta_abbrev(diff)
+                if session is not None:
+                    started_at = session.stop or session.start
+                    diff = now - started_at
+                    diff_string = utils.timedelta_abbrev(diff)
 
-                results.append((
-                    '{} = {} [{} {}]'.format(
-                        player.name,
-                        s_id,
-                        started_at.strftime('%m/%d').lstrip('0'),
-                        diff_string
-                    ),
-                    diff
-                ))
+                    results.append((
+                        '{} = {} [{} {}]'.format(
+                            player.name,
+                            id_,
+                            started_at.strftime('%m/%d').lstrip('0'),
+                            diff_string
+                        ),
+                        started_at.timestamp()
+                    ))
+                else:
+                    results.append((
+                        '{} = {} [way outdated]'.format(player.name, id_),
+                        0
+                    ))
 
         # Sort by most recent
-        results.sort(key=lambda x: x[1])
+        results.sort(key=lambda x: x[1], reverse=True)
 
         paginator = commands.Paginator(prefix='', suffix='')
         for line, _ in results:
