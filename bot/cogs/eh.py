@@ -367,7 +367,6 @@ class EventHandlers(commands.Cog):
 
         # Send an error message
         if isinstance(error, commands.BadBoolArgument):
-            # error.param is instance of inspect.Parameter
             await ctx.send('Expected a boolean (true/false) answer '
                            f'instead of "{error.argument}".\n'
                            f'Usage: `{get_command_signature()}`')
@@ -420,6 +419,16 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, commands.BadFlagArgument):
             await ctx.send(
                 f'Failed to parse your input for the "{error.flag.name}" flag.')
+        elif isinstance(error, commands.BadLiteralArgument):
+            await ctx.send(
+                '"{param}" parameter must be one of: {values}.'.format(
+                    param=error.param.name,
+                    values=ctx.bot.inflector.join(
+                        [f'**{v}**' for v in error.literals],
+                        conj='or'
+                    )
+                )
+            )
         elif isinstance(error, (commands.MissingFlagArgument,
                                 commands.MissingRequiredFlag)):
             await ctx.send(
@@ -444,8 +453,7 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, commands.MessageNotFound):
             await ctx.send('I cannot find the given message.')
         elif isinstance(error, commands.MissingRequiredArgument):
-            # error.param is instance of inspect.Parameter
-            await ctx.send(f'Missing argument "{error.param.name}"\n'
+            await ctx.send(f'Missing parameter "{error.param.name}"\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send(

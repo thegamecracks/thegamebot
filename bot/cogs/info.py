@@ -28,21 +28,6 @@ import psutil
 from bot import converters, utils
 
 
-class UnknownTimestampStyle(commands.BadArgument):
-    """An unknown timestamp style was given."""
-    def __init__(self, arg):
-        super().__init__(f'"{arg}" is not a valid timestamp style.')
-
-
-class TimestampStyleConverter(commands.Converter):
-    STYLES = frozenset(('t', 'T', 'd', 'D', 'f', 'F', 'R'))
-
-    async def convert(self, ctx, arg) -> Literal[tuple(STYLES)]:
-        if arg in self.STYLES:
-            return arg
-        raise UnknownTimestampStyle(arg)
-
-
 class Informative(commands.Cog):
     """Informative commands."""
     qualified_name = 'Informative'
@@ -706,7 +691,7 @@ Format referenced from the Ayana bot."""
     @commands.command(name='timestamp')
     @commands.cooldown(1, 2, commands.BucketType.member)
     async def client_format_timestamp(
-            self, ctx, style: TimestampStyleConverter,
+            self, ctx, style: Literal['t', 'T', 'd', 'D', 'f', 'F', 'R'],
             *, date: converters.DatetimeConverter = None):
         """Send a message with the special <t:0:f> timestamp format.
 If no date is given, uses the current date.
@@ -732,16 +717,9 @@ The exact format of each style depends on your locale settings."""
 
     @client_format_timestamp.error
     async def client_format_timestamp_error(self, ctx, error):
-        handled = True
-        if isinstance(error, UnknownTimestampStyle):
-            await ctx.send(
-                'Missing timestamp style '
-                '( *t*, *T*, *d*, *D*, *f*, *F*, or *R* )'
-            )
-        elif isinstance(error, commands.BadArgument):
+        handled = isinstance(error, commands.BadArgument)
+        if handled:
             await ctx.send(error)
-        else:
-            handled = False
         ctx.handled = handled
 
 
