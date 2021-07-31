@@ -1226,7 +1226,7 @@ Automatically turns back on when the bot connects."""
     @client_whitelist.command(name='accepted')
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_whitelist_accepted(self, ctx, open=False):
+    async def client_whitelist_accepted(self, ctx, open: bool = False):
         """List whitelist tickets that have been approved.
 This searches up to 100 messages in each whitelist ticket for acceptance from staff.
 
