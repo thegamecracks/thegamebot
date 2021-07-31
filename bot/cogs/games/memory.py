@@ -33,6 +33,13 @@ from bot import errors
 from . import create_setup
 
 
+def min_sec(seconds: float) -> str:
+    minutes, seconds = divmod(round(seconds), 60)
+    if minutes:
+        return f'{minutes}:{seconds:.3f}s'
+    return f'{seconds:.3f}s'
+
+
 class MemoryButton(discord.ui.Button["MemoryView"]):
     def __init__(self, x: int, y: int, emoji: str):
         super().__init__(style=discord.ButtonStyle.success, label='\u200b')
@@ -68,6 +75,7 @@ class MemoryView(discord.ui.View):
     def __init__(self, player_id: Optional[int], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.player_id = player_id
+        self.start_time: datetime.datetime = discord.utils.utcnow()
 
         self.current: Optional[MemoryButton] = None
         # Indicates which emoji the user is currently matching
@@ -84,6 +92,10 @@ class MemoryView(discord.ui.View):
         # Add buttons
         for i, e in enumerate(emojis):
             self.add_item(MemoryButton(*divmod(i, 5), e))
+
+    @property
+    def elapsed(self) -> datetime.timedelta:
+        return discord.utils.utcnow() - self.start_time
 
     @property
     def timeout_timestamp(self) -> str:
@@ -114,7 +126,11 @@ class MemoryView(discord.ui.View):
 
     async def update(self, interaction):
         finished = all(b.disabled for b in self.children)
-        content = '\u200b' if finished else f'(ends {self.timeout_timestamp})'
+        if finished:
+            elapsed = min_sec(self.elapsed.total_seconds())
+            content = f'Finished in __{elapsed}__'
+        else:
+            content = f'(ends {self.timeout_timestamp})'
 
         try:
             if interaction.response.is_done():
@@ -166,6 +182,7 @@ class MemoryView(discord.ui.View):
             f'(ends {self.timeout_timestamp})',
             view=self
         )
+        self.start_time = discord.utils.utcnow()
         if wait:
             await self.memory_worker()
         else:
