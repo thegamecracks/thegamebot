@@ -34,9 +34,9 @@ from . import create_setup
 
 
 def min_sec(seconds: float) -> str:
-    minutes, seconds = divmod(round(seconds), 60)
+    minutes, seconds = divmod(seconds, 60)
     if minutes:
-        return f'{minutes}:{seconds:.3f}s'
+        return f'{minutes:.0f}:{seconds:02.3f}s'
     return f'{seconds:.3f}s'
 
 
