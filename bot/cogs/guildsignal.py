@@ -1221,7 +1221,7 @@ Automatically turns back on when the bot connects."""
         await ctx.send(file=discord.File(f, filename='whitelists.txt'))
 
 
-    @client_whitelist.command(name='accepted')
+    @client_whitelist.command(name='accepted', aliases=('approved',))
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
     async def client_whitelist_accepted(self, ctx, open: bool = False):
