@@ -1456,6 +1456,23 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
 
         total_playtime = sum(dp.value for dp in datapoints)
 
+        if not total_playtime:
+            # May be first time joiner and hasn't finished their session
+            try:
+                session = await self.bm_client.get_player_session_history(
+                    player_id, limit=1, server_ids=(self.BM_SERVER_ID_INA,)
+                ).next()
+            except StopAsyncIteration:
+                return await ctx.send(
+                    f'Player: {player.name}\n'
+                    'They have never played on this server.'
+                )
+
+            if session.stop is None:
+                total_playtime = discord.utils.utcnow() - session.start
+            else:
+                total_playtime = session.playtime
+
         await ctx.send(
             'Player: {}\nPlaytime in the last month: {}'.format(
                 player.name, format_hour_and_minute(total_playtime)
