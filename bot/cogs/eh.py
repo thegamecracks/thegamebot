@@ -420,15 +420,16 @@ class EventHandlers(commands.Cog):
             await ctx.send(
                 f'Failed to parse your input for the "{error.flag.name}" flag.')
         elif isinstance(error, commands.BadLiteralArgument):
-            await ctx.send(
-                '"{param}" parameter must be one of: {values}.'.format(
-                    param=error.param.name,
-                    values=ctx.bot.inflector.join(
+            if len(error.literals) > 1:
+                values = 'one of: {}'.format(
+                    ctx.bot.inflector.join(
                         [f'**{v}**' for v in error.literals],
                         conj='or'
                     )
                 )
-            )
+            else:
+                values = f'**{error.literals[0]}**'
+            await ctx.send(f'"{error.param.name}" parameter must be {values}.')
         elif isinstance(error, (commands.MissingFlagArgument,
                                 commands.MissingRequiredFlag)):
             await ctx.send(
