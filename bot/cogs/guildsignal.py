@@ -459,10 +459,8 @@ class ServerStatus:
             )
         except KeyError as e:
             # thanks matplotlib
-            await self.bot.get_channel(852021637452267591).send(
-                f'{e}\n{datapoints=}'
-            )
-            raise
+            print(e)
+            print(datapoints)
         graph = discord.File(f, filename='graph.png')
 
         m = await self.bot.get_channel(self.graph_channel_id).send(file=graph)
