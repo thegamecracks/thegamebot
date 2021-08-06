@@ -133,7 +133,7 @@ class ServerStatusView(discord.ui.View):
         return not interaction.user.bot
 
     async def on_error(self, error, item, interaction):
-        if not isinstance(error, errors.SkipInteractionResponse):
+        if not isinstance(error, (errors.SkipInteractionResponse, KeyError)):
             return await super().on_error(error, item, interaction)
 
     @discord.ui.select(
@@ -452,15 +452,10 @@ class ServerStatus:
             self.server_id, start=start, stop=stop
         )
 
-        try:
-            f = await asyncio.to_thread(
-                self.create_player_count_graph,
-                datapoints, server, graphing_cog
-            )
-        except KeyError as e:
-            # thanks matplotlib
-            print(e)
-            print(datapoints)
+        f = await asyncio.to_thread(
+            self.create_player_count_graph,
+            datapoints, server, graphing_cog
+        )
         graph = discord.File(f, filename='graph.png')
 
         m = await self.bot.get_channel(self.graph_channel_id).send(file=graph)
@@ -553,6 +548,7 @@ class ServerStatus:
         await asyncio.sleep(next_period)
 
     update_loop.add_exception_type(discord.DiscordServerError)
+    update_loop.add_exception_type(KeyError)  # thanks matplotlib
 
     @update_loop.before_loop
     async def before_update_loop(self):
