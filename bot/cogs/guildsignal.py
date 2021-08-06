@@ -13,7 +13,7 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Optional, Union
+from typing import Callable, ClassVar, Literal, Optional, Union
 
 import abattlemetrics as abm
 import discord
@@ -1220,7 +1220,8 @@ Automatically turns back on when the bot connects."""
     @client_whitelist.command(name='accepted', aliases=('approved',))
     @commands.cooldown(2, 60, commands.BucketType.default)
     @commands.max_concurrency(1, commands.BucketType.user)
-    async def client_whitelist_accepted(self, ctx, open: bool = False):
+    async def client_whitelist_accepted(
+            self, ctx, open: Literal['open'] = None):
         """List whitelist tickets that have been approved.
 This searches up to 100 messages in each whitelist ticket for acceptance from staff.
 
