@@ -19,9 +19,22 @@ Coordinate = tuple[int, int]
 
 
 class MSCell(enum.Flag):
-    MINE = enum.auto()
-    VISIBLE = enum.auto()
-    FLAGGED = enum.auto()
+    EMPTY = 0
+    MINE = 1
+    VISIBLE = 2
+    FAIL = 3
+    FLAGGED = 4
+
+    def __eq__(self, other):
+        # Adds support for comparing rendered cells
+        if isinstance(other, str):
+            return str(self) == other
+        return super().__eq__(other)
+
+    def __ne__(self, other):
+        if isinstance(other, str):
+            return str(self) != other
+        return super().__ne__(other)
 
     def __str__(self):
         cls = type(self)
@@ -55,8 +68,6 @@ class MSGame:
             If 0, calculates a reasonable number of mines.
 
     """
-    CELL_FAIL = MSCell.MINE | MSCell.VISIBLE
-    CELL_EMPTY = MSCell(0)
     X_COORDS = tuple('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
     Y_COORDS = tuple(str(n) for n in range(1, len(X_COORDS) + 1))
 
@@ -67,7 +78,7 @@ class MSGame:
             raise ValueError('x_size exceeds number of labels available')
 
         self._board: list[list[MSCell]] = [
-            [self.CELL_EMPTY] * x_size for _ in range(y_size)
+            [MSCell.EMPTY] * x_size for _ in range(y_size)
         ]
         self.n_mines = n_mines or self.optimal_mine_count(y_size, x_size)
 
@@ -139,7 +150,7 @@ class MSGame:
         has_mines = False
 
         for cell in self.yield_cells():
-            if cell == self.CELL_FAIL:
+            if cell == MSCell.FAIL:
                 return MSStatus.FAIL
             elif cell & MSCell.MINE:
                 has_mines = True
@@ -203,7 +214,7 @@ class MSGame:
     ) -> str:
         def highlighted_render(y, x):
             char = self.render_cell(y, x)
-            if x == highlighted_column and char == '_':
+            if x == highlighted_column and char == MSCell.EMPTY:
                 char = '-'
             return char
 
@@ -310,12 +321,15 @@ class CoordinateSelect(discord.ui.Select['MSView']):
                 if str(self.view.game.board[y][x]) in valid
             ]
 
-        valid = ('_',)
+        # NOTE: cells are rendered before checking membership
+        # to make the logic more succinct
+        # (e.g. non-visible cells should be valid, empty or not)
+        valid = (MSCell.EMPTY,)
         if self.view.flagging:
             if self.view.game.n_flags <= 0:
-                valid = ('F',)
+                valid = (MSCell.FLAGGED,)
             else:
-                valid = ('_', 'F')
+                valid = (MSCell.EMPTY, MSCell.FLAGGED)
 
         options = []
         if sum( str(cell) in valid
