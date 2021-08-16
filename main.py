@@ -48,6 +48,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'gamecog',
             'games.hangman',
             'games.memory',
+            'games.minesweeper',
             'games.rps',
             'graphing',
             'guildirish',

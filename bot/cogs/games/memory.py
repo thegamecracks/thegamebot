@@ -30,14 +30,7 @@ import discord
 from discord.ext import commands
 
 from bot import errors
-from . import create_setup
-
-
-def min_sec(seconds: float) -> str:
-    minutes, seconds = divmod(seconds, 60)
-    if minutes:
-        return f'{minutes:.0f}:{seconds:02.3f}s'
-    return f'{seconds:.3f}s'
+from . import create_setup, EditViewMixin, TimeoutView
 
 
 class MemoryButton(discord.ui.Button["MemoryView"]):
@@ -52,7 +45,7 @@ class MemoryButton(discord.ui.Button["MemoryView"]):
         raise errors.SkipInteractionResponse('Skip deferral')
 
 
-class MemoryView(discord.ui.View):
+class MemoryView(TimeoutView, EditViewMixin):
     FREE = '\N{PARTY POPPER}'
     EMOJIS = (
         '\N{ALIEN MONSTER}',
@@ -91,16 +84,7 @@ class MemoryView(discord.ui.View):
 
         # Add buttons
         for i, e in enumerate(emojis):
-            self.add_item(MemoryButton(*divmod(i, 5), e))
-
-    @property
-    def elapsed(self) -> datetime.timedelta:
-        return discord.utils.utcnow() - self.start_time
-
-    @property
-    def timeout_timestamp(self) -> str:
-        ends = datetime.datetime.now() + datetime.timedelta(seconds=self.timeout)
-        return discord.utils.format_dt(ends, style='R')
+            self.add_item(MemoryButton(*divmod(i, 5), e))  # type: ignore
 
     async def on_error(self, error, item, interaction):
         if not isinstance(
@@ -113,9 +97,8 @@ class MemoryView(discord.ui.View):
             self.worker.cancel()
         for button in self.children:
             button.disabled = True
-        timestamp = discord.utils.format_dt(datetime.datetime.now(), style='R')
         await self.message.edit(
-            content=f'(ended {timestamp} from inactivity)',
+            content=self.timeout_done,
             view=self
         )
 
@@ -127,18 +110,12 @@ class MemoryView(discord.ui.View):
     async def update(self, interaction):
         finished = all(b.disabled for b in self.children)
         if finished:
-            elapsed = min_sec(self.elapsed.total_seconds())
-            content = f'Finished in __{elapsed}__'
+            content = f'Finished in __{self.elapsed_str}__'
         else:
-            content = f'(ends {self.timeout_timestamp})'
+            content = self.timeout_in
 
         try:
-            if interaction.response.is_done():
-                await interaction.edit_original_message(
-                    content=content, view=self)
-            else:
-                await interaction.response.edit_message(
-                    content=content, view=self)
+            await self.edit(interaction, content=content, view=self)
         except discord.HTTPException:
             pass
         else:
