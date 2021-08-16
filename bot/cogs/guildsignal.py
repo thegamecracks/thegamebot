@@ -1466,7 +1466,9 @@ ids: A space-separated list of steam64IDs or battlemetrics player IDs to check."
                 )
 
             if session.stop is None:
-                total_playtime = discord.utils.utcnow() - session.start
+                total_playtime = (
+                    discord.utils.utcnow() - session.start
+                ).total_seconds()
             else:
                 total_playtime = session.playtime
 
