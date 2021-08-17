@@ -231,15 +231,17 @@ class MSGame:
             header_padding
         )]
         for y, row in enumerate(itertools.islice(self._board, *y_bounds)):
+            y_name = self.Y_COORDS[y]
             lines.append(
                 '{}|{}|{}'.format(
-                    f'{y + 1:<{padding}d}',
+                    f'{y_name:<{padding}}',
                     ' '.join(
                         [highlighted_render(y, x) for x in range(*x_bounds)]
                     ),
-                    f'{y + 1:>{padding}d}'
+                    f'{y_name:>{padding}}'
                 )
             )
+        lines.append(lines[0])
         return '\n'.join(lines)
 
 
@@ -248,12 +250,12 @@ class CoordinateSelect(discord.ui.Select['MSView']):
 
     async def callback(self, interaction: discord.Interaction):
         def parse_coordinate() -> tuple[Optional[int], int]:
-            # Examples: "A", "F4" (X-axis is always given)
+            # Examples: "A", "F4" (X-axis is one char and always given)
             v = self.values[0]
             x = MSGame.X_COORDS.index(v[0])
             y = None
             if len(v) > 1:
-                y = int(v[1:]) - 1
+                y = MSGame.Y_COORDS.index(v[1:])
             return y, x
 
         def do_click(y: int, x: int):
