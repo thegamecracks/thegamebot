@@ -278,86 +278,101 @@ class CoordinateSelect(discord.ui.Select['MSView']):
         """Determine the axis that the user should input
         and update the available options.
         """
-        def get_selectable_x() -> list[str]:
-            x_coords = range(*self.view.viewport[1])
-            min_y, max_y = self.view.viewport[0]
-            possible = []
+        def make_option(
+            label: str, cell: Optional[MSCell] = None
+        ) -> discord.SelectOption:
+            kwargs = {}
+            if cell is not None and cell & MSCell.FLAGGED:
+                kwargs['emoji'] = '\N{TRIANGULAR FLAG ON POST}'
+            return discord.SelectOption(label=label, **kwargs)
+
+        def get_x_options() -> list[discord.SelectOption]:
+            x_coords = range(*view.viewport[1])
+            min_y, max_y = view.viewport[0]
+            choices = []
             for x in x_coords:
                 # Count the number of cells that can be selected
                 n_valid, last_valid = 0, None
                 for y, row in enumerate(
-                        itertools.islice(self.view.game.board, min_y, max_y),
+                        itertools.islice(view.game.board, min_y, max_y),
                         start=min_y):
                     if str(row[x]) in valid:
                         n_valid += 1
                         last_valid = y
 
-                if n_valid == 1:
+                if n_valid < 1:
+                    continue
+                elif n_valid == 1:
                     # Column only has one selectable cell; use full coordinate
-                    possible.append(f'{MSGame.X_COORDS[x]}{last_valid + 1}')
-                elif n_valid > 1:
+                    label = MSGame.X_COORDS[x] + MSGame.Y_COORDS[last_valid]
+                else:
                     # User needs to input Y axis afterwards
-                    possible.append(MSGame.X_COORDS[x])
+                    label = MSGame.X_COORDS[x]
+                choices.append(make_option(label))
 
-            return possible
+            return choices
 
-        def get_selectable_y() -> list[str]:
+        def get_y_options() -> list[discord.SelectOption]:
             # pre-req: x_coord is not None
-            min_y, max_y = self.view.viewport[0]
-            x_name = MSGame.X_COORDS[self.view.x_coord]
-            return [
-                x_name + MSGame.Y_COORDS[y]
-                for y, row in enumerate(
-                    itertools.islice(self.view.game.board, min_y, max_y),
-                    start=min_y
-                ) if str(row[self.view.x_coord]) in valid
+            min_y, max_y = view.viewport[0]
+            x_name = MSGame.X_COORDS[view.x_coord]
+            choices = [
+                discord.SelectOption(emoji='\N{LARGE RED CIRCLE}', label='Cancel')
             ]
+            for y, row in enumerate(
+                    itertools.islice(view.game.board, min_y, max_y),
+                    start=min_y):
+                cell = row[view.x_coord]
+                if str(cell) in valid:
+                    label = x_name + MSGame.Y_COORDS[y]
+                    choices.append(make_option(label, cell))
+            return choices
 
-        def get_coordinates() -> list[str]:
-            return [
-                MSGame.X_COORDS[x] + MSGame.Y_COORDS[y]
-                for x in range(*self.view.viewport[1])
-                for y in range(*self.view.viewport[0])
-                if str(self.view.game.board[y][x]) in valid
-            ]
+        def get_full_options() -> list[discord.SelectOption]:
+            choices = []
+            for x in range(*view.viewport[1]):
+                for y in range(*view.viewport[0]):
+                    cell = view.game.board[y][x]
+                    if str(cell) in valid:
+                        label = MSGame.X_COORDS[x] + MSGame.Y_COORDS[y]
+                        choices.append(make_option(label, cell))
+            return choices
+
+        view = self.view
 
         # NOTE: cells are rendered before checking membership
         # to make the logic more succinct
         # (e.g. non-visible cells should be valid, empty or not)
         valid = (MSCell.EMPTY,)
-        if self.view.flagging:
-            if self.view.game.n_flags <= 0:
+        if view.flagging:
+            if view.game.n_flags <= 0:
                 valid = (MSCell.FLAGGED,)
             else:
                 valid = (MSCell.EMPTY, MSCell.FLAGGED)
 
-        options = []
-        if sum( str(cell) in valid
-                for cell in self.view.game.yield_cells()) <= 25:
+        bounds_start = 0
+        if sum(str(cell) in valid for cell in view.game.yield_cells()) <= 25:
             # Enough select options for full coordinates
             axis = 'XY'
-            coord_names = get_coordinates()
-            self.view.x_coord = None
-        elif self.view.x_coord is None:
+            options = get_full_options()
+            view.x_coord = None
+        elif view.x_coord is None:
             axis = 'X'
-            coord_names = get_selectable_x()
+            options = get_x_options()
         else:
             axis = 'Y'
-            coord_names = get_selectable_y()
-            options.append(
-                discord.SelectOption(label='Cancel', emoji='\N{LARGE RED CIRCLE}')
-            )
+            options = get_y_options()
+            bounds_start += 1  # Skip cancel button
 
-        bounds = None
-        if len(coord_names) > 1:
-            bounds = f'{coord_names[0]}-{coord_names[-1]}'
-        elif len(coord_names) == 1:
-            bounds = f'{coord_names[0]}'
+        bounds = ''
+        if len(options) > 0:
+            bounds = options[bounds_start].label
+        if len(options) > 1:
+            bounds += f'-{options[-1].label}'
+        if bounds:
+            bounds = f' ({bounds})'
 
-        self.placeholder = f'Input {axis}-coordinate ({bounds})'
-        options.extend(
-            discord.SelectOption(label=n) for n in coord_names
-        )
+        self.placeholder = f'Input {axis}-coordinate' + bounds
         self.options = options
 
 
