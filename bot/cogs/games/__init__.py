@@ -20,7 +20,7 @@ def create_setup(cog_class):
 def min_sec(seconds: float) -> str:
     minutes, seconds = divmod(seconds, 60)
     if minutes:
-        return f'{minutes:.0f}:{seconds:02.3f}s'
+        return f'{minutes:.0f}:{seconds:06.3f}s'
     return f'{seconds:.3f}s'
 
 
