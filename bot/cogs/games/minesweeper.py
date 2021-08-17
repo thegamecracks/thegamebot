@@ -172,25 +172,49 @@ class MSGame:
         for y, x in random.sample(cells, self.n_mines):
             self._board[y][x] = MSCell.MINE
 
-    def click(self, y: int, x: int):
-        """Reveal a cell and potentially its neighbors."""
-        def reveal(y: int, x: int):
-            cell = self._board[y][x]
-            if cell & MSCell.VISIBLE or cell & MSCell.FLAGGED:
-                return
+    def can_click(self, y: int, x: int) -> bool:
+        cell = self._board[y][x]
+        return not cell & MSCell.VISIBLE and not cell & MSCell.FLAGGED
+        
 
+    def click(self, y: int, x: int) -> bool:
+        """Reveal a cell and potentially its neighbors (i.e. left-clicking).
+
+        Returns True if no mine was revealed, False otherwise.
+
+        """
+        def reveal(y: int, x: int) -> bool:
+            if not self.can_click(y, x):
+                return True
+
+            cell = self._board[y][x]
             self._board[y][x] |= MSCell.VISIBLE
 
-            if not cell & MSCell.MINE and self.neighboring_mines(y, x) == 0:
+            no_mine = not cell & MSCell.MINE
+            if no_mine and self.neighboring_mines(y, x) == 0:
                 for neighbor in self.yield_neighbors_pos(y, x):
                     reveal(*neighbor)
+            return no_mine
 
         if self.get_status() == MSStatus.START:
             self.start(y, x)
         return reveal(y, x)
 
+    def click_neighbors(self, y: int, x: int) -> bool:
+        """Reveal the neighboring cells of a given coordinate
+        (i.e. middle-clicking).
+
+        Returns True if no mine was revealed, False otherwise.
+
+        """
+        return all(
+            self.click(*coords)
+            for coords in self.yield_neighbors_pos(y, x)
+            if self.can_click(*coords)
+        )
+
     def flag(self, y: int, x: int):
-        """Add or remove a flag on a cell."""
+        """Add or remove a flag on a cell (i.e. right-clicking)."""
         self._board[y][x] ^= MSCell.FLAGGED
 
     # def slice(
@@ -245,7 +269,11 @@ class MSGame:
         return '\n'.join(lines)
 
 
-class CoordinateSelect(discord.ui.Select['MSView']):
+class MSItem(discord.ui.Item):
+    def update(self): ...
+
+
+class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
     """A select menu for inputting a given coordinate on the board."""
 
     async def callback(self, interaction: discord.Interaction):
@@ -379,7 +407,7 @@ class CoordinateSelect(discord.ui.Select['MSView']):
 
 
 # NOTE: add middle click option? \N{THREE BUTTON MOUSE}
-class ClickToggle(discord.ui.Button['MSView']):
+class ClickToggle(discord.ui.Button['MSView'], MSItem):
     """Toggle between opening and flagging cells."""
 
     def __init__(self):
@@ -396,8 +424,52 @@ class ClickToggle(discord.ui.Button['MSView']):
             self.emoji = '\N{FOOT}'
 
 
+class MassRevealButton(discord.ui.Button['MSView'], MSItem):
+    """Reveal the neighbors of all cells where the number
+    of neighboring mines match the number of neighboring flags
+    (i.e. middle-click on steroids).
+    """
+
+    def __init__(self):
+        super().__init__(emoji='\N{BROOM}', style=discord.ButtonStyle.danger)
+
+    async def callback(self, interaction: discord.Interaction):
+        for y, x in self.yield_valid_cells_pos():
+            if not self.view.game.click_neighbors(y, x):
+                break
+
+        await self.view.update(interaction)
+
+    def yield_valid_cells_pos(self) -> Generator[Coordinate, None, None]:
+        board_copy = tuple(self.view.game.yield_cells_with_pos())
+        for coords, cell in board_copy:
+            if not cell & MSCell.VISIBLE:
+                continue
+
+            n_mines = n_flags = n_clickable = 0
+            for ny, nx in self.view.game.yield_neighbors_pos(*coords):
+                nc = self.view.game.board[ny][nx]
+                n_mines += bool(nc & MSCell.MINE)
+                n_flags += bool(nc & MSCell.FLAGGED)
+                n_clickable += self.view.game.can_click(ny, nx)
+
+            if n_flags and n_clickable and n_mines == n_flags:
+                yield coords
+
+    def update(self):
+        n_valid = 0
+        maybe_valid: set[Coordinate] = set()
+        for coords in self.yield_valid_cells_pos():
+            maybe_valid.update(self.view.game.yield_neighbors_pos(*coords))
+        for coords in maybe_valid:
+            n_valid += self.view.game.can_click(*coords)
+
+        self.disabled = not n_valid
+        self.label = str(n_valid)
+
+
 class MSView(TimeoutView, EditViewMixin):
-    children: list[Union[CoordinateSelect, ClickToggle]]
+    children: list[MSItem]
     message: discord.Message
 
     def __init__(self, player_ids: Optional[tuple[int]], *args, timeout, **kwargs):
@@ -413,6 +485,7 @@ class MSView(TimeoutView, EditViewMixin):
 
         self.add_item(CoordinateSelect())
         self.add_item(ClickToggle())
+        self.add_item(MassRevealButton())
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return self.player_ids is None or interaction.user.id in self.player_ids
@@ -452,6 +525,7 @@ class MSView(TimeoutView, EditViewMixin):
         elif status == MSStatus.PASS:
             kwargs['content'] = f'\N{SMILING FACE WITH SUNGLASSES} Cleared in {self.elapsed_str}'
             color = 0x3BA55D
+            self.flagging = False  # Could win while in flag mode
         elif self.timeout is not None:
             if timed_out:
                 kwargs['content'] = self.timeout_done
