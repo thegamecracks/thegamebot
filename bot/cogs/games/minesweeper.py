@@ -23,7 +23,7 @@ class MSCell(enum.Flag):
     MINE = 1
     VISIBLE = 2
     FAIL = 3
-    FLAGGED = 4
+    FLAG = 4
 
     def __eq__(self, other):
         # Adds support for comparing rendered cells
@@ -38,7 +38,7 @@ class MSCell(enum.Flag):
 
     def __str__(self):
         cls = type(self)
-        if self & cls.FLAGGED:
+        if self & cls.FLAG:
             return 'F'
         elif not self & cls.VISIBLE:
             return '_'
@@ -126,7 +126,7 @@ class MSGame:
     def n_flags(self) -> int:
         """The number of flags remaining that can be placed down."""
         return self.n_mines - sum(
-            bool(cell & MSCell.FLAGGED)
+            bool(cell & MSCell.FLAG)
             for cell in self.yield_cells()
         )
 
@@ -174,7 +174,7 @@ class MSGame:
 
     def can_click(self, y: int, x: int) -> bool:
         cell = self._board[y][x]
-        return not cell & MSCell.VISIBLE and not cell & MSCell.FLAGGED
+        return not cell & MSCell.VISIBLE and not cell & MSCell.FLAG
         
 
     def click(self, y: int, x: int) -> bool:
@@ -215,7 +215,7 @@ class MSGame:
 
     def flag(self, y: int, x: int):
         """Add or remove a flag on a cell (i.e. right-clicking)."""
-        self._board[y][x] ^= MSCell.FLAGGED
+        self._board[y][x] ^= MSCell.FLAG
 
     # def slice(
     #     self, y_bounds: Optional[tuple[int, int]] = None,
@@ -312,7 +312,7 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
             label: str, cell: Optional[MSCell] = None
         ) -> discord.SelectOption:
             kwargs = {}
-            if cell is not None and cell & MSCell.FLAGGED:
+            if cell is not None and cell & MSCell.FLAG:
                 kwargs['emoji'] = '\N{TRIANGULAR FLAG ON POST}'
             return discord.SelectOption(label=label, **kwargs)
 
@@ -376,9 +376,9 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
         valid = (MSCell.EMPTY,)
         if view.flagging:
             if view.game.n_flags <= 0:
-                valid = (MSCell.FLAGGED,)
+                valid = (MSCell.FLAG,)
             else:
-                valid = (MSCell.EMPTY, MSCell.FLAGGED)
+                valid = (MSCell.EMPTY, MSCell.FLAG)
 
         bounds_start = 0
         if sum(str(cell) in valid for cell in view.game.yield_cells()) <= 25:
@@ -450,7 +450,7 @@ class MassRevealButton(discord.ui.Button['MSView'], MSItem):
             for ny, nx in self.view.game.yield_neighbors_pos(*coords):
                 nc = self.view.game.board[ny][nx]
                 n_mines += bool(nc & MSCell.MINE)
-                n_flags += bool(nc & MSCell.FLAGGED)
+                n_flags += bool(nc & MSCell.FLAG)
                 n_clickable += self.view.game.can_click(ny, nx)
 
             if n_flags and n_clickable and n_mines == n_flags:
