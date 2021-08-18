@@ -82,54 +82,6 @@ class MSGame:
         ]
         self.n_mines = n_mines or self.optimal_mine_count(y_size, x_size)
 
-    @staticmethod
-    def optimal_mine_count(y_size: int, x_size: int) -> int:
-        return int((y_size * x_size + 1) // ((y_size * x_size) ** 0.5))
-
-    def yield_neighbors_pos(self, y: int, x: int) -> Generator[Coordinate, None, None]:
-        """Return the coordinates of cells neighboring a given coordinate."""
-        y_range = range(max(0, y - 1), min(self.y_size, y + 2))
-        x_range = range(max(0, x - 1), min(self.x_size, x + 2))
-        for neighbor in itertools.product(y_range, x_range):
-            if neighbor != (y, x):
-                yield neighbor
-
-    def neighboring_mines(self, y: int, x: int) -> int:
-        """Return the number of mines neighboring a given coordinate."""
-        return sum(
-            bool(self.board[y][x] & MSCell.MINE)
-            for y, x in self.yield_neighbors_pos(y, x)
-        )
-
-    def render_cell(self, y: int, x: int) -> str:
-        """Return the symbol for a given coordinate.
-        Takes the number of neighboring mines into consideration.
-        """
-        cell = str(self.board[y][x])
-        if cell == ' ':
-            cell = str(self.neighboring_mines(y, x) or ' ')
-        return cell
-
-    @property
-    def board(self) -> list[list[MSCell]]:
-        return self._board
-
-    @property
-    def y_size(self) -> int:
-        return len(self._board)
-
-    @property
-    def x_size(self) -> int:
-        return len(self._board[0])
-
-    @property
-    def n_flags(self) -> int:
-        """The number of flags remaining that can be placed down."""
-        return self.n_mines - sum(
-            bool(cell & MSCell.FLAG)
-            for cell in self.yield_cells()
-        )
-
     def yield_cells(self) -> Generator[MSCell, None, None]:
         """Yield each cell in the board in left-to-right, top-to-bottom order."""
         for row in self._board:
@@ -143,34 +95,6 @@ class MSGame:
         for y, row in enumerate(self._board):
             for x, cell in enumerate(row):
                 yield (y, x), cell
-
-    def get_status(self) -> MSStatus:
-        """Return the game's current status."""
-        all_found = True
-        has_mines = False
-
-        for cell in self.yield_cells():
-            if cell == MSCell.FAIL:
-                return MSStatus.FAIL
-            elif cell & MSCell.MINE:
-                has_mines = True
-            elif not cell & MSCell.VISIBLE:
-                all_found = False
-
-        if all_found:
-            return MSStatus.PASS
-        elif has_mines:
-            return MSStatus.ONGOING
-        return MSStatus.START
-
-    def start(self, y: int, x: int):
-        """Distribute mines across the board.
-        This is automatically called on the first click.
-        """
-        cells = [coord for coord, _ in self.yield_cells_with_pos()]
-        cells.remove((y, x))
-        for y, x in random.sample(cells, self.n_mines):
-            self._board[y][x] = MSCell.MINE
 
     def can_click(self, y: int, x: int) -> bool:
         cell = self._board[y][x]
@@ -217,19 +141,31 @@ class MSGame:
         """Add or remove a flag on a cell (i.e. right-clicking)."""
         self._board[y][x] ^= MSCell.FLAG
 
-    # def slice(
-    #     self, y_bounds: Optional[tuple[int, int]] = None,
-    #     x_bounds: Optional[tuple[int, int]] = None
-    # ) -> list[list[MSCell]]:
-    #     if y_bounds is None:
-    #         y_bounds = (0, self.y_size)
-    #     if x_bounds is None:
-    #         x_bounds = (0, self.x_size)
-    #
-    #     new = []
-    #     for row in itertools.islice(self._board, *y_bounds):
-    #         new.append(row[slice(*x_bounds)])
-    #     return new
+    def get_status(self) -> MSStatus:
+        """Return the game's current status."""
+        all_found = True
+        has_mines = False
+
+        for cell in self.yield_cells():
+            if cell == MSCell.FAIL:
+                return MSStatus.FAIL
+            elif cell & MSCell.MINE:
+                has_mines = True
+            elif not cell & MSCell.VISIBLE:
+                all_found = False
+
+        if all_found:
+            return MSStatus.PASS
+        elif has_mines:
+            return MSStatus.ONGOING
+        return MSStatus.START
+
+    def neighboring_mines(self, y: int, x: int) -> int:
+        """Return the number of mines neighboring a given coordinate."""
+        return sum(
+            bool(self.board[y][x] & MSCell.MINE)
+            for y, x in self.yield_neighbors_pos(y, x)
+        )
 
     def render(
         self, y_bounds: Optional[tuple[int, int]] = None,
@@ -267,6 +203,56 @@ class MSGame:
             )
         lines.append(lines[0])
         return '\n'.join(lines)
+
+    def render_cell(self, y: int, x: int) -> str:
+        """Return the symbol for a given coordinate.
+        Takes the number of neighboring mines into consideration.
+        """
+        cell = str(self.board[y][x])
+        if cell == ' ':
+            cell = str(self.neighboring_mines(y, x) or ' ')
+        return cell
+
+    def start(self, y: int, x: int):
+        """Distribute mines across the board.
+        This is automatically called on the first click.
+        """
+        cells = [coord for coord, _ in self.yield_cells_with_pos()]
+        cells.remove((y, x))
+        for y, x in random.sample(cells, self.n_mines):
+            self._board[y][x] = MSCell.MINE
+
+    def yield_neighbors_pos(self, y: int, x: int) -> Generator[Coordinate, None, None]:
+        """Return the coordinates of cells neighboring a given coordinate."""
+        y_range = range(max(0, y - 1), min(self.y_size, y + 2))
+        x_range = range(max(0, x - 1), min(self.x_size, x + 2))
+        for neighbor in itertools.product(y_range, x_range):
+            if neighbor != (y, x):
+                yield neighbor
+
+    @property
+    def board(self) -> list[list[MSCell]]:
+        return self._board
+
+    @property
+    def n_flags(self) -> int:
+        """The number of flags remaining that can be placed down."""
+        return self.n_mines - sum(
+            bool(cell & MSCell.FLAG)
+            for cell in self.yield_cells()
+        )
+
+    @property
+    def x_size(self) -> int:
+        return len(self._board[0])
+
+    @property
+    def y_size(self) -> int:
+        return len(self._board)
+
+    @staticmethod
+    def optimal_mine_count(y_size: int, x_size: int) -> int:
+        return int((y_size * x_size + 1) // ((y_size * x_size) ** 0.5))
 
 
 class MSItem(discord.ui.Item):
@@ -440,6 +426,17 @@ class MassRevealButton(discord.ui.Button['MSView'], MSItem):
 
         await self.view.update(interaction)
 
+    def update(self):
+        n_valid = 0
+        maybe_valid: set[Coordinate] = set()
+        for coords in self.yield_valid_cells_pos():
+            maybe_valid.update(self.view.game.yield_neighbors_pos(*coords))
+        for coords in maybe_valid:
+            n_valid += self.view.game.can_click(*coords)
+
+        self.disabled = not n_valid
+        self.label = str(n_valid)
+
     def yield_valid_cells_pos(self) -> Generator[Coordinate, None, None]:
         board_copy = tuple(self.view.game.yield_cells_with_pos())
         for coords, cell in board_copy:
@@ -455,17 +452,6 @@ class MassRevealButton(discord.ui.Button['MSView'], MSItem):
 
             if n_flags and n_clickable and n_mines == n_flags:
                 yield coords
-
-    def update(self):
-        n_valid = 0
-        maybe_valid: set[Coordinate] = set()
-        for coords in self.yield_valid_cells_pos():
-            maybe_valid.update(self.view.game.yield_neighbors_pos(*coords))
-        for coords in maybe_valid:
-            n_valid += self.view.game.can_click(*coords)
-
-        self.disabled = not n_valid
-        self.label = str(n_valid)
 
 
 class MSView(TimeoutView, EditViewMixin):
@@ -492,25 +478,6 @@ class MSView(TimeoutView, EditViewMixin):
 
     async def on_timeout(self):
         await self.update()
-
-    async def update(self, interaction: Optional[discord.Interaction] = None):
-        no_interaction = interaction is None
-
-        # Buttons should update before rendering as they may change view state
-        for child in self.children:
-            child.update()
-
-        status = self.game.get_status()
-        kwargs = self.get_message_kwargs(status=status, timed_out=no_interaction)
-
-        try:
-            await self.edit(interaction, **kwargs)
-        except discord.HTTPException:
-            pass
-        else:
-            if status in MSStatus.end_states() or no_interaction:
-                # Player picked an ending move or game timed out
-                self.stop()
 
     def get_message_kwargs(self, *, status: MSStatus, timed_out: bool = False):
         """Generate the kwargs necessary to send/edit the current message.
@@ -561,6 +528,25 @@ class MSView(TimeoutView, EditViewMixin):
         kwargs = self.get_message_kwargs(status=self.game.get_status())
         self.message = await ctx.send(**kwargs)
         self.start_time = discord.utils.utcnow()
+
+    async def update(self, interaction: Optional[discord.Interaction] = None):
+        no_interaction = interaction is None
+
+        # Buttons should update before rendering as they may change view state
+        for child in self.children:
+            child.update()
+
+        status = self.game.get_status()
+        kwargs = self.get_message_kwargs(status=status, timed_out=no_interaction)
+
+        try:
+            await self.edit(interaction, **kwargs)
+        except discord.HTTPException:
+            pass
+        else:
+            if status in MSStatus.end_states() or no_interaction:
+                # Player picked an ending move or game timed out
+                self.stop()
 
 
 class BoardSizeConverter(commands.Converter[tuple[int, int]]):
