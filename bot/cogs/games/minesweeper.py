@@ -322,9 +322,7 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
         """Determine the axis that the user should input
         and update the available options.
         """
-        def make_option(
-            label: str, cell: Optional[MSCell] = None
-        ) -> discord.SelectOption:
+        def make_option(label: str, cell: Optional[MSCell]) -> discord.SelectOption:
             kwargs = {}
             if cell is not None and cell & MSCell.FLAG:
                 kwargs['emoji'] = '\N{TRIANGULAR FLAG ON POST}'
@@ -336,23 +334,26 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
             choices = []
             for x in x_coords:
                 # Count the number of cells that can be selected
-                n_valid, last_valid = 0, None
+                n_valid = 0
+                last_y = last_cell = None
                 for y, row in enumerate(
                         itertools.islice(view.game.board, min_y, max_y),
                         start=min_y):
-                    if str(row[x]) in valid:
+                    cell = row[x]
+                    if str(cell) in valid:
                         n_valid += 1
-                        last_valid = y
+                        last_y, last_cell = y, cell
 
                 if n_valid < 1:
                     continue
                 elif n_valid == 1:
                     # Column only has one selectable cell; use full coordinate
-                    label = MSGame.X_COORDS[x] + MSGame.Y_COORDS[last_valid]
+                    label = MSGame.X_COORDS[x] + MSGame.Y_COORDS[last_y]
                 else:
                     # User needs to input Y axis afterwards
                     label = MSGame.X_COORDS[x]
-                choices.append(make_option(label))
+                    last_cell = None
+                choices.append(make_option(label, last_cell))
 
             return choices
 
@@ -400,7 +401,7 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
             view.x_coord = None
         else:
             y_options = None
-            if view.x_coord is None or len(y_options := get_y_options()) == 0:
+            if view.x_coord is None or not (y_options := get_y_options()):
                 # Either X axis needs to be inputted or a change
                 # caused the previous Y options to be invalidated
                 axis = 'X'
