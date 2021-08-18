@@ -101,10 +101,18 @@ class MSGame:
         return not cell & MSCell.VISIBLE and not cell & MSCell.FLAG
         
 
-    def click(self, y: int, x: int) -> bool:
+    def click(self, y: int, x: int, *, simulate: bool = False) -> bool:
         """Reveal a cell and potentially its neighbors (i.e. left-clicking).
 
-        Returns True if no mine was revealed, False otherwise.
+        Args:
+            y (int)
+            x (int): The coordinates of the cell.
+            simulate (bool):
+                Check if the given cell has a mine without actually
+                revealing the cell.
+
+        Returns:
+            bool: True if a mine was NOT revealed, False otherwise.
 
         """
         def reveal(y: int, x: int) -> bool:
@@ -120,22 +128,42 @@ class MSGame:
                     reveal(*neighbor)
             return no_mine
 
-        if self.get_status() == MSStatus.START:
+        if simulate:
+            return not self._board[y][x] & MSCell.MINE
+        elif self.get_status() == MSStatus.START:
             self.start(y, x)
         return reveal(y, x)
 
-    def click_neighbors(self, y: int, x: int) -> bool:
+    def click_neighbors(self, y: int, x: int, *, simulate: bool = False) -> bool:
         """Reveal the neighboring cells of a given coordinate
         (i.e. middle-clicking).
 
-        Returns True if no mine was revealed, False otherwise.
+        If a neighbor has an unflagged mine, only that cell is clicked.
+
+        Args:
+            y (int)
+            x (int): The coordinates of the cell.
+            simulate (bool):
+                Check if the neighboring cells have a non-flagged mine
+                without actually revealing the cell.
+
+        Returns:
+            bool: True if a mine was NOT revealed, False otherwise.
 
         """
-        return all(
-            self.click(*coords)
-            for coords in self.yield_neighbors_pos(y, x)
+        neighbors = [
+            coords for coords in self.yield_neighbors_pos(y, x)
             if self.can_click(*coords)
-        )
+        ]
+
+        # If there is a mine, only click that cell
+        for ny, nx in neighbors:
+            if self._board[ny][nx] & MSCell.MINE:
+                return self.click(ny, nx, simulate=simulate)
+
+        for coords in neighbors:
+            self.click(*coords, simulate=simulate)
+        return True
 
     def flag(self, y: int, x: int):
         """Add or remove a flag on a cell (i.e. right-clicking)."""
@@ -430,9 +458,16 @@ class MassRevealButton(discord.ui.Button['MSView'], MSItem):
         super().__init__(emoji='\N{BROOM}', style=discord.ButtonStyle.danger)
 
     async def callback(self, interaction: discord.Interaction):
-        for y, x in self.yield_valid_cells_pos():
-            if not self.view.game.click_neighbors(y, x):
+        valid = tuple(self.yield_valid_cells_pos())
+
+        # If there is a mine, only click that cell
+        for y, x in valid:
+            if not self.view.game.click_neighbors(y, x, simulate=True):
+                self.view.game.click_neighbors(y, x)
                 break
+        else:
+            for y, x in valid:
+                self.view.game.click_neighbors(y, x)
 
         await self.view.update(interaction)
 
