@@ -332,9 +332,7 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
             # pre-req: x_coord is not None
             min_y, max_y = view.viewport[0]
             x_name = MSGame.X_COORDS[view.x_coord]
-            choices = [
-                discord.SelectOption(emoji='\N{LARGE RED CIRCLE}', label='Cancel')
-            ]
+            choices = []
             for y, row in enumerate(
                     itertools.islice(view.game.board, min_y, max_y),
                     start=min_y):
@@ -366,27 +364,39 @@ class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
             else:
                 valid = (MSCell.EMPTY, MSCell.FLAG)
 
-        bounds_start = 0
+        prepend_cancel = False
         if sum(str(cell) in valid for cell in view.game.yield_cells()) <= 25:
             # Enough select options for full coordinates
             axis = 'XY'
             options = get_full_options()
             view.x_coord = None
-        elif view.x_coord is None:
-            axis = 'X'
-            options = get_x_options()
         else:
-            axis = 'Y'
-            options = get_y_options()
-            bounds_start += 1  # Skip cancel button
+            y_options = None
+            if view.x_coord is None or len(y_options := get_y_options()) == 0:
+                # Either X axis needs to be inputted or a change
+                # caused the previous Y options to be invalidated
+                axis = 'X'
+                options = get_x_options()
+            else:
+                axis = 'Y'
+                options = y_options or get_y_options()
+                prepend_cancel = True
 
         bounds = ''
         if len(options) > 0:
-            bounds = options[bounds_start].label
+            bounds = options[0].label
         if len(options) > 1:
             bounds += f'-{options[-1].label}'
         if bounds:
             bounds = f' ({bounds})'
+
+        if prepend_cancel:
+            options.insert(
+                0, discord.SelectOption(
+                    emoji='\N{LARGE RED CIRCLE}',
+                    label='Cancel'
+                )
+            )
 
         self.placeholder = f'Input {axis}-coordinate' + bounds
         self.options = options
