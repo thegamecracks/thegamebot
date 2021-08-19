@@ -13,7 +13,7 @@ import discord
 from discord.ext import commands
 
 from bot import errors
-from . import create_setup, EditViewMixin, TimeoutView
+from . import EditViewMixin, TimeoutView
 
 Coordinate = tuple[int, int]
 
@@ -645,14 +645,3 @@ size: The size of the board (default: 15x10). Maximum size is 24x10."""
         )
         await view.start(ctx)
         await view.wait()
-
-
-
-
-
-
-
-
-
-
-setup = create_setup(_Minesweeper)

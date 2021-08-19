@@ -12,8 +12,6 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from . import create_setup
-
 
 def read_wordlist(filename, min_length=0) -> set:
     s = set()
@@ -304,14 +302,3 @@ The only allowed player is you (for now)."""
         view = HangmanView(ctx.author.id)
         await view.send_initial_message(ctx)
         view.stop()
-
-
-
-
-
-
-
-
-
-
-setup = create_setup(_Hangman)

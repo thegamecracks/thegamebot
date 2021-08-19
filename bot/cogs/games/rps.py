@@ -10,8 +10,6 @@ from typing import Iterable, Optional, Union
 import discord
 from discord.ext import commands
 
-from . import create_setup
-
 UM = Union[discord.User, discord.Member]
 
 
@@ -231,14 +229,3 @@ Times out after: 180s"""
             timeout=180
         )
         await view.start(ctx)
-
-
-
-
-
-
-
-
-
-
-setup = create_setup(_RPS)

@@ -30,7 +30,7 @@ import discord
 from discord.ext import commands
 
 from bot import errors
-from . import create_setup, EditViewMixin, TimeoutView
+from . import EditViewMixin, TimeoutView
 
 
 class MemoryButton(discord.ui.Button["MemoryView"]):
@@ -188,14 +188,3 @@ Times out after: 180s"""
             timeout=180
         )
         await view.start(ctx)
-
-
-
-
-
-
-
-
-
-
-setup = create_setup(_Memory)

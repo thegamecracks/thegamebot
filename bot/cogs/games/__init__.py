@@ -8,15 +8,6 @@ from typing import Optional
 import discord
 
 
-def create_setup(cog_class):
-    def setup(bot):
-        cog = cog_class(bot)
-        bot.add_cog(cog)
-        for c in cog.get_commands():
-            c.injected_cog = 'Games'
-    return setup
-
-
 def min_sec(seconds: float) -> str:
     minutes, seconds = divmod(seconds, 60)
     if minutes:
@@ -61,3 +52,23 @@ class TimeoutView(discord.ui.View):
     @property
     def timeout_in(self) -> str:
         return f'(ends {self.timeout_timestamp})'
+
+
+def setup(bot):
+    from . import (
+        hangman,
+        memory,
+        minesweeper,
+        rps
+    )
+    cogs = (
+        hangman._Hangman,
+        memory._Memory,
+        minesweeper._Minesweeper,
+        rps._RPS
+    )
+    for cls in cogs:
+        cog = cls(bot)
+        bot.add_cog(cog)
+        for c in cog.get_commands():
+            c.injected_cog = 'Games'
