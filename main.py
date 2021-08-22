@@ -7,8 +7,9 @@ import asyncio
 import collections
 import contextlib
 import datetime
-import time
 import os
+import sys
+import time
 
 import aiohttp
 import discord
@@ -283,6 +284,11 @@ async def main():
 
 
 if __name__ == '__main__':
+    # https://github.com/encode/httpx/issues/914#issuecomment-622586610
+    # Fixes WinError 10038 from mcstatus and "Event loop not closed"
+    if sys.version_info >= (3, 8) and sys.platform.startswith('win'):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     try:
         asyncio.run(main())
     except BaseException:

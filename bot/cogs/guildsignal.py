@@ -2,6 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import abc
 import asyncio
 from dataclasses import dataclass, field
 import datetime
@@ -13,10 +14,14 @@ import logging
 import os
 import random
 import re
-from typing import Callable, ClassVar, Literal, Optional, Union
+from typing import (
+    Callable, ClassVar, Generic, Literal, Optional, TypeVar, Union
+)
 
 import abattlemetrics as abm
 import discord
+import mcstatus
+import mcstatus.pinger
 from discord.ext import commands, menus, tasks
 import humanize
 from matplotlib import dates as mdates
@@ -25,6 +30,9 @@ from matplotlib import ticker
 import numpy as np
 
 from bot import checks, converters, errors, utils
+
+T = TypeVar('T')
+V = TypeVar('V', bound='ServerStatusView')
 
 abm_log = logging.getLogger('abattlemetrics')
 abm_log.setLevel(logging.INFO)
@@ -118,132 +126,36 @@ class SteamIDConverter(commands.Converter):
 
 
 # Server status
-class ServerStatusView(discord.ui.View):
-    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
-
-    def __init__(self, status):
-        super().__init__(timeout=None)
-        self.status = status
-
-        for i in self.children:
-            if hasattr(i, 'custom_id'):
-                i.custom_id += f':{status.message_id}'
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        return not interaction.user.bot
-
-    async def on_error(self, error, item, interaction):
-        if not isinstance(error, (errors.SkipInteractionResponse, KeyError)):
-            return await super().on_error(error, item, interaction)
-
-    @discord.ui.select(
-        custom_id='signalstatus:select',
-        placeholder='Extra options',
-        options=[
-            discord.SelectOption(
-                emoji='\N{VIDEO GAME}',
-                label='Playtime',
-                description='Get playtime statistics for current players',
-                value='playtime'
-            )
-        ]
-    )
-    async def on_select(self, select: discord.ui.Select, interaction: discord.Interaction):
-        if self.status.last_server is None:
-            await self.status.update()
-            if self.status.last_server is None:
-                raise errors.SkipInteractionResponse('Failed to update the status')
-
-        method = getattr(self, 'on_select_' + select.values[0])
-        await method(interaction)
-
-    async def on_select_playtime(self, interaction: discord.Interaction):
-        players = sorted(
-            self.status.last_server.players,
-            reverse=True, key=lambda p: p.playtime or 0
-        )
-
-        if not players:
-            return await interaction.response.send_message(
-                'There are no players online.',
-                ephemeral=True
-            )
-
-        total_playtime = sum(p.playtime or 0 for p in players)
-
-        embed = discord.Embed(
-            color=self.status.line_color
-        )
-
-        items = []
-        for p in players:
-            name = discord.utils.escape_markdown(p.name)
-            playtime = ''
-            if p.playtime is not None:
-                playtime = ' ({})'.format(format_hour_and_minute(p.playtime))
-            items.append(f'{name}{playtime}')
-
-        embed = self.status.add_fields(
-            embed,
-            items,
-            name='Total playtime: {}'.format(
-                format_hour_and_minute(total_playtime)
-            )
-        )
-
-        await interaction.response.send_message(
-            embed=embed,
-            ephemeral=True
-        )
-
-    @discord.ui.button(
-        custom_id='signalstatus:refresh',
-        emoji=REFRESH_EMOJI,
-        style=discord.ButtonStyle.green
-    )
-    async def on_refresh(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await self.status.update(interaction)
-
-
 @dataclass
-class ServerStatus:
+class ServerStatus(abc.ABC, Generic[T, V]):
     bot: commands.Bot
-    bm_client: abm.BattleMetricsClient
-    server_id: int
+    # The channel and message ID of the message to edit
     channel_id: int
     message_id: int
-
-    # The name of the map the server is running on.
-    # Set to None to use whatever battlemetrics provides.
-    server_map: Optional[str]
-
-    # The ID of the channel to upload the graph to.
+    # The ID of the channel to upload the graph to
     graph_channel_id: int
-    # The line color to use when creating the graph.
+    # The line color to use when creating the graph
     line_color: int
-
     # Cooldown for editing
     edit_cooldown: commands.Cooldown
     # Cooldown for graph generation
     graph_cooldown: commands.Cooldown
-
+    # The time between server status updates
     loop_interval: int
 
-    last_server: Optional[abm.Server] = field(default=None, init=False)
-    # Last message sent with the uploaded graph
+    # The class to use when constructing the view. Must be defined by subclasses.
+    view_class: ClassVar[V]
+
+    last_server: Optional[T] = field(default=None, init=False)
     last_graph: Optional[discord.Message] = field(default=None, init=False)
-
-    view: ServerStatusView = field(init=False)
-
-    BM_SERVER_LINK: ClassVar[str] = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
+    view: V = field(init=False)
 
     def __post_init__(self):
-        self.view = ServerStatusView(self)
+        self.view = self.view_class(self)
         # Make the view start listening for events
         self.bot.add_view(self.view, message_id=self.message_id)
 
         self.update_loop.add_exception_type(discord.DiscordServerError)
-        self.update_loop.add_exception_type(KeyError)  # thanks matplotlib
 
     @functools.cached_property
     def line_color_hex(self) -> str:
@@ -254,30 +166,12 @@ class ServerStatus:
         """Return a PartialMessage to the server status message."""
         channel = self.bot.get_channel(self.channel_id)
         if channel:
-            return channel.get_partial_message(self.message_id)
-
-    async def fetch_server(self, *args, **kwargs):
-        """Fetch the server and cache it in self.last_server.
-
-        Args:
-            *args
-            **kwargs: Parameters to pass into get_server_info().
-
-        Returns:
-            Tuple[abattlemetrics.Server, Optional[abattlemetrics.Server]]:
-                The server that was fetched and the previous server
-                that was cached.
-
-        """
-        server = await self.bm_client.get_server_info(
-            self.server_id, *args, **kwargs)
-        old, self.last_server = self.last_server, server
-        return server, old
+            return channel.get_partial_message(self.message_id)  # type: ignore
 
     @staticmethod
     def add_fields(
-            embed: discord.Embed, items: list, *, name: str = '\u200b'
-        ) -> discord.Embed:
+        embed: discord.Embed, items: list, *, name: str = '\u200b'
+    ) -> discord.Embed:
         """Add up to 3 fields in an embed for displaying a list of items.
 
         This mutates the given embed.
@@ -306,168 +200,51 @@ class ServerStatus:
 
         return embed
 
-    def create_embed(
-            self, server: abm.Server
-        ) -> discord.Embed:
-        """Create the server status embed.
-
-        Args:
-            server (abattlemetrics.Server): The server to display in the embed.
-
-        Returns:
-            discord.Embed
-
-        """
-        now = datetime.datetime.now().astimezone()
-
-        embed = discord.Embed(
-            title=server.name,
-            timestamp=now
-        ).set_footer(
-            text='Last updated'
-        )
-
-        description = [
-            'View in [battlemetrics]({link})'.format(
-                link=self.BM_SERVER_LINK
-            ).format(
-                game='arma3', server_id=self.server_id
-            )
-        ]
-
-        if server.status != 'online':
-            description.append('Server is offline')
-            embed.description = '\n'.join(description)
-            return embed
-
-        embed.set_author(name=f'Rank #{server.rank:,}')
-
-        description.append('Direct connect: steam://connect/{}:{}'.format(
-            server.ip, server.port))
-        description.append('Map: ' + (self.server_map or server.details['map']))
-        description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
-        description.append(
-            'Last updated {}'.format(
-                discord.utils.format_dt(now, style='R')
-            )
-        )
-        players: list[abm.Player] = sorted(server.players, key=lambda p: p.name)
-        for i, p in enumerate(players):
-            name = discord.utils.escape_markdown(p.name)
-            if p.first_time:
-                name = f'__{name}__'
-
-            score = f' ({p.score})' if p.score is not None else ''
-            players[i] = f'{name}{score}'
-
-        players: list[str]
-        embed = self.add_fields(embed, players, name='Name (Score)')
-
-        embed.description = '\n'.join(description)
-
-        return embed
-
-    def create_player_count_graph(
-            self, datapoints, server, graphing_cog) -> io.BytesIO:
-        """Generate a player count history graph.
-
-        Args:
-            datapoints (List[abattlemetrics.DataPoint])
-            server (abattlemetrics.Server): The Server object.
-                Used for determining the y-axis limits.
-            graphing_cog (commands.Cog):  The Graphing cog.
-
-        Returns:
-            io.BytesIO
-
-        """
-        def format_hour(x, pos):
-            return mdates.num2date(x).strftime('%I %p').lstrip('0')
-
-        fig, ax = plt.subplots()
-
-        # if any(None not in (d.min, d.max) for d in datapoints):
-        #     # Resolution is not raw; generate bar graph with error bars
-        #     pass
-
-        # Plot player counts
-        x, y = zip(*((d.timestamp, d.value) for d in datapoints))
-        x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
-        lines = ax.plot(x, y, self.line_color_hex)  # , marker='.')
-
-        # Set limits and fill under the line
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(0, server.max_players + 1)
-        ax.fill_between(x, y, color=self.line_color_hex + '55')
-
-        # Set xticks to every two hours
-        step = 1 / 12
-        start = x_max - step + (mdates.date2num(discord.utils.utcnow()) - x_max)
-        ax.set_xticks(np.arange(start, x_min, -step))
-        ax.xaxis.set_major_formatter(format_hour)
-        ax.set_xlabel('UTC', loc='left', color=self.line_color_hex)
-
-        # Set yticks
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
-
-        # Add grid
-        ax.set_axisbelow(True)
-        ax.grid(color='#707070', alpha=0.4)
-
-        # Color the ticks and make spine invisible
-        for spine in ax.spines.values():
-            spine.set_color('#00000000')
-        ax.tick_params(
-            labelsize=9, color='#70707066',
-            labelcolor=self.line_color_hex
-        )
-
-        # Make background fully transparent
-        fig.patch.set_facecolor('#00000000')
-
-        graphing_cog.set_axes_aspect(ax, 9 / 16, 'box')
-
-        f = io.BytesIO()
-        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0,
-                    dpi=80)
-        # bbox_inches, pad_inches: removes padding around the graph
-        f.seek(0)
-
-        plt.close(fig)
-        return f
-
-    async def upload_graph(self, server, graphing_cog):
+    async def _upload_graph(self, server: T, graphing_cog) -> Optional[discord.Message]:
         """Generate the player count graph, upload it, and cache
         the resulting message in self.last_graph.
 
         Args:
-            server (abattlemetrics.Server): The Server object.
+            server: The Server object.
                 Used to know the max number of players.
             graphing_cog (commands.Cog): The Graphing cog.
 
         Returns:
-            discord.Message
+            Optional[discord.Message]
 
         """
-        stop = datetime.datetime.now(datetime.timezone.utc)
-        start = stop - datetime.timedelta(hours=24)
-        datapoints = await self.bm_client.get_player_count_history(
-            self.server_id, start=start, stop=stop
-        )
+        args = await self.get_graph_args(server)
 
-        f = await asyncio.to_thread(
-            self.create_player_count_graph,
-            datapoints, server, graphing_cog
-        )
-        graph = discord.File(f, filename='graph.png')
+        try:
+            f = await asyncio.to_thread(
+                self.create_player_count_graph,
+                graphing_cog, *args
+            )
+        except KeyError:
+            # thanks matplotlib
+            f = None
 
-        m = await self.bot.get_channel(self.graph_channel_id).send(file=graph)
+        if f is None:
+            return None
+
+        m = await self.bot.get_channel(self.graph_channel_id).send(
+            file=discord.File(f, filename='graph.png')
+        )
         if self.last_graph:
             await self.last_graph.delete(delay=0)
+
         self.last_graph = m
         return m
 
-    async def update(self, interaction: Optional[discord.Interaction] = None):
+    async def _fetch_server(self) -> tuple[T, T]:
+        """Fetch the server and cache it in self.last_server."""
+        server = await self.fetch_server()
+        old, self.last_server = self.last_server, server
+        return server, old
+
+    async def update(
+        self, interaction: Optional[discord.Interaction] = None
+    ) -> Union[tuple[T, discord.Embed], tuple[float, None]]:
         """Update the server status message.
 
         Args:
@@ -476,11 +253,12 @@ class ServerStatus:
                 if needed.
 
         Returns:
-            Tuple[abattlemetrics.Server, discord.Embed]:
+            Tuple[T, discord.Embed]:
                 The server fetched from the API and the embed generated
                 from it.
             Tuple[float, None]: The time to wait before retrying.
-                Results from either a cooldown or a 5xx response.
+                Results from either a cooldown or when fetch_server()
+                returns None.
 
         """
         retry_after = self.edit_cooldown.update_rate_limit()
@@ -489,13 +267,9 @@ class ServerStatus:
         # NOTE: a high cooldown period will help with preventing concurrent
         # updates but this by itself does not remove the potential
 
-        try:
-            server, old = await self.fetch_server(include_players=True)
-        except abm.HTTPException as e:
-            if e.status >= 500 or e.status == 409:
-                # 409: Thanks cloudflare
-                return 30.0, None
-            raise e
+        server, old = await self._fetch_server()
+        if server is None:
+            return 30.0, None
 
         embed = self.create_embed(server)
 
@@ -504,9 +278,10 @@ class ServerStatus:
         if not graph or not self.graph_cooldown.update_rate_limit():
             graphing_cog = self.bot.get_cog('Graphing')
             if graphing_cog:
-                graph = await self.upload_graph(server, graphing_cog)
-        attachment = graph.attachments[0]
-        embed.set_image(url=attachment)
+                graph = await self._upload_graph(server, graphing_cog)
+        if graph:
+            attachment = graph.attachments[0]
+            embed.set_image(url=attachment.url)
 
         if interaction:
             await interaction.response.edit_message(embed=embed, view=self.view)
@@ -546,7 +321,7 @@ class ServerStatus:
         next_period = 15
         if isinstance(server, float):
             next_period = server
-        elif server.status == 'online':
+        elif self.is_online(server):
             next_period = self._get_next_period()
         await asyncio.sleep(next_period)
 
@@ -557,6 +332,341 @@ class ServerStatus:
         # Sync to the next interval
         next_period = self._get_next_period(inclusive=True)
         await asyncio.sleep(next_period)
+
+    @abc.abstractmethod
+    def create_embed(self, server: T) -> discord.Embed:
+        """Create the server status embed."""
+
+    @abc.abstractmethod
+    def create_player_count_graph(self, graphing_cog, *args) -> Optional[io.BytesIO]:
+        """Graph the number of players over time.
+
+        Args:
+            graphing_cog (commands.Cog): The Graphing cog.
+            *args: Whatever arguments are returned by get_graph_args().
+
+        Returns:
+            io.BytesIO: The image that was created.
+            None: No graph could be generated.
+
+        """
+
+    @abc.abstractmethod
+    async def fetch_server(self) -> Optional[T]:
+        """Query the data for the server.
+
+        Returns:
+            T: The server object.
+            None: Failed to fetch the server but should be retried.
+
+        """
+
+    @abc.abstractmethod
+    async def get_graph_args(self, server: T) -> tuple: ...
+
+    @abc.abstractmethod
+    def is_online(self, server: T) -> bool: ...
+
+
+class ServerStatusRefresh(discord.ui.Button['ServerStatusView']):
+    async def callback(self, interaction: discord.Interaction):
+        await self.view.status.update(interaction)
+
+
+class ServerStatusSelect(discord.ui.Select['ServerStatusView']):
+    async def callback(self, interaction: discord.Interaction):
+        if self.view.status.last_server is None:
+            await self.view.status.update()
+            if self.view.status.last_server is None:
+                raise errors.SkipInteractionResponse('Failed to update the status')
+
+        for v in self.values:
+            method = getattr(self.view, 'on_select_' + v)
+            await method(interaction)
+
+
+class ServerStatusView(discord.ui.View):
+    REFRESH_EMOJI = '\N{ANTICLOCKWISE DOWNWARDS AND UPWARDS OPEN CIRCLE ARROWS}'
+
+    def __init__(self, status: ServerStatus, select_options: list = ()):
+        super().__init__(timeout=None)
+        self.status = status
+
+        if select_options:
+            self.add_item(ServerStatusSelect(
+                custom_id='signalstatus:select',
+                options=select_options,
+                placeholder='Extra options'
+            ))
+
+        self.add_item(ServerStatusRefresh(
+            custom_id='signalstatus:refresh',
+            emoji=self.REFRESH_EMOJI,
+            style=discord.ButtonStyle.green
+        ))
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        return not interaction.user.bot
+
+    async def on_error(self, error, item, interaction):
+        if not isinstance(error, (errors.SkipInteractionResponse, KeyError)):
+            return await super().on_error(error, item, interaction)
+
+
+class BMServerStatusView(ServerStatusView):
+    def __init__(self, status: 'BMServerStatus'):
+        super().__init__(
+            status, select_options=[
+                discord.SelectOption(
+                    emoji='\N{VIDEO GAME}',
+                    label='Playtime',
+                    description='Get playtime statistics for current players',
+                    value='playtime'
+                )
+            ]
+        )
+
+    async def on_select_playtime(self, interaction: discord.Interaction):
+        players = sorted(
+            self.status.last_server.players,
+            reverse=True, key=lambda p: p.playtime or 0
+        )
+
+        if not players:
+            return await interaction.response.send_message(
+                'There are no players online.',
+                ephemeral=True
+            )
+
+        total_playtime = sum(p.playtime or 0 for p in players)
+
+        embed = discord.Embed(
+            color=self.status.line_color
+        )
+
+        items = []
+        for p in players:
+            name = discord.utils.escape_markdown(p.name)
+            playtime = ''
+            if p.playtime is not None:
+                playtime = ' ({})'.format(format_hour_and_minute(p.playtime))
+            items.append(f'{name}{playtime}')
+
+        self.status.add_fields(
+            embed,
+            items,
+            name='Total playtime: {}'.format(
+                format_hour_and_minute(total_playtime)
+            )
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
+
+@dataclass
+class BMServerStatus(ServerStatus[abm.Server, BMServerStatusView]):
+    bm_client: abm.BattleMetricsClient
+    server_id: int
+
+    # The name of the map the server is running on.
+    # Set to None to use whatever battlemetrics provides.
+    server_map: Optional[str] = None
+
+    view_class = BMServerStatusView
+
+    BM_SERVER_LINK: ClassVar[str] = 'https://www.battlemetrics.com/servers/{game}/{server_id}'
+
+    def create_embed(self, server: abm.Server) -> discord.Embed:
+        """Create the server status embed."""
+        now = datetime.datetime.now().astimezone()
+
+        embed = discord.Embed(
+            title=server.name,
+            timestamp=now
+        ).set_footer(
+            text='Last updated'
+        )
+
+        description = [
+            'View in [battlemetrics]({link})'.format(
+                link=self.BM_SERVER_LINK
+            ).format(
+                game=server.payload['data']['relationships']['game']['data']['id'],
+                server_id=self.server_id
+            )
+        ]
+
+        if not self.is_online(server):
+            description.append('Server is offline')
+            embed.description = '\n'.join(description)
+            return embed
+
+        embed.set_author(name=f'Rank #{server.rank:,}')
+
+        description.append('Direct connect: steam://connect/{}:{}'.format(
+            server.ip, server.port))
+        server_map = self.server_map or server.details.get('map')
+        if server_map:
+            description.append(f'Map: {server_map}')
+        description.append('Player Count: {0.player_count}/{0.max_players}'.format(server))
+        description.append(
+            'Last updated {}'.format(
+                discord.utils.format_dt(now, style='R')
+            )
+        )
+        players: list[abm.Player] = sorted(server.players, key=lambda p: p.name)
+        for i, p in enumerate(players):
+            name = discord.utils.escape_markdown(p.name)
+            if p.first_time:
+                name = f'__{name}__'
+
+            score = f' ({p.score})' if p.score is not None else ''
+            players[i] = f'{name}{score}'
+
+        players: list[str]
+        self.add_fields(embed, players, name='Name (Score)')
+
+        embed.description = '\n'.join(description)
+
+        return embed
+
+    def create_player_count_graph(self, graphing_cog, *args) -> io.BytesIO:
+        def format_hour(x, pos):
+            return mdates.num2date(x).strftime('%I %p').lstrip('0')
+
+        datapoints: list[abm.DataPoint]
+        y_max: int
+        datapoints, y_max = args
+
+        fig, ax = plt.subplots()
+
+        # if any(None not in (d.min, d.max) for d in datapoints):
+        #     # Resolution is not raw; generate bar graph with error bars
+        #     pass
+
+        # Plot player counts
+        x, y = zip(*((d.timestamp, d.value) for d in datapoints))
+        x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
+        lines = ax.plot(x, y, self.line_color_hex)  # , marker='.')
+
+        # Set limits and fill under the line
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(0, y_max + 1)
+        ax.fill_between(x, y, color=self.line_color_hex + '55')
+
+        # Set xticks to every two hours
+        step = 1 / 12
+        start = x_max - step + (mdates.date2num(discord.utils.utcnow()) - x_max)
+        ax.set_xticks(np.arange(start, x_min, -step))
+        ax.xaxis.set_major_formatter(format_hour)
+        ax.set_xlabel('UTC', loc='left', color=self.line_color_hex)
+
+        # Set yticks
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+
+        # Add grid
+        ax.set_axisbelow(True)
+        ax.grid(color='#707070', alpha=0.4)
+
+        # Color the ticks and make spine invisible
+        for spine in ax.spines.values():
+            spine.set_color('#00000000')
+        ax.tick_params(
+            labelsize=9, color='#70707066',
+            labelcolor=self.line_color_hex
+        )
+
+        # Make background fully transparent
+        fig.patch.set_facecolor('#00000000')
+
+        graphing_cog.set_axes_aspect(ax, 9 / 16, 'box')
+
+        f = io.BytesIO()
+        fig.savefig(f, format='png', bbox_inches='tight', pad_inches=0,
+                    dpi=80)
+        # bbox_inches, pad_inches: removes padding around the graph
+        f.seek(0)
+
+        plt.close(fig)
+        return f
+
+    async def fetch_server(self) -> Optional[abm.Server]:
+        try:
+            return await self.bm_client.get_server_info(
+                self.server_id, include_players=True
+            )
+        except abm.HTTPException as e:
+            if e.status >= 500 or e.status == 409:
+                # 409: Thanks cloudflare
+                return None
+            raise e
+
+    async def get_graph_args(self, server: abm.Server) -> tuple:
+        stop = datetime.datetime.now(datetime.timezone.utc)
+        start = stop - datetime.timedelta(hours=24)
+        datapoints = await self.bm_client.get_player_count_history(
+            self.server_id, start=start, stop=stop
+        )
+        return datapoints, server.max_players
+
+    def is_online(self, server: abm.Server) -> bool:
+        return server.status == 'online'
+
+
+@dataclass
+class MCServerStatus(ServerStatus[Union[mcstatus.pinger.PingResponse, Exception], ServerStatusView]):
+    mc_client: mcstatus.MinecraftServer
+
+    view_class = ServerStatusView
+
+    ServerType: ClassVar = Union[mcstatus.pinger.PingResponse, Exception]
+
+    def create_embed(self, server: ServerType) -> discord.Embed:
+        """Create the server status embed."""
+        now = datetime.datetime.now().astimezone()
+
+        embed = discord.Embed(
+            title=self.mc_client.host,
+            timestamp=now
+        ).set_footer(
+            text='Last updated'
+        )
+
+        if not self.is_online(server):
+            embed.description = 'Failed to ping the server'
+            return embed
+
+        description = [
+            'Version: {}'.format(server.version.name),
+            'Player Count: {0.players.online}/{0.players.max}'.format(server),
+            'Last updated {}'.format(discord.utils.format_dt(now, style='R'))
+        ]
+
+        if server.players.sample:
+            players = sorted(p.name for p in server.players.sample)
+            self.add_fields(embed, players)
+
+        embed.description = '\n'.join(description)
+
+        return embed
+
+    def create_player_count_graph(self, graphing_cog, *args) -> Optional[io.BytesIO]:
+        return None
+
+    async def fetch_server(self) -> Optional[ServerType]:
+        try:
+            return await self.mc_client.async_status()
+        except ConnectionError as e:
+            return e
+
+    async def get_graph_args(self, server: ServerType) -> tuple:
+        return ()
+
+    def is_online(self, server: ServerType) -> bool:
+        return isinstance(server, mcstatus.pinger.PingResponse)
 
 
 # Menu Page Sources
@@ -811,7 +921,7 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
     @staticmethod
     async def yield_tickets(channels):
         async def check(m):
-            nonlocal match
+            nonlocal match_
             if m.author.bot:
                 return False
 
@@ -833,12 +943,12 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
             # Optimized way of checking for staff role
             if not author._roles.get(811415496075247649):
                 return False
-            match = converters.CodeBlock.from_search(m.content)
-            return match is not None and SteamIDConverter.REGEX.search(match.code)
+            match_ = converters.CodeBlock.from_search(m.content)
+            return match_ is not None and SteamIDConverter.REGEX.search(match_.code)
 
         member_cache: dict[int, Union[discord.Member, int]] = {}
 
-        match: Optional[converters.CodeBlock] = None
+        match_: Optional[converters.CodeBlock] = None
         for c in channels:
             if not re.match(r'.+-\d+', c.name):
                 continue
@@ -854,12 +964,12 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
             if isinstance(status, int):
                 yield f'{c.mention}: <@{status}> has left'
             else:
-                match: converters.CodeBlock
+                match_: converters.CodeBlock
                 yield (
                     '{c}: {a} ([Jump to message]({j}))\n`{m}`'.format(
                         c=c.mention,
                         a=message.author.mention,
-                        m=match.code,
+                        m=match_.code,
                         j=message.jump_url
                     )
                 )
@@ -884,6 +994,7 @@ class GiveawayStartFlags(commands.FlagConverter, delimiter=' ', prefix='--'):
     description: str
     title: str
 
+
 class GiveawayEditFlags(commands.FlagConverter, delimiter=' ', prefix='--'):
     end: Optional[converters.DatetimeConverter]
     description: Optional[str]
@@ -905,8 +1016,7 @@ class SignalHill(commands.Cog):
     """Stuff for the Signal Hill server."""
 
     BM_SERVER_ID_INA = 10654566
-    BM_SERVER_ID_SOG = 4712021
-    BM_SERVER_ID_EXL = 12255260
+    BM_SERVER_ID_MCF = 12516655
     SERVER_STATUS_INTERVAL = 60
     SERVER_STATUS_EDIT_RATE = 10
     SERVER_STATUS_GRAPH_DEST = 842924251954151464
@@ -924,33 +1034,34 @@ class SignalHill(commands.Cog):
             token=os.getenv('BattlemetricsToken')
         )
         self.server_statuses = [
-            ServerStatus(
-                bot, self.bm_client,
-                server_id=self.BM_SERVER_ID_INA,
+            BMServerStatus(
+                bot=bot,
                 channel_id=819632332896993360,
                 message_id=842228691077431296,
-                server_map=None,
                 line_color=0xF54F33,
+                bm_client=self.bm_client,
+                server_id=self.BM_SERVER_ID_INA,
                 **self.create_server_status_params()
             ),
-            ServerStatus(
-                bot, self.bm_client,
-                server_id=self.BM_SERVER_ID_SOG,
+            MCServerStatus(
+                bot=bot,
                 channel_id=852008953968984115,
                 message_id=852009695241175080,
-                server_map='Cam Lao Nam',
-                line_color=0x2FE4BF,
+                line_color=0x5EE060,
+                mc_client=mcstatus.MinecraftServer.lookup(
+                    'signalhillgaming.apexmc.co'
+                ),
                 **self.create_server_status_params()
             ),
-            ServerStatus(
-                bot, self.bm_client,
-                server_id=self.BM_SERVER_ID_EXL,
-                channel_id=869725276458864680,
-                message_id=869725975502528552,
-                server_map=None,
-                line_color=0xEC33F5,
-                **self.create_server_status_params()
-            ),
+            # BMServerStatus(
+            #     bot=bot,
+            #     channel_id=852008953968984115,
+            #     message_id=852009695241175080,
+            #     line_color=0x5EE060,
+            #     bm_client=self.bm_client,
+            #     server_id=self.BM_SERVER_ID_MCF,
+            #     **self.create_server_status_params()
+            # ),
         ]
         self.server_status_toggle()
 
