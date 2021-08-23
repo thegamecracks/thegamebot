@@ -520,6 +520,8 @@ class MSView(TimeoutView, EditViewMixin):
         self.add_item(MassRevealButton())
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.bot:
+            return False
         return self.player_ids is None or interaction.user.id in self.player_ids
 
     async def on_timeout(self):
