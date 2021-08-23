@@ -629,6 +629,7 @@ class MCServerStatus(ServerStatus[Union[mcstatus.pinger.PingResponse, Exception]
         now = datetime.datetime.now().astimezone()
 
         embed = discord.Embed(
+            color=self.line_color,
             title=self.mc_client.host,
             timestamp=now
         ).set_footer(
@@ -646,7 +647,10 @@ class MCServerStatus(ServerStatus[Union[mcstatus.pinger.PingResponse, Exception]
         ]
 
         if server.players.sample:
-            players = sorted(p.name for p in server.players.sample)
+            players = sorted(
+                discord.utils.escape_markdown(p.name)
+                for p in server.players.sample
+            )
             self.add_fields(embed, players)
 
         embed.description = '\n'.join(description)
