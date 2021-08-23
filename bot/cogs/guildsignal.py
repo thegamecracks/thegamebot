@@ -210,10 +210,17 @@ class ServerStatus(abc.ABC, Generic[T, V]):
             graphing_cog (commands.Cog): The Graphing cog.
 
         Returns:
-            Optional[discord.Message]
+            discord.Message: The message with the graph attached to it.
+            None: Failed to either get the graph arguments or create the graph.
+
+        Raises:
+            discord.HTTPException:
+                An error occurred while trying to upload the graph to discord.
 
         """
         args = await self.get_graph_args(server)
+        if args is None:
+            return None
 
         try:
             f = await asyncio.to_thread(
@@ -221,8 +228,7 @@ class ServerStatus(abc.ABC, Generic[T, V]):
                 graphing_cog, *args
             )
         except KeyError:
-            # thanks matplotlib
-            f = None
+            return None  # thanks matplotlib
 
         if f is None:
             return None
@@ -236,7 +242,7 @@ class ServerStatus(abc.ABC, Generic[T, V]):
         self.last_graph = m
         return m
 
-    async def _fetch_server(self) -> tuple[T, T]:
+    async def _fetch_server(self) -> tuple[Optional[T], Optional[T]]:
         """Fetch the server and cache it in self.last_server."""
         server = await self.fetch_server()
         old, self.last_server = self.last_server, server
@@ -275,11 +281,17 @@ class ServerStatus(abc.ABC, Generic[T, V]):
 
         # Add graph to embed
         graph = self.last_graph
-        if not graph or not self.graph_cooldown.update_rate_limit():
+        if graph is None or self.graph_cooldown.get_retry_after() == 0:
             graphing_cog = self.bot.get_cog('Graphing')
             if graphing_cog:
                 graph = await self._upload_graph(server, graphing_cog)
-        if graph:
+                # Only update cooldown if a new graph was created
+                if graph is not None:
+                    self.graph_cooldown.update_rate_limit()
+                else:
+                    graph = self.last_graph
+
+        if isinstance(graph, discord.Message):
             attachment = graph.attachments[0]
             embed.set_image(url=attachment.url)
 
@@ -357,15 +369,24 @@ class ServerStatus(abc.ABC, Generic[T, V]):
 
         Returns:
             T: The server object.
-            None: Failed to fetch the server but should be retried.
+            None: Failed to fetch the server. This cancels the update.
 
         """
 
     @abc.abstractmethod
-    async def get_graph_args(self, server: T) -> tuple: ...
+    async def get_graph_args(self, server: T) -> Optional[tuple]:
+        """Return the arguments to be passed into create_player_count_graph().
+
+        Returns:
+            tuple: A tuple of arguments.
+            None: Failed to create the arguments. This will cause the
+                status to re-use the previous graph that was created.
+
+        """
 
     @abc.abstractmethod
-    def is_online(self, server: T) -> bool: ...
+    def is_online(self, server: T) -> bool:
+        """Return a bool indicating if the server is online."""
 
 
 class ServerStatusRefresh(discord.ui.Button['ServerStatusView']):
@@ -604,12 +625,17 @@ class BMServerStatus(ServerStatus[abm.Server, BMServerStatusView]):
                 return None
             raise e
 
-    async def get_graph_args(self, server: abm.Server) -> tuple:
+    async def get_graph_args(self, server: abm.Server) -> Optional[tuple]:
         stop = datetime.datetime.now(datetime.timezone.utc)
         start = stop - datetime.timedelta(hours=24)
-        datapoints = await self.bm_client.get_player_count_history(
-            self.server_id, start=start, stop=stop
-        )
+        try:
+            datapoints = await self.bm_client.get_player_count_history(
+                self.server_id, start=start, stop=stop
+            )
+        except abm.HTTPException as e:
+            if e.status >= 500 or e.status == 409:
+                return None
+            raise e
         return datapoints, server.max_players
 
     def is_online(self, server: abm.Server) -> bool:
@@ -666,7 +692,7 @@ class MCServerStatus(ServerStatus[Union[mcstatus.pinger.PingResponse, Exception]
         except ConnectionError as e:
             return e
 
-    async def get_graph_args(self, server: ServerType) -> tuple:
+    async def get_graph_args(self, server: ServerType) -> Optional[tuple]:
         return ()
 
     def is_online(self, server: ServerType) -> bool:
