@@ -149,19 +149,16 @@ class UnturnedDatabase:
 
     @classmethod
     async def _get_items_from_files_nonblocking(cls):
-        loop = asyncio.get_running_loop()
-
         with open(cls.UNTURNED_ITEM_RECIPES_PATH) as f:
-            recipes = json.loads(await loop.run_in_executor(None, f.read))
+            recipes = json.loads(await asyncio.to_thread(f.read))
 
         with open(cls.UNTURNED_ITEM_IDS_PATH) as f:
-            raw_lines = await loop.run_in_executor(None, f.readlines)
+            raw_lines = await asyncio.to_thread(f.readlines)
 
         items = {}
         reader = csv.reader(raw_lines)
 
-        return await loop.run_in_executor(
-            None, cls._parse_recipes, recipes, reader)
+        return await asyncio.to_thread(cls._parse_recipes, recipes, reader)
 
     def reload_items(self):
         """Regenerate self.items from the data files."""
@@ -227,19 +224,6 @@ class Games(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.unturneddb = UnturnedDatabase.from_files()
-
-        # Find commands located in bot.cogs.games and update their cog
-        for c in self.bot.commands:
-            if (hasattr(c, 'original_cog')
-                    and c.original_cog.__module__.startswith('bot.cogs.games')):
-                c.cog = self
-
-
-    def cog_unload(self):
-        # Update commands from other cogs
-        for c in self.bot.commands:
-            if c.cog == self and hasattr(c, 'original_cog'):
-                c.cog = None
 
 
 

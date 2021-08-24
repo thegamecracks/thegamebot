@@ -5,6 +5,11 @@
 from discord.ext import commands
 
 
+class SkipInteractionResponse(Exception):
+    """Raised during user-made button callbacks when the interaction
+    should not be deferred."""
+
+
 class ErrorHandlerResponse(commands.CommandError):
     """An exception with a message that the error handler should
     always send to the user."""

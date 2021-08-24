@@ -8,7 +8,6 @@ import datetime
 import sqlite3
 
 import asqlite
-import discord
 from discord.ext import commands, tasks
 
 

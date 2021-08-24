@@ -1,17 +1,20 @@
 abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics.git@v0.5.0
 aiohttp==3.7.4
-asqlite @ git+https://github.com/Rapptz/asqlite@43fbf58097adf1d9cc62040ec4c49e5bcc3a5320
+asqlite @ git+https://github.com/Rapptz/asqlite@ffc55a5b3d1b5e9c440c01620148be7fa6493ef5
 astunparse==1.6.3
 async-timeout==3.0.1
+asyncio-dgram==2.1.0
 attrs==19.3.0
 autopep8==1.5.7
 braceexpand==0.1.7
 chardet==3.0.4
+click==7.1.2
 colorama==0.4.4
 cycler==0.10.0
 dateparser==1.0.0
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@309c70222eec33acacb8c21bbb0fbe9bc57de661
-discord.py @ git+https://github.com/Rapptz/discord.py@f153154b7aaec3df6fa01eb525fd518bab63a252
+discord.py @ git+https://github.com/Rapptz/discord.py/@5ef37923def7d80f6e741007a241c4441db7af56
+dnspython==2.1.0
 emoji==1.2.0
 humanize==3.9.0
 idna==2.10
@@ -20,19 +23,21 @@ inflect==5.2.0
 jishaku==2.0.0
 kiwisolver==1.3.1
 matplotlib==3.4.2
+mcstatus==6.5.0
 multidict==4.7.6
-numpy==1.19.4
+numpy==1.21.1
 packaging==20.4
-Pillow==8.2.0
+Pillow==8.3.1
 Pint==0.16.1
 prettify.py @ git+https://github.com/ShineyDev/prettify.py@735d007b72f06256b3c4dfc4692f32a1011315db
 psutil==5.8.0
+pycodestyle==2.7.0
 pyparsing==2.4.7
 python-dateutil==2.8.1
 python-dotenv==0.17.1
 pytz==2021.1
 qrcode==6.1
-regex==2021.3.17
+regex==2021.7.6
 six==1.15.0
 typing-extensions==3.7.4.3
 tzlocal==2.1

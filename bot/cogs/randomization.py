@@ -7,8 +7,6 @@ import random
 
 from discord.ext import commands
 
-from bot import utils
-
 CLIENT_EIGHTBALL = (
     'It is certain.',
     'It is decidedly so.',

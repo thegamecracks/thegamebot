@@ -2,6 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
 import collections
 import datetime
 import io
@@ -11,7 +12,7 @@ import random
 import re
 import sys
 import time
-from typing import Optional
+from typing import Optional, Literal
 
 from dateutil.relativedelta import relativedelta
 import discord
@@ -24,22 +25,7 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import psutil
 
-from bot import converters, errors, utils
-
-
-class UnknownTimestampStyle(commands.BadArgument):
-    """An unknown timestamp style was given."""
-    def __init__(self, arg):
-        super().__init__(f'"{arg}" is not a valid timestamp style.')
-
-
-class TimestampStyleConverter(commands.Converter):
-    STYLES = frozenset(('t', 'T', 'd', 'D', 'f', 'F', 'R'))
-
-    async def convert(self, ctx, arg):
-        if arg in self.STYLES:
-            return arg
-        raise UnknownTimestampStyle(arg)
+from bot import converters, utils
 
 
 class Informative(commands.Cog):
@@ -514,10 +500,10 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             require_uptime_cog = self.MESSAGECOUNT_IGNORE_ALLOWED_DOWNTIMES
             graphing_cog = ctx.bot.get_cog('Graphing')
             uptime_cog = ctx.bot.get_cog('Uptime') if require_uptime_cog else None
-            if (count and graphing_cog and (uptime_cog or not require_uptime_cog)):
+            if count and graphing_cog and (uptime_cog or not require_uptime_cog):
                 # Generate graph
-                f = await ctx.bot.loop.run_in_executor(
-                    None, self.message_count_graph,
+                f = await asyncio.to_thread(
+                    self.message_count_graph,
                     graphing_cog, uptime_cog, messages, now, cumulative
                 )
                 graph = discord.File(f, filename='graph.png')
@@ -544,7 +530,10 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                 speak=True
             )
 
-        return discord.utils.oauth_url(self.bot.user.id, perms)
+        return discord.utils.oauth_url(
+            self.bot.user.id, permissions=perms,
+            scopes=('bot', 'applications.commands')
+        )
 
 
     @commands.command(name='invite')
@@ -702,7 +691,7 @@ Format referenced from the Ayana bot."""
     @commands.command(name='timestamp')
     @commands.cooldown(1, 2, commands.BucketType.member)
     async def client_format_timestamp(
-            self, ctx, style: TimestampStyleConverter,
+            self, ctx, style: Literal['t', 'T', 'd', 'D', 'f', 'F', 'R'],
             *, date: converters.DatetimeConverter = None):
         """Send a message with the special <t:0:f> timestamp format.
 If no date is given, uses the current date.
@@ -716,9 +705,6 @@ Available styles:
     F: Long date-time (Tuesday, 17 May 2016 22:57)
     R: Relative time (5 years ago)
 The exact format of each style depends on your locale settings."""
-        if style is None:
-            return await ctx.send_help(ctx.command)
-
         date = date or datetime.datetime.now()
         s = discord.utils.format_dt(date, style=style)
         # await ctx.send('{} ({})'.format(s, discord.utils.escape_markdown(s)))
@@ -731,16 +717,9 @@ The exact format of each style depends on your locale settings."""
 
     @client_format_timestamp.error
     async def client_format_timestamp_error(self, ctx, error):
-        handled = True
-        if isinstance(error, UnknownTimestampStyle):
-            await ctx.send(
-                'Missing timestamp style '
-                '( *t*, *T*, *d*, *D*, *f*, *F*, or *R* )'
-            )
-        elif isinstance(error, commands.BadArgument):
+        handled = isinstance(error, commands.BadArgument)
+        if handled:
             await ctx.send(error)
-        else:
-            handled = False
         ctx.handled = handled
 
 

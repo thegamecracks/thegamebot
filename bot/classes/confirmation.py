@@ -8,6 +8,8 @@ from typing import Optional, Union
 
 import discord
 
+from bot import errors
+
 Real = Union[float, int]
 
 
@@ -184,6 +186,10 @@ class ButtonConfirmationView(discord.ui.View):
         self.add_item(yes)
         self.add_item(no)
 
+    async def on_error(self, error, item, interaction):
+        if not isinstance(error, errors.SkipInteractionResponse):
+            await super().on_error(error, item, interaction)
+
 
 class ButtonConfirmation(EmbedConfirmation):
     """An embed confirmation that takes its input using buttons.
@@ -216,15 +222,16 @@ class ButtonConfirmation(EmbedConfirmation):
         self.yes = yes
         self.no = no
 
-        self._view = None
-        self._answer = None
+        self._view = self._answer = self._interaction = None
 
     def _create_callback(self, button, value: bool):
         async def callback(interaction: discord.Interaction):
             if self._answer is not None:
                 return
             self._answer = value
+            self._interaction = interaction
             button.view.stop()
+            raise errors.SkipInteractionResponse('deferred confirmation response')
 
         return callback
 
@@ -255,4 +262,7 @@ class ButtonConfirmation(EmbedConfirmation):
         for button in view.children:
             button.disabled = True
 
-        await self.message.edit(embed=self.embed, view=view)
+        try:
+            await self._interaction.response.edit_message(embed=self.embed, view=view)
+        except discord.HTTPException:
+            await self.message.edit(embed=self.embed, view=view)

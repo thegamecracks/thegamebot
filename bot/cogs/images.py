@@ -180,7 +180,7 @@ text: The message to encode."""
                 s += ' Try lowering the error correction level.'
             return await ctx.send(s)
 
-        img = await ctx.bot.loop.run_in_executor(None, qr.make_image)
+        img = await asyncio.to_thread(qr.make_image)
 
         f = io.BytesIO()
         img.save(f, format='png')
@@ -282,9 +282,9 @@ Credits to Leona Sky for the free font: https://www.dafont.com/among-us.font"""
                     s=size)
             ))
 
-        f = await ctx.bot.loop.run_in_executor(
-            None, self.write_amongustext, ctx,
-            text, transparent
+        f = await asyncio.to_thread(
+            self.write_amongustext,
+            ctx, text, transparent
         )
 
         file = discord.File(f, filename='image.png')

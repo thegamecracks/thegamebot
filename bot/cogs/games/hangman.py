@@ -1,14 +1,16 @@
+#  Copyright (C) 2021 thegamecracks
+#  This Source Code Form is subject to the terms of the Mozilla Public
+#  License, v. 2.0. If a copy of the MPL was not distributed with this
+#  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import base64
 import enum
 import random
 import re
 import string
-from typing import Optional, Set, Iterable, Tuple
+from typing import Optional
 
 import discord
 from discord.ext import commands
-
-from . import create_setup
 
 
 def read_wordlist(filename, min_length=0) -> set:
@@ -122,7 +124,7 @@ class HangmanGame:
 
 
 class KeyboardSelect(discord.ui.Select['HangmanView']):
-    def __init__(self, chars: Iterable[str], **kwargs):
+    def __init__(self, chars: list[str], **kwargs):
         super().__init__(
             options=[discord.SelectOption(label=c) for c in chars],
             placeholder=f'{chars[0]}-{chars[-1]}' if len(chars) > 1 else chars[0],
@@ -130,7 +132,7 @@ class KeyboardSelect(discord.ui.Select['HangmanView']):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await self.view.update(interaction.message, self.values[0])
+        await self.view.update(interaction, self.values[0])
 
 
 CharFlag = enum.Flag('CharFlag', 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z')
@@ -151,7 +153,7 @@ class HangmanView(discord.ui.View):
         self.update_keyboard()
 
     @staticmethod
-    def decode_guesses(guesses: str) -> Set[str]:
+    def decode_guesses(guesses: str) -> set[str]:
         members, uncovered = enum._decompose(CharFlag, int(guesses))
         return {m._name_.lower() for m in members}
 
@@ -187,7 +189,7 @@ class HangmanView(discord.ui.View):
             g=self.encode_guesses()
         )
 
-    def get_embed(self) -> Tuple[discord.Embed, Optional[bool]]:
+    def get_embed(self) -> tuple[discord.Embed, Optional[bool]]:
         guesses = ''
         wrong_guesses = self.game.wrong_guesses
         if wrong_guesses:
@@ -233,24 +235,26 @@ class HangmanView(discord.ui.View):
                 )
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.bot:
+            return False
         return interaction.user.id == self.player_id
 
-    async def update(self, message: discord.Message, guess: str):
+    async def update(self, interaction: discord.Interaction, guess: str):
         self.game.guess(guess)
 
         embed, status = self.get_embed()
         if status is None:
             self.update_keyboard()
-            await message.edit(view=self, embed=embed)
+            await interaction.response.edit_message(embed=embed, view=self)
         else:
-            await message.edit(view=None, embed=embed)
+            await interaction.response.edit_message(embed=embed, view=None)
 
     async def send_initial_message(self, channel: discord.abc.Messageable):
         embed, status = self.get_embed()
         await channel.send(f'<@{self.player_id}>', embed=embed, view=self)
 
 
-class Hangman(commands.Cog):
+class _Hangman(commands.Cog):
     CUSTOM_ID_REGEX = re.compile(
         r'hangman:(?P<player_id>\d+):(?P<keyboard>\d+):'
         r'(?P<word>.+):(?P<guesses>\d+)'
@@ -298,14 +302,3 @@ The only allowed player is you (for now)."""
         view = HangmanView(ctx.author.id)
         await view.send_initial_message(ctx)
         view.stop()
-
-
-
-
-
-
-
-
-
-
-setup = create_setup(Hangman)

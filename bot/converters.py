@@ -2,8 +2,8 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
 import datetime
-import functools
 import re
 from typing import Optional
 
@@ -135,15 +135,12 @@ class DatetimeConverter(commands.Converter):
         self.stored_tz = stored_tz
 
     async def convert(self, ctx, arg) -> datetime.datetime:
-        dt = await ctx.bot.loop.run_in_executor(
-            None,
-            functools.partial(
-                dateparser.parse,
-                arg,
-                settings={
-                    'PREFER_DATES_FROM': self.PREFER_DATES_FROM[self.prefer_future]
-                }
-            )
+        dt = await asyncio.to_thread(
+            dateparser.parse,
+            arg,
+            settings={
+                'PREFER_DATES_FROM': self.PREFER_DATES_FROM[self.prefer_future]
+            }
         )
 
         if dt is None:

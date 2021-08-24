@@ -367,7 +367,6 @@ class EventHandlers(commands.Cog):
 
         # Send an error message
         if isinstance(error, commands.BadBoolArgument):
-            # error.param is instance of inspect.Parameter
             await ctx.send('Expected a boolean (true/false) answer '
                            f'instead of "{error.argument}".\n'
                            f'Usage: `{get_command_signature()}`')
@@ -376,7 +375,7 @@ class EventHandlers(commands.Cog):
                 'I am {}'.format(
                     missing_x_to_run(
                         'permission',
-                        convert_perms_to_english(error.missing_perms)
+                        convert_perms_to_english(error.missing_permissions)
                     )
                 )
             )
@@ -420,6 +419,17 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, commands.BadFlagArgument):
             await ctx.send(
                 f'Failed to parse your input for the "{error.flag.name}" flag.')
+        elif isinstance(error, commands.BadLiteralArgument):
+            if len(error.literals) > 1:
+                values = 'one of: {}'.format(
+                    ctx.bot.inflector.join(
+                        [f'**{v}**' for v in error.literals],
+                        conj='or'
+                    )
+                )
+            else:
+                values = f'**{error.literals[0]}**'
+            await ctx.send(f'"{error.param.name}" parameter must be {values}.')
         elif isinstance(error, (commands.MissingFlagArgument,
                                 commands.MissingRequiredFlag)):
             await ctx.send(
@@ -444,15 +454,14 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, commands.MessageNotFound):
             await ctx.send('I cannot find the given message.')
         elif isinstance(error, commands.MissingRequiredArgument):
-            # error.param is instance of inspect.Parameter
-            await ctx.send(f'Missing argument "{error.param.name}"\n'
+            await ctx.send(f'Missing parameter "{error.param.name}"\n'
                            f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.MissingPermissions):
             await ctx.send(
                 'You are {}'.format(
                     missing_x_to_run(
                         'permission',
-                        convert_perms_to_english(error.missing_perms)
+                        convert_perms_to_english(error.missing_permissions)
                     )
                 )
             )

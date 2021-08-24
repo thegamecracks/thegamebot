@@ -34,7 +34,8 @@ class TagContentConverter(commands.Converter):
     async def convert(self, ctx, arg):
         raw_arg = cleanup_tag_content(arg)
 
-        if len(raw_arg) > self.TAG_MAX_CONTENT_LENGTH:
+        diff = len(raw_arg) - self.TAG_MAX_CONTENT_LENGTH
+        if diff > 0:
             raise errors.ErrorHandlerResponse(
                 f'Tag parameter `{self.param}` is {diff:,} '
                 'characters too long.'

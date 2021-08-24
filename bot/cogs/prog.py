@@ -2,6 +2,8 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
+
 import autopep8
 import discord
 from discord.ext import commands, menus
@@ -39,24 +41,13 @@ class Programming(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self._cooldown = commands.CooldownMapping.from_cooldown(
-            1, 5, commands.BucketType.user
-        )
-
-    def cog_check(self, ctx):
-        retry_after = self._cooldown.update_rate_limit(ctx.message)
-        if retry_after:
-            raise commands.CommandOnCooldown(
-                self._cooldown._cooldown,  # commands.Cooldown
-                retry_after
-            )
-        return True
 
 
 
 
 
     @commands.command(name='pep8')
+    @commands.cooldown(1, 5, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.member)
     async def client_pep8(self, ctx, *, code: CodeBlock):
         """Format Python code using autopep8."""
@@ -64,9 +55,7 @@ class Programming(commands.Cog):
             return await ctx.send('The code block must be python!')
         code.language = 'py'
 
-        code.code = await ctx.bot.loop.run_in_executor(
-            None, autopep8.fix_code, code.code
-        )
+        code.code = await asyncio.to_thread(autopep8.fix_code, code.code)
 
         prefix, reply = ctx.author.mention, True
         try:
