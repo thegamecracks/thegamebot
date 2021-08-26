@@ -280,7 +280,12 @@ async def main():
 
     bot.loop.create_task(bootup_time(bot, start_time))
 
-    await bot.start(token)
+    try:
+        await bot.start(token)
+    finally:
+        settings = bot.get_cog('Settings')
+        if settings is not None:
+            settings.save()
 
 
 if __name__ == '__main__':
