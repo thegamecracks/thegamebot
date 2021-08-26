@@ -47,13 +47,13 @@ class Reminders(commands.Cog):
 
 
 
-    async def add_reminder(self, user_id, utcdue, content):
+    async def add_reminder(self, user_id, due, content):
         """Adds a reminder and invalidates the user's cache."""
         reminder_id = await self.bot.dbreminders.add_reminder(
-            user_id, utcdue, content)
+            user_id, due, content)
         self.cache.pop(user_id, None)
 
-        self.check_to_create_reminder(reminder_id, user_id, content, utcdue)
+        self.check_to_create_reminder(reminder_id, user_id, content, due)
 
     async def delete_reminder_by_id(self, reminder_id, pop=False):
         """Remove a reminder by reminder_id and update the caches."""
@@ -91,7 +91,8 @@ class Reminders(commands.Cog):
 
 
 
-    async def parse_datetime(self, ctx, date_string: str):
+    async def parse_datetime(self, ctx, date_string: str) -> datetime.datetime:
+        """Parse a string as a timezone-aware datetime."""
         # Determine timezone
         # Check string for timezone, then look in database, and fallback to UTC
         date_string, tz = dateparser.timezone_parser.pop_tz_offset_from_string(date_string)
@@ -108,9 +109,6 @@ class Reminders(commands.Cog):
 
         # Parse
         dt = dateparser.parse(date_string, settings=settings)
-
-        # Offset back to UTC and make it timezone-naive
-        dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
 
         return dt
 
@@ -137,7 +135,7 @@ You can have a maximum of 5 reminders."""
 
         if total_reminders < 5:
             # Get current time in UTC without microseconds
-            utcnow = datetime.datetime.utcnow().replace(microsecond=0)
+            utcnow = discord.utils.utcnow().replace(microsecond=0)
             try:
                 # Separate time and reminder,
                 # also making sure that content is provided
@@ -166,20 +164,13 @@ You can have a maximum of 5 reminders."""
                 return await ctx.send(
                     'You must have a message with your reminder.')
 
-            # Round seconds down if td does not specify seconds
-            if td.seconds % 60 == 0:
-                utcnow = utcnow.replace(second=0)
-
             await self.add_reminder(ctx.author.id, when, content)
 
             await ctx.send(
-                'Your {} reminder has been added!'.format(
-                    ctx.bot.inflector.ordinal(total_reminders + 1)
-                ),
-                embed=discord.Embed(
-                    color=utils.get_user_color(ctx.bot, ctx.author),
-                    timestamp=when.replace(tzinfo=datetime.timezone.utc)
-                ).set_footer(text='Due date')
+                'Your {} reminder has been added for: {}'.format(
+                    ctx.bot.inflector.ordinal(total_reminders + 1),
+                    discord.utils.format_dt(when, style='F')
+                )
             )
         else:
             await ctx.send('Sorry, but you have reached your maximum '
@@ -267,22 +258,24 @@ To remove only one reminder, use the removereminder command."""
         except IndexError:
             await ctx.send('That index does not exist.')
         else:
-            utcdue = reminder['due']
+            utcdue = reminder['due'].replace(tzinfo=datetime.timezone.utc)
             embed = discord.Embed(
                 title=f'Reminder #{index:,}',
                 description=reminder['content'],
-                color=utils.get_user_color(ctx.bot, ctx.author),
-                timestamp=utcdue.replace(tzinfo=datetime.timezone.utc)
+                color=utils.get_user_color(ctx.bot, ctx.author)
             ).add_field(
                 name='Due in',
-                value=utils.timedelta_string(
-                    relativedelta(
-                        utcdue,
-                        datetime.datetime.utcnow()
+                value='{}\n({})'.format(
+                    utils.timedelta_string(
+                        relativedelta(
+                            utcdue,
+                            discord.utils.utcnow()
+                        ),
+                        inflector=ctx.bot.inflector
                     ),
-                    inflector=ctx.bot.inflector
+                    discord.utils.format_dt(utcdue, style='F')
                 )
-            ).set_footer(text='Due date')
+            )
             await ctx.send(embed=embed)
 
 
@@ -323,7 +316,7 @@ To remove only one reminder, use the removereminder command."""
 
 
     def check_to_create_reminder(
-            self, reminder_id, user_id, content, utcwhen, utcnow=None):
+            self, reminder_id, user_id, content, when, now=None):
         """Create a reminder task if needed.
 
         This does not store the reminder in the database.
@@ -332,26 +325,23 @@ To remove only one reminder, use the removereminder command."""
             bool: Indicates whether the task was created or not.
 
         """
-        if utcnow is None:
-            utcnow = datetime.datetime.utcnow()
-
-        td = utcwhen - utcnow
-        zero_td = datetime.timedelta()
-
         if reminder_id in self.send_reminders_tasks:
             # Task already exists; skip
             return False
 
-        if td < self.send_reminders_near_due:
-            # Close to due date (or overdue); spin up task
-            self.create_reminder_task(
-                reminder_id, user_id, utcwhen, td, content)
-            return True
+        if now is None:
+            now = discord.utils.utcnow()
+        td = when - now
 
-    def create_reminder_task(self, reminder_id, user_id, utcwhen, td, content):
+        is_soon = td < self.send_reminders_near_due
+        if is_soon:
+            self.create_reminder_task(reminder_id, user_id, when, td, content)
+        return is_soon
+
+    def create_reminder_task(self, reminder_id, user_id, when, td, content):
         """Adds a reminder task to the bot loop and logs it."""
         task = self.bot.loop.create_task(
-            self.reminder_coro(reminder_id, user_id, utcwhen, content)
+            self.reminder_coro(reminder_id, user_id, when, content)
         )
         self.send_reminders_tasks[reminder_id] = task
 
@@ -361,7 +351,7 @@ To remove only one reminder, use the removereminder command."""
 
         return task
 
-    async def reminder_coro(self, reminder_id, user_id, utcwhen, content):
+    async def reminder_coro(self, reminder_id, user_id, when, content):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry():
             await self.delete_reminder_by_id(reminder_id)
@@ -373,8 +363,8 @@ To remove only one reminder, use the removereminder command."""
 
         db = self.bot.dbreminders
 
-        utcnow = datetime.datetime.utcnow()
-        seconds = (utcwhen - utcnow).total_seconds()
+        now = discord.utils.utcnow()
+        seconds = (when - now).total_seconds()
 
         await asyncio.sleep(seconds)
 
@@ -398,7 +388,7 @@ To remove only one reminder, use the removereminder command."""
             remove_task()
             return
 
-        when_str = await self.bot.strftime_user(user.id, utcwhen, aware='%c %Z')
+        when_str = await self.bot.strftime_user(user.id, when, aware='%c %Z')
 
         if seconds == 0:
             title = f'Late reminder for {when_str}'
@@ -408,7 +398,7 @@ To remove only one reminder, use the removereminder command."""
             title=title,
             description=content,
             color=utils.get_user_color(self.bot, user),
-            timestamp=datetime.datetime.now().astimezone()
+            timestamp=now
         )
 
         try:
@@ -437,12 +427,13 @@ To remove only one reminder, use the removereminder command."""
         spins up reminder tasks as needed.
         """
         db = self.bot.dbreminders
-        utcnow = datetime.datetime.utcnow()
+        now = discord.utils.utcnow()
 
         async for entry in db.yield_rows(db.TABLE_NAME):
+            due = entry['due'].replace(tzinfo=datetime.timezone.utc)
             self.check_to_create_reminder(
                 entry['reminder_id'], entry['user_id'],
-                entry['content'], entry['due'], utcnow
+                entry['content'], due, now
             )
 
     @send_reminders.before_loop
