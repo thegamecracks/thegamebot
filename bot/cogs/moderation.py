@@ -120,7 +120,7 @@ class Moderation(commands.Cog):
             ),
             timestamp=message.created_at
         ).set_thumbnail(
-            url=message.author.avatar.url
+            url=message.author.display_avatar.url
         ).set_footer(
             text='Message sent'
         )

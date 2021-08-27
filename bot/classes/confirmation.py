@@ -38,7 +38,7 @@ class EmbedConfirmation(abc.ABC):
             color=self.color
         ).set_author(
             name=self.ctx.author.display_name,
-            icon_url=self.ctx.author.avatar.url
+            icon_url=self.ctx.author.display_avatar.url
         )
         self.embed = embed
         return embed

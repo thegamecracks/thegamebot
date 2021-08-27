@@ -90,10 +90,10 @@ Optional settings:
             ),
             color=utils.get_bot_color(ctx.bot)
         ).set_thumbnail(
-            url=self.bot.user.avatar.url
+            url=self.bot.user.display_avatar.url
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         vp = sys.version_info
@@ -191,7 +191,7 @@ This only counts channels that both you and the bot can see."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -226,7 +226,7 @@ This only counts channels that both you and the bot can see."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         stats = self.bot.info_processed_commands
@@ -493,7 +493,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
                 colour=utils.get_bot_color(ctx.bot)
             ).set_footer(
                 text=f'Requested by {ctx.author.display_name}',
-                icon_url=ctx.author.avatar.url
+                icon_url=ctx.author.display_avatar.url
             )
 
             graph = None
@@ -546,7 +546,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             color=utils.get_bot_color(ctx.bot)
         ).set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -604,7 +604,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
 
         embed.set_footer(
             text=f'Requested by {ctx.author.display_name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await message.edit(embed=embed)
@@ -679,7 +679,7 @@ Format referenced from the Ayana bot."""
         )
         embed.set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await ctx.send(embed=embed)
@@ -859,8 +859,8 @@ Format referenced from the Ayana bot."""
             timestamp=datetime.datetime.now()
         )
 
-        embed.set_author(name=author)  # icon_url=user.avatar.url
-        embed.set_thumbnail(url=user.avatar.url)
+        embed.set_author(name=author)  # icon_url=user.display_avatar.url
+        embed.set_thumbnail(url=user.display_avatar.url)
         if not streamer_friendly:
             embed.add_field(
                 name='ID',
@@ -935,7 +935,7 @@ Format referenced from the Ayana bot."""
             )
         embed.set_footer(
             text=f'Requested by {ctx.author.name}',
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await ctx.send(embed=embed)

@@ -389,7 +389,7 @@ size: (optional) The size of the deck to use in the session.
             description=description
         ).set_author(
             name=ctx.author.display_name,
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await ctx.send(embed=embed)

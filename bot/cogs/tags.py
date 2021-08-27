@@ -377,7 +377,7 @@ content: The new content to use."""
         embed.description = f'**{title}**'
         embed.set_footer(
             text=footer.format(ctx.author.display_name),
-            icon_url=ctx.author.avatar.url
+            icon_url=ctx.author.display_avatar.url
         )
 
         await ctx.send(embed=embed)

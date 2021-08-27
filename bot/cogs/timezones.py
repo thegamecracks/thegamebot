@@ -376,7 +376,7 @@ class Timezones(commands.Cog):
             color=utils.get_bot_color(self.bot)
         ).set_author(
             name=f'Requested by {user.display_name}',
-            icon_url=user.avatar.url
+            icon_url=user.display_avatar.url
         )
         jump_to = f'\n[Jump to message]({message.jump_url})'
         if tz_in == tz_out:
