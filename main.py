@@ -62,6 +62,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'prog',
             'randomization',
             'reminders',
+            'slash',
             'tags',
             'timezones',
             'undefined',
