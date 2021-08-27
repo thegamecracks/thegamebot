@@ -17,13 +17,13 @@ class ApplicationCommandTest(ApplicationCommandsCog):
             embeds=[
                 discord.Embed(
                     color=interaction.user.color,
-                    title=interaction.user.display_name
+                    title=f'__{interaction.user.display_name}__'
                 ).set_author(
                     name='The Poker'
                 ).set_thumbnail(url=interaction.user.display_avatar.url),
                 discord.Embed(
-                    color=interaction.user.color,
-                    title=interaction.user.display_name
+                    color=user.color,
+                    title=f'__{user.display_name}__'
                 ).set_author(
                     name='The Poked'
                 ).set_thumbnail(url=user.display_avatar.url)

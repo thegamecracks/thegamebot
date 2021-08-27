@@ -5,7 +5,7 @@
 import abc
 import asyncio
 import datetime
-from typing import Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union, Coroutine, Any
 
 import discord
 from discord.ext import commands
@@ -83,10 +83,14 @@ class BaseRPSView(discord.ui.View, abc.ABC):
             if finished:
                 self.stop()
 
-    async def start(self, ctx, *, wait=True):
+    async def start(
+        self,
+        send_meth: Callable[..., Coroutine[Any, Any, discord.Message]],
+        *, wait=True
+    ):
         """Start the game."""
         embed = self.get_embed(self.get_winners())
-        self.message = await ctx.send(
+        self.message = await send_meth(
             f'(ends {self.timeout_timestamp})',
             embed=embed, view=self
         )
@@ -228,4 +232,4 @@ Times out after: 180s"""
             {ctx.author, user} if user else set(),
             timeout=180
         )
-        await view.start(ctx)
+        await view.start(ctx.send)

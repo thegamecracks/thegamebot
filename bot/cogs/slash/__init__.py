@@ -2,7 +2,8 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from dataclasses import dataclass
+import copy
+from dataclasses import dataclass, field
 import enum
 from typing import Union, Optional, Callable, Any, Coroutine
 
@@ -99,6 +100,10 @@ class ApplicationCommand:
     # Supplied by the API
     id: Optional[int] = None
     application_id: Optional[int] = None
+
+    # Supplied by ApplicationCommandsCog.__new__
+    cog: Optional['ApplicationCommandsCog'] = field(
+        default=None, init=False, repr=False, hash=False)
 
     async def create(self, bot: discord.Client):
         app_id = self.application_id or bot.application_id
@@ -213,7 +218,7 @@ class ApplicationCommand:
 
         if self.type == ApplicationCommandType.CHAT_INPUT:
             # TODO: implement slash commands
-            return (interaction,), {}
+            return (), {}
         elif self.type == ApplicationCommandType.USER:
             user: Union[discord.User, discord.Member]
 
@@ -230,7 +235,7 @@ class ApplicationCommand:
             else:
                 user = discord.User(data=user_data, state=state)
 
-            return (interaction, user,), {}
+            return (user,), {}
         elif self.type == ApplicationCommandType.MESSAGE:
             message: discord.Message
 
@@ -241,9 +246,9 @@ class ApplicationCommand:
                 state=state
             )
 
-            return (interaction, message,), {}
+            return (message,), {}
 
-        return (interaction,), {}
+        return (), {}
 
     def _update(self, data: dict):
         options = data.get('options')
@@ -278,7 +283,8 @@ class ApplicationCommand:
             default_permission=data.get('default_permission', True)
         )
 
-    async def callback(self, interaction: discord.Interaction, *args, **kwargs):
+    @staticmethod
+    async def callback(interaction: discord.Interaction, *args, **kwargs):
         """The callback to execute when this command is used."""
 
 
@@ -304,7 +310,7 @@ def slash_command(
 def user_command(
     *, id: int, name: str,
     default_permission: bool = True, guild_id: Optional[int] = None
-) -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], ApplicationCommand]:
+) -> Callable[[Callable[[discord.Interaction, discord.User], Coroutine[Any, Any, Any]]], ApplicationCommand]:
     def decorator(func):
         command = ApplicationCommand(
             type=ApplicationCommandType.USER,
@@ -323,7 +329,7 @@ def user_command(
 def message_command(
     *, id: int, name: str,
     default_permission: bool = True, guild_id: Optional[int] = None
-) -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], ApplicationCommand]:
+) -> Callable[[Callable[[discord.Interaction, discord.Message], Coroutine[Any, Any, Any]]], ApplicationCommand]:
     def decorator(func):
         command = ApplicationCommand(
             type=ApplicationCommandType.MESSAGE,
@@ -374,7 +380,15 @@ class ApplicationCommandsCog(commands.Cog, metaclass=ApplicationCommandsCogMeta)
 
     def __new__(cls, *args, **kwargs):
         obj = super().__new__(cls)
-        obj.application_commands = cls.__application_commands__.copy()
+
+        # Inject the cog into the application commands
+        application_commands = {}
+        for k, v in cls.__application_commands__.items():
+            v = copy.deepcopy(v)
+            v.cog = obj
+            application_commands[k] = v
+        obj.application_commands = application_commands
+
         return obj
 
     def __init__(self, bot):
@@ -385,18 +399,30 @@ class ApplicationCommandsCog(commands.Cog, metaclass=ApplicationCommandsCogMeta)
         if interaction.type != discord.InteractionType.application_command:
             return
 
-        key = (interaction.guild_id, int(interaction.data['id']))
-        command = self.application_commands.get(key)
+        command_id = int(interaction.data['id'])
+        key = (interaction.guild_id, command_id)
+        command = (
+            self.application_commands.get(key)
+            or self.application_commands.get((None, command_id))
+        )
         if command is None:
-            return print(f'No command found for {key}')
+            return
 
         args, kwargs = command._parse_interaction(self.bot, interaction)
-        await command.callback(interaction, *args, **kwargs)
+        if command.cog is not None:
+            await command.callback(
+                command.cog,  # type: ignore
+                interaction, *args, **kwargs
+            )
+        else:
+            await command.callback(interaction, *args, **kwargs)
 
 
 def setup(bot):
-    from . import test
+    from . import test, games
 
-    for cls in (test.ApplicationCommandTest,):
+    for cls in (
+            test.ApplicationCommandTest,
+            games.ApplicationCommandGames):
         cog = cls(bot)
         bot.add_cog(cog)
