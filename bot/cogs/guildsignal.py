@@ -1508,10 +1508,14 @@ labels: Group channels together by their labels rather than a simple alphabetica
             c, m = x
             if m is None:
                 # Place unknown formats at the top
-                return f'  {c.name}'
+                return '  ' + c.name
             elif labels:
                 new_name = '{flags}{n}{name}'.format(**m.groupdict())
-                if 'a' in m.group('flags'):
+                flags = m.group('flags')
+                if not flags:
+                    # Place unlabeled tickets at the bottom
+                    return '~' + new_name
+                elif 'a' in flags:
                     # Group accepted tickets together
                     return ' ' + new_name
                 return new_name
