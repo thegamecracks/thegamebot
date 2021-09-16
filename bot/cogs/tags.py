@@ -28,18 +28,14 @@ class TagContentConverter(commands.Converter):
     """
     TAG_MAX_CONTENT_LENGTH = 2000
 
-    def __init__(self, param: str):
-        self.param = param
-
     async def convert(self, ctx, arg):
-        raw_arg = cleanup_tag_content(arg)
+        param = ctx.current_parameter.name
 
+        raw_arg = cleanup_tag_content(arg)
         diff = len(raw_arg) - self.TAG_MAX_CONTENT_LENGTH
         if diff > 0:
             raise errors.ErrorHandlerResponse(
-                f'Tag parameter `{self.param}` is {diff:,} '
-                'characters too long.'
-            )
+                f'`{param}` parameter is {diff:,} characters too long.')
 
         return arg
 
@@ -54,22 +50,21 @@ class TagNameConverter(commands.Converter):
     """
     TAG_MAX_NAME_LENGTH = 50
 
-    def __init__(self, param: str):
-        self.param = param
-
     async def convert(self, ctx, arg):
+        param = ctx.current_parameter.name
+
+        # Check length
         diff = len(arg) - self.TAG_MAX_NAME_LENGTH
         if diff > 0:
             raise errors.ErrorHandlerResponse(
-                f'Tag parameter `{self.param}` is {diff:,} '
-                'characters too long.'
-            )
+                f'Tag parameter `{param}` is {diff:,} characters too long.')
 
+        # Check for command name collision
         first_word, *_ = arg.split(None, 1)
         command = ctx.bot.get_command('tag')
         if first_word in command.all_commands:
             raise errors.ErrorHandlerResponse(
-                f'Tag parameter `{self.param}` cannot start '
+                f'`{param}` parameter cannot start '
                 'with a reserved command name.'
             )
 
@@ -172,7 +167,7 @@ class Tags(commands.Cog):
 
     @commands.group(name='tag', aliases=('tags',), invoke_without_command=True)
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag(self, ctx, *, name: TagNameConverter('name')):
+    async def client_tag(self, ctx, *, name: TagNameConverter):
         """Show a tag."""
         tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
 
@@ -194,8 +189,8 @@ class Tags(commands.Cog):
     @client_tag.command(name='alias')
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def client_tag_alias(
-            self, ctx, alias: TagNameConverter('alias'),
-            *, existing: TagNameConverter('existing')):
+            self, ctx, alias: TagNameConverter,
+            *, existing: TagNameConverter):
         """Create an alias for a tag.
 These can be deleted in the same way as normal tags, however they cannot be edited.
 
@@ -218,7 +213,7 @@ existing: The name of an existing tag or even another alias."""
 
     @client_tag.command(name='claim')
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def client_tag_claim(self, ctx, *, name: TagNameConverter('name')):
+    async def client_tag_claim(self, ctx, *, name: TagNameConverter):
         """Claim a tag or alias made by someone that is no longer in the server.
 Note it may take some time before a tag loses their author."""
         db = ctx.bot.dbtags
@@ -251,8 +246,8 @@ Note it may take some time before a tag loses their author."""
     @client_tag.command(name='create')
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def client_tag_create(
-            self, ctx, name: TagNameConverter('name'),
-            *, content: TagContentConverter('content')):
+            self, ctx, name: TagNameConverter,
+            *, content: TagContentConverter):
         """Create a tag.
 
 name: The name of the tag. When using spaces, surround it with quotes as such:
@@ -269,7 +264,7 @@ content: The content of the tag."""
 
     @client_tag.command(name='delete', aliases=('remove',))
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag_delete(self, ctx, *, name: TagNameConverter('name')):
+    async def client_tag_delete(self, ctx, *, name: TagNameConverter):
         """Delete one of your tags or aliases.
 
 If you have Manage Server permissions you can also delete other people's tags."""
@@ -292,8 +287,8 @@ If you have Manage Server permissions you can also delete other people's tags.""
     @client_tag.command(name='edit')
     @commands.cooldown(1, 2, commands.BucketType.user)
     async def client_tag_edit(
-            self, ctx, name: TagNameConverter('name'),
-            *, content: TagContentConverter('content')):
+            self, ctx, name: TagNameConverter,
+            *, content: TagContentConverter):
         """Edit one of your tags.
 
 name: The name of the tag (aliases allowed). For names with multiple spaces, use quotes as such:
@@ -312,7 +307,7 @@ content: The new content to use."""
 
     @client_tag.command(name='info')
     @commands.cooldown(1, 2, commands.BucketType.user)
-    async def client_tag_info(self, ctx, *, name: TagNameConverter('name')):
+    async def client_tag_info(self, ctx, *, name: TagNameConverter):
         """Get info about a tag."""
         db = ctx.bot.dbtags
 
@@ -429,7 +424,7 @@ content: The new content to use."""
 
     @client_tag.command(name='raw')
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def client_tag_raw(self, ctx, *, name: TagNameConverter('name')):
+    async def client_tag_raw(self, ctx, *, name: TagNameConverter):
         """Show a tag in its raw form.
 Useful for copy pasting any of the tag's markdown."""
         tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
