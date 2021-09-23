@@ -7,6 +7,8 @@ Table dependencies:
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import datetime
+
 from . import database as db
 
 
@@ -25,7 +27,8 @@ class ReminderDatabase(db.Database):
     );
     """
 
-    async def add_reminder(self, user_id: int, due, content: str):
+    async def add_reminder(
+            self, user_id: int, due: datetime.datetime, content: str):
         """Add a reminder to the Reminders table.
 
         Args:
@@ -38,7 +41,12 @@ class ReminderDatabase(db.Database):
 
         return await self.add_row(
             self.TABLE_NAME,
-            {'user_id': user_id, 'due': due, 'content': content}
+            {'user_id': user_id,
+             'due': due.astimezone(datetime.timezone.utc).replace(tzinfo=None),
+             # NOTE: due to a bug with sqlite3.dbapi2.convert_timestamp,
+             # timezones cannot be included when the microsecond
+             # is omitted by isoformat()
+             'content': content}
         )
 
     async def delete_reminder_by_id(self, reminder_id: int, pop=False):
