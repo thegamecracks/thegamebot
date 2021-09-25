@@ -5,6 +5,7 @@
 import asyncio
 import datetime
 import re
+from typing import Literal, Union
 
 import dateparser
 from dateutil.relativedelta import relativedelta
@@ -12,14 +13,35 @@ import discord
 from discord.ext import commands, tasks
 import pytz
 
-from bot import utils
+from bot import errors, utils
 from bot.other import discordlogger
+
+
+class IndexConverter(commands.Converter):
+    """Parse an integer (1) or range (1-4)."""
+
+    async def convert(self, ctx, arg) -> range:
+        error = error.ErrorHandlerResponse(f'Could not understand "{arg}".')
+        values = []
+        for n in arg.split('-')[:3]:
+            try:
+                values.append(int(n))
+            except ValueError:
+                raise error
+
+        length = len(values)
+        if length in (0, 3):
+            raise error
+        elif length == 1:
+            return range(values[0], values[0] + 1)
+        return range(values[0], values[1] + 1)
 
 
 class Reminders(commands.Cog):
     """Commands for setting up reminders."""
     qualified_name = 'Reminders'
 
+    MAXIMUM_REMINDERS = 10
     MINIMUM_REMINDER_TIME = 30
 
     DATEPARSER_SETTINGS = {
@@ -113,11 +135,110 @@ class Reminders(commands.Cog):
         return dt
 
 
-    @commands.command(
-        name='addreminder',
-        aliases=['remindme'])
-    @commands.cooldown(2, 15, commands.BucketType.user)
-    async def client_addreminder(self, ctx, *, time_and_reminder):
+
+
+
+    @commands.group(
+        name='reminder', aliases=('reminders',),
+        invoke_without_command=True
+    )
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def client_reminders(self, ctx, index: int = None):
+        """See your reminders."""
+        reminder_list = await self.get_reminders(ctx.author.id)
+
+        if not reminder_list:
+            return await ctx.send("You don't have any reminders.")
+
+        if index is None:
+            lines = [
+                '{}. {}: {}'.format(
+                    i,
+                    discord.utils.format_dt(
+                        reminder['due'].replace(
+                            tzinfo=datetime.timezone.utc
+                        ), 'R'
+                    ),
+                    utils.truncate_message(reminder['content'], 40, max_lines=1)
+                ) for i, reminder in enumerate(reminder_list, start=1)
+            ]
+
+            embed = discord.Embed(
+                color=utils.get_user_color(ctx.bot, ctx.author),
+                description='\n'.join(lines)
+            ).set_author(
+                name=ctx.author.display_name,
+                icon_url=ctx.author.display_avatar.url
+            )
+            return await ctx.send(embed=embed)
+        elif not 0 < index <= len(reminder_list):
+            return await ctx.send('That index does not exist.')
+
+        reminder = reminder_list[index - 1]
+        utcdue = reminder['due'].replace(tzinfo=datetime.timezone.utc)
+        embed = discord.Embed(
+            title=f'Reminder #{index:,}',
+            description=reminder['content'],
+            color=utils.get_user_color(ctx.bot, ctx.author)
+        ).add_field(
+            name='Due in',
+            value='{}\n({})'.format(
+                utils.timedelta_string(
+                    relativedelta(
+                        utcdue,
+                        discord.utils.utcnow()
+                    ),
+                    inflector=ctx.bot.inflector
+                ),
+                discord.utils.format_dt(utcdue, style='F')
+            )
+        )
+        await ctx.send(embed=embed)
+
+
+    @client_reminders.command(name='remove', aliases=('delete',))
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def client_reminders_remove(
+        self, ctx, *indices: Union[Literal['all'], IndexConverter]
+    ):
+        """Remove one or multiple reminders.
+
+Examples:
+    <prefix>reminder remove 1
+    <prefix>reminder remove 1-4
+    <prefix>reminder remove 1 3 5-7
+    <prefix>reminder remove all"""
+        if not indices:
+            return await ctx.send_help(ctx.command)
+
+        reminder_list = await self.get_reminders(ctx.author.id)
+
+        if not reminder_list:
+            return await ctx.send("You already have no reminders.")
+
+        if 'all' in indices:
+            valid = range(len(reminder_list))
+        else:
+            valid = {n - 1 for r in indices for n in r
+                     if 0 < n <= len(reminder_list)}
+
+        if not valid:
+            return await ctx.send('No valid indices were provided.')
+
+        for n in valid:
+            reminder = reminder_list[n]
+            await self.delete_reminder_by_id(reminder['reminder_id'])
+
+        await ctx.send(
+            '{} {} successfully deleted!'.format(
+                len(valid),
+                ctx.bot.inflector.plural('reminder', len(valid))
+            )
+        )
+
+
+    @client_reminders.command(name='add')
+    async def client_reminders_add(self, ctx, *, time_and_reminder):
         """Add a reminder to be sent in your DMs.
 
 Usage:
@@ -133,7 +254,7 @@ Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
         total_reminders = len(await self.get_reminders(ctx.author.id))
 
-        if total_reminders < 5:
+        if total_reminders < self.MAXIMUM_REMINDERS:
             # Get current time in UTC without microseconds
             utcnow = discord.utils.utcnow().replace(microsecond=0)
             try:
@@ -142,7 +263,11 @@ You can have a maximum of 5 reminders."""
                 when, content = [s.strip() for s in re.split(
                     'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
                 )]
-                when = await self.parse_datetime(ctx, when)
+                async with ctx.typing():
+                    when = await self.parse_datetime(ctx, when)
+                if when is None:
+                    return await ctx.send(
+                        'Could not understand your given time.')
             except (ValueError, AttributeError):
                 return await ctx.send(
                     'Could not understand your reminder request. Check this '
@@ -173,143 +298,19 @@ You can have a maximum of 5 reminders."""
                 )
             )
         else:
-            await ctx.send('Sorry, but you have reached your maximum '
-                           'limit of 5 reminders.')
-
-
-
-
-    @commands.command(name='removereminder')
-    @commands.cooldown(2, 5, commands.BucketType.user)
-    async def client_removereminder(self, ctx, index: int):
-        """Remove a reminder.
-
-To see a list of your reminders and their indices, use the showreminders command.
-To remove several reminders, use the removereminders command."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You already don't have any reminders.")
-
-        try:
-            reminder = reminder_list[index - 1]
-        except IndexError:
-            await ctx.send('That reminder index does not exist.')
-        else:
-            await self.delete_reminder_by_id(reminder['reminder_id'])
-            await ctx.send('Reminder successfully deleted!')
-
-
-
-
-
-    @commands.command(name='removereminders')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def client_removereminders(self, ctx, indices):
-        """Remove multiple reminders.
-
-You can remove "all" of your reminders or remove only a section of it by specifying the start and end indices ("1-4").
-To remove only one reminder, use the removereminder command."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You already don't have any reminders.")
-
-        if indices.lower() == 'all':
-            for reminder in reminder_list:
-                await self.delete_reminder_by_id(reminder['reminder_id'])
-            await ctx.send('Reminders successfully deleted!')
-
-        else:
-            try:
-                start, end = [int(n) for n in indices.split('-')]
-            except ValueError:
-                return await ctx.send_help(ctx.command)
-            start -= 1
-            if start < 0:
-                return await ctx.send('Start must be 1 or greater.')
-            elif end > len(reminder_list):
-                return await ctx.send(
-                    f'End must only go up to {len(reminder_list)}.')
-
-            for i in range(start, end):
-                reminder = reminder_list[i]
-                await self.delete_reminder_by_id(reminder['reminder_id'])
-            await ctx.send('Reminders successfully deleted!')
-
-
-
-
-
-    @commands.command(name='showreminder')
-    @commands.cooldown(2, 5, commands.BucketType.user)
-    async def client_showreminder(self, ctx, index: int):
-        """Show one of your reminders."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You don't have any reminders.")
-
-        if index < 1:
-            return await ctx.send('Index must be 1 or greater.')
-
-        try:
-            reminder = reminder_list[index - 1]
-        except IndexError:
-            await ctx.send('That index does not exist.')
-        else:
-            utcdue = reminder['due'].replace(tzinfo=datetime.timezone.utc)
-            embed = discord.Embed(
-                title=f'Reminder #{index:,}',
-                description=reminder['content'],
-                color=utils.get_user_color(ctx.bot, ctx.author)
-            ).add_field(
-                name='Due in',
-                value='{}\n({})'.format(
-                    utils.timedelta_string(
-                        relativedelta(
-                            utcdue,
-                            discord.utils.utcnow()
-                        ),
-                        inflector=ctx.bot.inflector
-                    ),
-                    discord.utils.format_dt(utcdue, style='F')
-                )
+            await ctx.send(
+                'You have reached the maximum limit of '
+                f'{self.MAXIMUM_REMINDERS} reminders.'
             )
-            await ctx.send(embed=embed)
 
 
-
-
-
-    @commands.command(name='showreminders')
-    @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
-    async def client_showreminders(self, ctx):
-        """Show all of your reminders."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You don't have any reminders.")
-
-        # Create fields for each reminder, limiting them
-        # to 140 characters/5 lines
-        fields = [
-            utils.truncate_message(reminder['content'], 140, max_lines=5)
-            for reminder in reminder_list
-        ]
-        color = utils.get_user_color(ctx.bot, ctx.author)
-
-        embed = discord.Embed(
-            title=f"{ctx.author.display_name}'s Reminders",
-            color=color,
-            timestamp=datetime.datetime.now().astimezone()
-        )
-
-        for i, content in enumerate(fields, start=1):
-            embed.add_field(name=f'Reminder {i:,}', value=content)
-
-        await ctx.send(embed=embed)
+    @commands.command(
+        name='remind', aliases=('remindme',),
+        brief='Shorthand for reminder add.',
+        help=client_reminders_add.callback.__doc__
+    )
+    async def client_remind(self, ctx, *, time_and_reminder):
+        await self.client_reminders_add(ctx, time_and_reminder=time_and_reminder)
 
 
 
