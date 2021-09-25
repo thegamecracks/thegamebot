@@ -31,6 +31,7 @@ class SignalHill(commands.Cog):
     qualified_name = 'Signal Hill'
 
     BM_SERVER_ID_INA = 10654566
+    BM_SERVER_ID_SOG = 12854991
     BM_SERVER_ID_MCF = 12516655
     GUILD_ID = 811415496036843550
 

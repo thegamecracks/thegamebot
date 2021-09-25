@@ -619,6 +619,16 @@ class _SignalHill_Status(commands.Cog):
                 server_id=base.BM_SERVER_ID_INA,
                 **self.create_server_status_params()
             ),
+            BMServerStatus(
+                bot=bot,
+                channel_id=891139561265168384,
+                message_id=891139679209001001,
+                line_color=0x2FE4BF,
+                bm_client=base.bm_client,
+                server_id=base.BM_SERVER_ID_SOG,
+                server_map='Cam Lao Nam',
+                **self.create_server_status_params()
+            ),
             MCServerStatus(
                 bot=bot,
                 channel_id=852008953968984115,
