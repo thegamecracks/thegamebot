@@ -439,7 +439,10 @@ class BMServerStatus(ServerStatus[abm.Server, BMServerStatusView]):
                 discord.utils.format_dt(now, style='R')
             )
         )
-        players: list[abm.Player] = sorted(server.players, key=lambda p: p.name)
+        players: list[abm.Player] = sorted(
+            server.players,
+            key=lambda p: discord.utils.remove_markdown(p.name).casefold()
+        )
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
             if p.first_time:
@@ -575,10 +578,13 @@ class MCServerStatus(ServerStatus[Union[mcstatus.pinger.PingResponse, Exception]
 
         if server.players.sample:
             players = sorted(
-                discord.utils.escape_markdown(p.name)
-                for p in server.players.sample
+                server.players.sample,
+                key=lambda p: discord.utils.remove_markdown(p.name).casefold()
             )
-            self.add_fields(embed, players)
+            self.add_fields(
+                embed,
+                [discord.utils.escape_markdown(p.name) for p in players]
+            )
 
         embed.description = '\n'.join(description)
 
