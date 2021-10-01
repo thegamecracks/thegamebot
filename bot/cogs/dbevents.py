@@ -21,14 +21,14 @@ class DatabaseEvents(commands.Cog):
     async def try_member(guild: discord.Guild, id: int):
         return guild.get_member(id) or await guild.fetch_member(id)
 
-    async def delete_many(self, table_name, column, ids):
+    async def delete_many(self, table_name: str, column: str, ids):
         async with await self.bot.dbusers.connect(writing=True) as conn:
             query = 'DELETE FROM {} WHERE {} IN ({})'.format(
                 table_name, column, ', '.join([str(n) for n in ids])
             )
             await conn.execute(query)
 
-    async def check_guild_tables(self):
+    async def check_guild_tables(self) -> list[int]:
         """Remove any guilds that the bot is no longer a part of."""
         db = self.bot.dbguilds
         to_remove = []
@@ -46,7 +46,7 @@ class DatabaseEvents(commands.Cog):
 
         return to_remove
 
-    async def check_tag_tables(self):
+    async def check_tag_tables(self) -> list[tuple[int, int]]:
         """Remove user IDs from tags where the user is
         no longer a part of the guild.
         """
