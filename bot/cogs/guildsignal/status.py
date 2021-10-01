@@ -608,6 +608,7 @@ class MCServerStatus(ServerStatus[Union[mcstatus.pinger.PingResponse, Exception]
 
 class _SignalHill_Status(commands.Cog):
     SERVER_STATUS_INTERVAL = 60
+    SERVER_STATUS_PURGE_INTERVAL = 12 * 3600
     SERVER_STATUS_EDIT_RATE = 10
     SERVER_STATUS_GRAPH_DEST = 842924251954151464
     SERVER_STATUS_GRAPH_RATE = 60 * 30
@@ -689,10 +690,10 @@ class _SignalHill_Status(commands.Cog):
                 # turn them all back on
                 self.server_status_toggle()
 
-    @tasks.loop(seconds=SERVER_STATUS_INTERVAL)
+    @tasks.loop(seconds=SERVER_STATUS_PURGE_INTERVAL)
     async def server_status_cleanup(self):
         """Clean up extra graph messages once all server statuses have
-        uploaded a graph and then stop.
+        uploaded a graph.
 
         This assumes that all the server status graphs are uploaded
         to self.SERVER_STATUS_GRAPH_DEST.
@@ -707,19 +708,10 @@ class _SignalHill_Status(commands.Cog):
             # Not all server statuses have sent
             return
 
-        allowed_ids = {m.id for m in messages}
-
-        def check(m):
-            return m.id not in allowed_ids
+        min_id = min(m.id for m in messages)
 
         channel = self.bot.get_channel(self.SERVER_STATUS_GRAPH_DEST)
-        await channel.purge(
-            limit=total * 2,
-            before=discord.Object(min(allowed_ids)),
-            check=check
-        )
-
-        self.server_status_cleanup.stop()
+        await channel.purge(before=discord.Object(min_id))
 
     @server_status_cleanup.before_loop
     async def before_server_status_cleanup(self):
