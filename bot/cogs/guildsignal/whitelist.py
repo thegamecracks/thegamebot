@@ -348,7 +348,7 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 
 
 class _SignalHill_Whitelist(commands.Cog):
-    WHITELIST_TICKET_REGEX = re.compile(r'(?P<name>.+)-(?P<n>\d+)(?P<flags>\w*)')
+    WHITELIST_TICKET_REGEX = re.compile(r'(?P<name>.+)-(?P<n>\d+)-?(?P<flags>\w*)')
     WHITELISTED_PLAYERS_CHANNEL_ID = 824486812709027880
 
     def __init__(self, bot, base: SignalHill):
