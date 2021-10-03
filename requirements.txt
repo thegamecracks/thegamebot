@@ -11,7 +11,7 @@ chardet==3.0.4
 click==7.1.2
 colorama==0.4.4
 cycler==0.10.0
-dateparser==1.0.0
+dateparser @ git+https://github.com/scrapinghub/dateparser@141199b477cd1ae215207f4d84d0b9e0bae4bba9
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@309c70222eec33acacb8c21bbb0fbe9bc57de661
 discord.py @ git+https://github.com/Rapptz/discord.py/@5ef37923def7d80f6e741007a241c4441db7af56
 dnspython==2.1.0
