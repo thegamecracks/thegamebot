@@ -14,6 +14,7 @@ from discord.ext import commands, tasks
 import pytz
 
 from bot import errors, utils
+from bot.database.reminderdatabase import PartialReminderEntry, ReminderEntry
 from bot.other import discordlogger
 
 
@@ -42,6 +43,7 @@ class Reminders(commands.Cog):
     qualified_name = 'Reminders'
 
     MAXIMUM_REMINDERS = 10
+    MAXIMUM_REMINDER_CONTENT = 250
     MINIMUM_REMINDER_TIME = 30
 
     DATEPARSER_SETTINGS = {
@@ -56,26 +58,26 @@ class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.cache = {}  # user_id: reminders
-        # NOTE: this bot is small so this isn't required but if the bot
-        # never restarts frequently, the cache could grow forever,
-        # so this could use an LRU cache implementation
         self.send_reminders_tasks = {}  # reminder_id: Task
         self.send_reminders.start()
 
     def cog_unload(self):
         self.send_reminders.cancel()
+        for task in self.send_reminders_tasks.values():
+            task.cancel()
 
 
 
 
 
-    async def add_reminder(self, user_id, due, content):
-        """Adds a reminder and invalidates the user's cache."""
-        reminder_id = await self.bot.dbreminders.add_reminder(
-            user_id, due, content)
-        self.cache.pop(user_id, None)
+    async def add_reminder(self, **entry: PartialReminderEntry):
+        """Adds a reminder and invalidates the user's cache.
+        Kwargs are passed through to dbreminders.add_reminder.
+        """
+        reminder_id = await self.bot.dbreminders.add_reminder(**entry)
+        self.cache.pop(entry['user_id'], None)
 
-        self.check_to_create_reminder(reminder_id, user_id, content, due)
+        self.check_to_create_reminder(reminder_id=reminder_id, **entry)
 
     async def delete_reminder_by_id(self, reminder_id, pop=False):
         """Remove a reminder by reminder_id and update the caches."""
@@ -252,6 +254,12 @@ be used instead of UTC.
 
 Time is rounded down to the minute if seconds are not specified.
 You can have a maximum of 5 reminders."""
+        me_perms = ctx.channel.permissions_for(ctx.me)
+        if not me_perms.send_messages:
+            if me_perms.add_reactions:
+                await ctx.message.add_reaction('\N{FACE WITHOUT MOUTH}')
+            return
+
         total_reminders = len(await self.get_reminders(ctx.author.id))
 
         if total_reminders < self.MAXIMUM_REMINDERS:
@@ -260,12 +268,12 @@ You can have a maximum of 5 reminders."""
             try:
                 # Separate time and reminder,
                 # also making sure that content is provided
-                when, content = [s.strip() for s in re.split(
+                due, content = [s.strip() for s in re.split(
                     'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
                 )]
                 async with ctx.typing():
-                    when = await self.parse_datetime(ctx, when)
-                if when is None:
+                    due = await self.parse_datetime(ctx, due)
+                if due is None:
                     return await ctx.send(
                         'Could not understand your given time.')
             except (ValueError, AttributeError):
@@ -274,7 +282,7 @@ You can have a maximum of 5 reminders."""
                     "command's help page for allowed syntax."
                 )
 
-            td = when - utcnow
+            td = due - utcnow
             seconds_until = td.total_seconds()
 
             if seconds_until < 0:
@@ -288,13 +296,27 @@ You can have a maximum of 5 reminders."""
             elif not content:
                 return await ctx.send(
                     'You must have a message with your reminder.')
+            elif len(content) > self.MAXIMUM_REMINDER_CONTENT:
+                diff = len(content) - self.MAXIMUM_REMINDER_CONTENT
+                return await ctx.send(
+                    'Please provide a message under {} {} (-{}).'.format(
+                        self.MAXIMUM_REMINDER_CONTENT,
+                        ctx.bot.inflector.plural('character', diff),
+                        diff
+                    )
+                )
 
-            await self.add_reminder(ctx.author.id, when, content)
+            await self.add_reminder(
+                user_id=ctx.author.id,
+                channel_id=ctx.channel.id,
+                due=due,
+                content=content
+            )
 
             await ctx.send(
                 'Your {} reminder has been added for: {}'.format(
                     ctx.bot.inflector.ordinal(total_reminders + 1),
-                    discord.utils.format_dt(when, style='F')
+                    discord.utils.format_dt(due, style='F')
                 )
             )
         else:
@@ -316,8 +338,7 @@ You can have a maximum of 5 reminders."""
 
 
 
-    def check_to_create_reminder(
-            self, reminder_id, user_id, content, when, now=None):
+    def check_to_create_reminder(self, *, now=None, **entry: ReminderEntry):
         """Create a reminder task if needed.
 
         This does not store the reminder in the database.
@@ -326,33 +347,34 @@ You can have a maximum of 5 reminders."""
             bool: Indicates whether the task was created or not.
 
         """
-        if reminder_id in self.send_reminders_tasks:
+        if entry['reminder_id'] in self.send_reminders_tasks:
             # Task already exists; skip
             return False
-
-        if now is None:
+        elif now is None:
             now = discord.utils.utcnow()
-        td = when - now
 
+        td = entry['due'] - now
         is_soon = td < self.send_reminders_near_due
         if is_soon:
-            self.create_reminder_task(reminder_id, user_id, when, td, content)
+            self.create_reminder_task(td, entry)
+
         return is_soon
 
-    def create_reminder_task(self, reminder_id, user_id, when, td, content):
+    def create_reminder_task(self, td, entry: ReminderEntry):
         """Adds a reminder task to the bot loop and logs it."""
-        task = self.bot.loop.create_task(
-            self.reminder_coro(reminder_id, user_id, when, content)
-        )
-        self.send_reminders_tasks[reminder_id] = task
+        task = self.bot.loop.create_task(self.reminder_coro(entry))
+        self.send_reminders_tasks[entry['reminder_id']] = task
 
         discordlogger.get_logger().info(
-            f'Reminders: created reminder task {reminder_id} '
-            f'for {user_id}, due in {td}')
+            'Reminders: created reminder task {} '
+            'for {}, due in {}'.format(
+                entry['reminder_id'], entry['user_id'], td
+            )
+        )
 
         return task
 
-    async def reminder_coro(self, reminder_id, user_id, when, content):
+    async def reminder_coro(self, entry: ReminderEntry):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry():
             await self.delete_reminder_by_id(reminder_id)
@@ -360,64 +382,47 @@ You can have a maximum of 5 reminders."""
         def remove_task():
             self.send_reminders_tasks.pop(reminder_id, None)
 
-        logger = discordlogger.get_logger()
-
-        db = self.bot.dbreminders
-
-        now = discord.utils.utcnow()
-        seconds = (when - now).total_seconds()
-
+        reminder_id = entry['reminder_id']
+        seconds = (entry['due'] - discord.utils.utcnow()).total_seconds()
         await asyncio.sleep(seconds)
 
-        if await db.get_one(db.TABLE_NAME, 'reminder_id',
-                            where={'reminder_id': reminder_id}) is None:
-            # Reminder was deleted during wait; don't send
-            logger.info(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
-                'reminder was deleted during wait'
-            )
-
-        user = await self.bot.try_user(user_id)
-
-        if user is None:
-            # Could not find user; remove database entry
-            logger.info(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
-                f'could not find user: {user_id}'
-            )
-            await remove_entry()
-            remove_task()
-            return
-
-        when_str = await self.bot.strftime_user(user.id, when, aware='%c %Z')
-
-        if seconds == 0:
-            title = f'Late reminder for {when_str}'
-        else:
-            title = f'Reminder for {when_str}'
-        embed = discord.Embed(
-            title=title,
-            description=content,
-            color=utils.get_user_color(self.bot, user),
-            timestamp=now
+        logger = discordlogger.get_logger()
+        db = self.bot.dbreminders
+        row = await db.get_one(
+            db.TABLE_NAME, 'reminder_id',
+            where={'reminder_id': reminder_id}
         )
+        if row is None:
+            # Reminder was deleted during wait; don't send
+            return logger.debug(
+                'Reminders: failed to send reminder, '
+                f'ID {reminder_id}: reminder was deleted during wait'
+            )
 
+        description = ['**', discord.utils.format_dt(entry['due'], style='F')]
+        if seconds < 0:
+            description.append(' (overdue)')
+        description.append('**\n')
+        description.append(entry['content'])
+        embed = discord.Embed(description=''.join(description))
+
+        channel = self.bot.get_partial_messageable(entry['channel_id'])
         try:
-            await user.send(embed=embed)
+            await channel.send(f'<@{entry["user_id"]}>', embed=embed)
         except discord.Forbidden as e:
-            logger.info(
+            logger.debug(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
                 f'was forbidden from sending: {e}'
             )
         except discord.HTTPException as e:
-            logger.info(
+            logger.warning(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
                 f'HTTPException occurred: {e}'
             )
         else:
             # Successful; remove reminder task and database entry
-            logger.info('Reminders: successfully sent reminder, '
-                        f'ID {reminder_id}')
+            logger.debug(
+                f'Reminders: successfully sent reminder, ID {reminder_id}')
             await remove_entry()
         finally:
             remove_task()
@@ -433,8 +438,12 @@ You can have a maximum of 5 reminders."""
         async for entry in db.yield_rows(db.TABLE_NAME):
             due = entry['due'].replace(tzinfo=datetime.timezone.utc)
             self.check_to_create_reminder(
-                entry['reminder_id'], entry['user_id'],
-                entry['content'], due, now
+                now=now,
+                reminder_id=entry['reminder_id'],
+                user_id=entry['user_id'],
+                channel_id=entry['channel_id'],
+                due=due,
+                content=entry['content']
             )
 
     @send_reminders.before_loop

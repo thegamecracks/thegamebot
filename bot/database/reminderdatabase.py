@@ -8,8 +8,20 @@ Table dependencies:
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
+from typing import Optional, TypedDict
 
 from . import database as db
+
+
+class PartialReminderEntry(TypedDict):
+    user_id: int
+    channel_id: int
+    due: datetime.datetime
+    content: str
+
+
+class ReminderEntry(PartialReminderEntry):
+    reminder_id: int
 
 
 class ReminderDatabase(db.Database):
@@ -20,6 +32,7 @@ class ReminderDatabase(db.Database):
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         reminder_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         user_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL,
         due TIMESTAMP,
         content TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES Users(id)
@@ -28,13 +41,15 @@ class ReminderDatabase(db.Database):
     """
 
     async def add_reminder(
-            self, user_id: int, due: datetime.datetime, content: str):
+            self, user_id: int, channel_id: int,
+            due: datetime.datetime, content: str):
         """Add a reminder to the Reminders table.
 
         Args:
-            user_id (int)
-            due (datetime.datetime)
-            content (str)
+            user_id (int): The user that created the reminder.
+            channel_id (int): The channel to send the reminder.
+            due (datetime.datetime): When the reminder should be sent.
+            content (str): The content of the reminder.
 
         """
         user_id = int(user_id)
@@ -42,6 +57,7 @@ class ReminderDatabase(db.Database):
         return await self.add_row(
             self.TABLE_NAME,
             {'user_id': user_id,
+             'channel_id': channel_id,
              'due': due.astimezone(datetime.timezone.utc).replace(tzinfo=None),
              # NOTE: due to a bug with sqlite3.dbapi2.convert_timestamp,
              # timezones cannot be included when the microsecond
