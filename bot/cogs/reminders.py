@@ -21,7 +21,7 @@ class IndexConverter(commands.Converter):
     """Parse an integer (1) or range (1-4)."""
 
     async def convert(self, ctx, arg) -> range:
-        error = error.ErrorHandlerResponse(f'Could not understand "{arg}".')
+        error = errors.ErrorHandlerResponse(f'Could not understand "{arg}".')
         values = []
         for n in arg.split('-')[:3]:
             try:
@@ -30,11 +30,11 @@ class IndexConverter(commands.Converter):
                 raise error
 
         length = len(values)
-        if length in (0, 3):
-            raise error
-        elif length == 1:
+        if length == 1:
             return range(values[0], values[0] + 1)
-        return range(values[0], values[1] + 1)
+        elif length == 2:
+            return range(values[0], values[1] + 1)
+        raise error
 
 
 class Reminders(commands.Cog):
