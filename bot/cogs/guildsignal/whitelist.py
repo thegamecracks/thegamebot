@@ -20,7 +20,7 @@ from bot import checks, converters, utils
 
 class SteamIDConverter(commands.Converter):
     """Do basic checks on an integer to see if it may be a valid steam64ID."""
-    REGEX = re.compile(r'\d{17}')
+    REGEX = re.compile(r'7656\d{13}')
     INTEGER = 10_000_000_000_000_000
 
     async def convert(self, ctx, arg):
@@ -348,7 +348,11 @@ class WhitelistPageSource(EmbedPageSourceMixin, menus.AsyncIteratorPageSource):
 
 
 class _SignalHill_Whitelist(commands.Cog):
-    WHITELIST_TICKET_REGEX = re.compile(r'(?P<name>.+)-(?P<n>\d+)-?(?P<flags>\w*)')
+    WHITELIST_TICKET_REGEX = re.compile(
+        r'(?P<name>.+)-(?P<n>\d+)'
+        r'(?:-?(?P<flags>([crt][adpsw])+))?'
+        r'(?:-(?P<staff>.+))?'
+    )
     WHITELISTED_PLAYERS_CHANNEL_ID = 824486812709027880
 
     def __init__(self, bot, base: SignalHill):
