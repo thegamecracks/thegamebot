@@ -5,7 +5,6 @@
 import argparse
 import asyncio
 import collections
-import contextlib
 import datetime
 import os
 import sys
@@ -191,9 +190,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
     async def start(self, *args, **kwargs):
         logger = discordlogger.get_logger()
         print('Starting bot')
-        async with contextlib.AsyncExitStack() as stack:
-            await stack.enter_async_context(self.dbpool)
-            await stack.enter_async_context(self.session)
+        async with self.dbpool, self.session:
             try:
                 await super().start(*args, **kwargs)
             except KeyboardInterrupt:
