@@ -13,7 +13,7 @@ colorama==0.4.4
 cycler==0.10.0
 dateparser==1.1.0
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@309c70222eec33acacb8c21bbb0fbe9bc57de661
-discord.py @ git+https://github.com/Rapptz/discord.py/@5ef37923def7d80f6e741007a241c4441db7af56
+discord.py @ git+https://github.com/Rapptz/discord.py/@45d498c1b76deaf3b394d17ccf56112fa691d160
 dnspython==2.1.0
 emoji==1.2.0
 humanize==3.9.0
