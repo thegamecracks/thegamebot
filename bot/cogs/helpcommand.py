@@ -219,7 +219,7 @@ class HelpView(discord.ui.View):
                 await self.get_page_source(obj, self.help_command),
                 self.help_command
             )
-        await view.respond(interaction)
+        await view.start(interaction)
 
     @discord.ui.button(
         emoji='\N{THUMBS UP SIGN}',
