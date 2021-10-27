@@ -153,7 +153,7 @@ class HelpView(discord.ui.View):
     async def start(self, channel: discord.abc.Messageable | discord.Interaction):
         if isinstance(channel, discord.Interaction):
             # Continuing from a previous view
-            await channel.response.edit_message(**self._get_message_kwargs())
+            await self.respond(channel)
             self.message = channel.message
         else:
             self.message = await channel.send(**self._get_message_kwargs())
