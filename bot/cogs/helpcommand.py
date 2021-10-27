@@ -3,105 +3,486 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import itertools
+import collections
+import functools
 import math
-from typing import Optional
+from typing import Optional, Union
 
 import discord
 from discord.ext import commands
 
 from bot import utils
 
-cooldown_message_length = commands.CooldownMapping.from_cooldown(
-    1, 30, commands.BucketType.user)
+_original_help_command: commands.HelpCommand | None = None
+HELP_OBJECT = (
+    dict[commands.Cog | None, commands.Command]  # send_bot_help
+    | commands.Cog | None                        # send_cog_help
+    | commands.Command                           # send_group/command_help
+)
+
+
+class HelpView(discord.ui.View):
+    COGS_PER_PAGE = 5
+    COMMANDS_PER_PAGE = 9
+
+    def __init__(
+        self, source: "PageSource",
+        help_command: "HelpCommand",
+        last_help: Union["HelpView", HELP_OBJECT] = discord.utils.MISSING,
+        start_page: int = 0
+    ):
+        super().__init__(timeout=60)
+        self.source: "PageSource" = source
+        self.help_command = help_command
+        self.sub_help: Optional["HelpView"] = None
+        if last_help is discord.utils.MISSING:
+            last_help = self._get_last_help()
+        self.last_help = last_help
+
+        self.message: discord.Message | None = None
+        self.current_page = -1
+        self.embed = discord.Embed()
+        self.options: list[discord.SelectOption] = []
+        self.option_objects: list[HELP_OBJECT] = []
+
+        self.can_paginate = True
+        self.can_navigate = True
+
+        if isinstance(source, BotPageSource):  # top-level bot help
+            self.remove_item(self.back_source)  # type: ignore
+            self.remove_item(self.stop_help)  # type: ignore
+            self.stop_help.row = 1
+            self.add_item(self.stop_help)  # type: ignore
+
+        self.show_page(start_page)
+
+    @classmethod
+    async def get_page_source(
+        cls, obj: HELP_OBJECT,
+        help_command: "HelpCommand"
+    ) -> "PageSource":
+        if isinstance(obj, dict):
+            return BotPageSource(
+                await help_command.filter_bot_mapping(obj),
+                per_page=cls.COGS_PER_PAGE
+            )
+        elif isinstance(obj, (commands.Cog, type(None))):
+            cmds = help_command.get_bot_mapping()[obj]
+            cmds = await help_command.filter_commands(cmds, sort=True)
+            return CogPageSource(obj, cmds, per_page=cls.COMMANDS_PER_PAGE)
+        elif isinstance(obj, commands.Group):
+            return GroupPageSource(obj, per_page=cls.COMMANDS_PER_PAGE)
+        return CommandPageSource(obj)
+
+    @functools.cached_property
+    def _pagination_buttons(self) -> tuple[discord.ui.Button]:
+        return self.first_page, self.prev_page, self.next_page, self.last_page  # type: ignore
+
+    def _get_last_help(self) -> HELP_OBJECT:
+        """Determine the help object that comes before self.source."""
+        if isinstance(self.source, (CommandPageSource, GroupPageSource)):
+            return self.source.command.parent or self.source.command.cog
+        return self.help_command.get_bot_mapping()  # type: ignore
+
+    def _get_message_kwargs(self) -> dict:
+        return {'embed': self.embed, 'view': self}
+
+    def _maybe_remove_item(self, item: discord.ui.Item):
+        if item in self.children:
+            self.remove_item(item)
+
+    def _clear_navigation(self):
+        if self.can_navigate:
+            self.remove_item(self.navigate)  # type: ignore
+            self.can_navigate = False
+
+    def _update_navigation(self):
+        if not self.can_navigate:
+            self.add_item(self.navigate)  # type: ignore
+            self.can_paginate = True
+
+        self.navigate.options = self.options
+
+    def _clear_pagination(self):
+        if self.can_navigate:
+            for button in self._pagination_buttons:
+                self.remove_item(button)
+            self.can_paginate = False
+
+    def _update_pagination(self):
+        if not self.can_paginate:
+            for button in self._pagination_buttons:
+                self.add_item(button)
+            self.can_paginate = True
+
+        # Disable/enable buttons if we're on the first/last page
+        on_first_page = self.current_page == 0
+        on_last_page = self.current_page == self.source.max_pages - 1
+        self.first_page.disabled = on_first_page
+        self.prev_page.disabled = on_first_page
+        self.next_page.disabled = on_last_page
+        self.last_page.disabled = on_last_page
+
+    async def respond(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(**self._get_message_kwargs())
+
+    def refresh_components(self):
+        """Update the state of each component in this view based
+        on the current source and page.
+        """
+        if self.source.max_pages > 1:
+            self._update_pagination()
+        else:
+            self._clear_pagination()
+
+        # NOTE: back_source is only updated during __init__
+
+        if self.options:
+            self._update_navigation()
+        else:
+            self._clear_navigation()
+
+    def show_page(self, page_num: int):
+        if page_num != self.current_page:
+            self.current_page = page_num
+            page = self.source.get_page(page_num)
+            self.embed = self.source.format_page(self, page)
+            self.options, self.option_objects = self.source.get_page_options(self, page)
+            self.refresh_components()
+
+    async def start(self, channel: discord.abc.Messageable | discord.Interaction):
+        if isinstance(channel, discord.Interaction):
+            # Continuing from a previous view
+            await channel.response.edit_message(**self._get_message_kwargs())
+            self.message = channel.message
+        else:
+            self.message = await channel.send(**self._get_message_kwargs())
+
+    async def on_timeout(self):
+        if self.sub_help is None:
+            await self.message.delete()
+
+    @discord.ui.select(options=[], placeholder='Navigate...', row=0)
+    async def navigate(self, select, interaction):
+        index = int(select.values[0])
+        obj = self.option_objects[index]
+
+        self.sub_help = HelpView(
+            await self.get_page_source(obj, self.help_command),
+            self.help_command, self
+        )
+        await self.sub_help.start(interaction)
+
+    @discord.ui.button(
+        emoji='\N{BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}',
+        style=discord.ButtonStyle.blurple, row=1)
+    async def first_page(self, button, interaction):
+        self.show_page(0)
+        await self.respond(interaction)
+
+    @discord.ui.button(
+        emoji='\N{BLACK LEFT-POINTING TRIANGLE}',
+        style=discord.ButtonStyle.blurple, row=1)
+    async def prev_page(self, button, interaction):
+        self.show_page(self.current_page - 1)
+        await self.respond(interaction)
+
+    @discord.ui.button(
+        emoji='\N{BLACK RIGHT-POINTING TRIANGLE}',
+        style=discord.ButtonStyle.blurple, row=1)
+    async def next_page(self, button, interaction):
+        self.show_page(self.current_page + 1)
+        await self.respond(interaction)
+
+    @discord.ui.button(
+        emoji='\N{BLACK RIGHT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}',
+        style=discord.ButtonStyle.blurple, row=1)
+    async def last_page(self, button, interaction):
+        self.show_page(self.source.max_pages - 1)
+        await self.respond(interaction)
+
+    @discord.ui.button(
+        emoji='\N{LEFTWARDS ARROW WITH HOOK}',
+        style=discord.ButtonStyle.blurple, row=2)
+    async def back_source(self, button, interaction):
+        self.stop()
+
+        obj = self.last_help
+        if isinstance(obj, HelpView):
+            # Create copy of last_help in case it timed out
+            view = HelpView(
+                obj.source, obj.help_command,
+                obj.last_help, obj.current_page
+            )
+        else:
+            view = HelpView(
+                await self.get_page_source(obj, self.help_command),
+                self.help_command
+            )
+        await view.respond(interaction)
+
+    @discord.ui.button(
+        emoji='\N{THUMBS UP SIGN}',
+        style=discord.ButtonStyle.success, row=2)
+    async def stop_help(self, button, interaction):
+        self.stop()
+        await interaction.message.delete()
+
+
+class PageSource:
+    def __init__(self, entries: list, *, per_page: int):
+        self.entries = entries
+        self.per_page = per_page
+
+    def get_page(self, page_num: int) -> list:
+        start = page_num * self.per_page
+        return self.entries[start:start + self.per_page]
+
+    @functools.cached_property
+    def max_pages(self):
+        pages, remainder = divmod(len(self.entries), self.per_page)
+        return pages + bool(remainder)
+
+    def get_page_options(
+        self, menu: HelpView, page: list
+    ) -> tuple[list[discord.SelectOption], list[HELP_OBJECT]]:
+        raise NotImplementedError
+
+    def format_page(self, menu: HelpView, page: list) -> discord.Embed:
+        raise NotImplementedError
+
+
+class BotPageSource(PageSource):
+    def __init__(self, mapping: dict, *args, **kwargs):
+        super().__init__(list(mapping.items()), *args, **kwargs)
+
+    def get_page_options(
+        self, menu,
+        page: list[tuple[commands.Cog | None, list[commands.Command]]]
+    ):
+        options, objects = [], []
+        for i, (cog, _) in enumerate(page):
+            options.append(discord.SelectOption(
+                label=menu.help_command.get_cog_name(cog),
+                description=utils.truncate_message(
+                    cog.description, 100, max_lines=1,
+                    placeholder='...'
+                ) if cog is not None else 'Uncategorized commands.',
+                value=str(i)
+            ))
+            objects.append(cog)
+
+        return options, objects
+
+    def format_page(
+        self, menu,
+        page: list[tuple[commands.Cog | None, list[commands.Command]]]
+    ):
+        help_command = menu.help_command
+        ctx = help_command.context
+
+        description = []
+        for cog, cmds in page:
+            command_names = ' '.join([c.qualified_name for c in cmds])
+            description.append(f'__**{help_command.get_cog_name(cog)}**__')
+            description.append(utils.truncate_message(command_names, 70, placeholder='...'))
+
+        embed = discord.Embed(
+            title=ctx.me.display_name,
+            color=utils.get_bot_color(ctx.bot),
+            description='\n'.join(description)
+        )
+        if self.max_pages > 1:
+            embed.title += f' ({menu.current_page + 1}/{self.max_pages})'
+
+        return embed
+
+
+class CommandListPageSource(PageSource):
+    def get_page_options(self, menu, page: list[commands.Command]):
+        options, objects = [], []
+        for i, cmd in enumerate(page):
+            options.append(discord.SelectOption(
+                label=cmd.qualified_name,
+                description=utils.truncate_simple(cmd.short_doc, 100, placeholder='...'),
+                value=str(i)
+            ))
+            objects.append(cmd)
+
+        return options, objects
+
+    def format_page(self, menu, page: list[commands.Command]):
+        ctx = menu.help_command.context
+
+        embed = discord.Embed(
+            color=utils.get_bot_color(ctx.bot)
+        )
+
+        per_field = math.ceil(self.per_page / 3)
+        groups = discord.utils.as_chunks(page, per_field)
+        for group in groups:
+            embed.add_field(
+                name='\u200b',
+                value='\n'.join([str(c.qualified_name) for c in group])
+            )
+
+        return embed
+
+
+class CogPageSource(CommandListPageSource):
+    def __init__(self, cog: commands.Cog, cmds: list[commands.Command], *args, **kwargs):
+        super().__init__(cmds, *args, **kwargs)
+        self.cog = cog
+
+    def format_page(self, menu, page: list[commands.Command]):
+        embed = super().format_page(menu, page)
+
+        embed.description = self.cog.description
+        embed.title = self.cog.qualified_name
+        if self.max_pages > 1:
+            embed.title += f' ({menu.current_page + 1}/{self.max_pages})'
+
+        return embed
+
+
+class GroupPageSource(CommandListPageSource):
+    def __init__(self, group: commands.Group, *args, **kwargs):
+        super().__init__(list(group.commands), *args, **kwargs)
+        self.command = group
+
+    def format_page(self, menu, page: list[commands.Command]):
+        help_command = menu.help_command
+        embed = super().format_page(menu, page)
+
+        embed.description = '`{signature}`\n{documentation}'.format(
+            signature=help_command.get_command_signature(self.command),
+            documentation=help_command.get_command_doc(self.command)
+        )
+        embed.title = self.command.qualified_name
+        if self.max_pages > 1:
+            embed.title += f' ({menu.current_page + 1}/{self.max_pages})'
+
+        return embed
+
+
+class CommandPageSource(PageSource):
+    def __init__(self, command: commands.Command):
+        super().__init__([command], per_page=1)
+        self.command = command
+
+    def get_page_options(self, menu, page):
+        return [], []
+
+    def format_page(self, menu, page: list[commands.Command]):
+        help_command = menu.help_command
+        ctx = help_command.context
+        command = page[0]
+
+        embed = discord.Embed(
+            title=command.qualified_name,
+            color=utils.get_bot_color(ctx.bot),
+            description='`{signature}`\n{documentation}'.format(
+                signature=help_command.get_command_signature(command),
+                documentation=help_command.get_command_doc(command)
+            )
+        )
+
+        # Show which cog the command is in if any
+        cog = command.cog
+        if hasattr(command, 'injected_cog'):
+            cog = ctx.bot.get_cog(command.injected_cog)
+        cog_name = help_command.get_cog_name(cog) if cog else 'No'
+        embed.set_author(name=f'{cog_name} category')
+
+        return embed
 
 
 class HelpCommand(commands.HelpCommand):
-    help_categories_per_page = 9  # Max of 25 fields
-    help_commands_per_category = 5
-
-    help_cog_commands_per_page = 9  # Max of 25 fields
-
-    help_message_length_threshold = 500
-    # Maximum allowed characters in a help message before it is sent via DM
-
-    no_category = 'No Category'
-
     def __init__(self):
         super().__init__(
             command_attrs={
                 'help': 'Shows help about the bot, a command, or a category',
-                'cooldown': commands.CooldownMapping.from_cooldown(
-                    2, 3, commands.BucketType.user)
+                'max_concurrency': commands.MaxConcurrency(
+                    1, per=commands.BucketType.user, wait=False)
             }
         )
 
-    def get_bot_mapping(self):
+    def get_bot_mapping(self) -> collections.OrderedDict[
+        commands.Cog | None, list[commands.Command]
+    ]:
         """Retrieves the bot mapping passed to :meth:`send_bot_help`.
 
-        Hacked to check each command for the `injected_cog` attribute
-        and assign them to the appropriate cog.
+        This performs a few extra modifications to the mapping:
+            1. Cogs without commands are excluded
+            2. Keys are sorted alphabetically
+            3. Commands with the `injected_cog` attribute are reassigned
+               to the specified cog.
 
         """
         bot = self.context.bot
-        mapping, to_inject = {}, []
+        mapping, to_inject = collections.OrderedDict(), []
 
+        # Create usual mapping but pick out commands with `injected_cog`
         for cog in bot.cogs.values():
-            commands = []
+            cmds = []
             for c in cog.get_commands():
                 if hasattr(c, 'injected_cog'):
                     to_inject.append(c)
                 else:
-                    commands.append(c)
-            mapping[cog] = commands
+                    cmds.append(c)
+            mapping[cog] = cmds
 
+        # Append injected commands to corresponding cogs
         for c in to_inject:
             cog = self.context.bot.get_cog(c.injected_cog)
             mapping[cog].append(c)
 
+        # Remove empty cogs
+        to_remove = [cog for cog, cmds in mapping.items() if not cmds]
+        for cog in to_remove:
+            del mapping[cog]
+
+        # Re-order keys by name
+        ordered_cogs = sorted(mapping.keys(), key=lambda cog: self.get_cog_name(cog))
+        for cog in ordered_cogs:
+            mapping.move_to_end(cog)
+
         return mapping
 
-    def command_not_found(self, string):
-        """A method called when a command is not found in the help command.
-
-        Defaults to ``No command called {0} found.``
-
-        Args:
-            string (str):
-                The string that contains the invalid command.
-                Note that this has had mentions removed to prevent abuse.
-
-        Returns:
-            Tuple[str, str]:
-                The error message to show, and the input that caused
-                it.
+    async def filter_bot_mapping(self, mapping: dict, *args, **kwargs) -> dict:
+        """Filters the commands given by get_bot_mapping() and returns
+        the mutated dict.
         """
+        for cog, cmds in mapping.items():
+            mapping[cog] = await self.filter_commands(cmds, *args, **kwargs)
+
+        # Remove any newly empty cogs
+        to_remove = [cog for cog, cmds in mapping.items() if not cmds]
+        for cog in to_remove:
+            del mapping[cog]
+
+        return mapping
+
+    @staticmethod
+    def get_command_doc(command: commands.Command) -> str:
+        return (
+            command.help
+            or command.short_doc
+            or 'There is no description for this {}.'.format(
+                'group' if isinstance(command, commands.Group) else 'command'
+            )
+        )
+
+    @staticmethod
+    def get_cog_name(cog: commands.Cog | None):
+        return getattr(cog, 'qualified_name', 'No Category')
+
+    def command_not_found(self, string: str) -> tuple[str, str]:
         return 'No command called "{}" found.'.format(string), string
 
-    def subcommand_not_found(self, command, string):
-        """A method called when a command did not have a subcommand
-        requested in the help command.
-
-        Defaults to either:
-        - 'Command "{command.qualified_name}" has no subcommands.'
-          If there is no subcommand in the ``command`` parameter.
-        - 'Command "{command.qualified_name}" has no subcommand named {string}'
-          If the `command` parameter has subcommands
-          but not one named `string`.
-
-        Args:
-            command (commands.Command):
-                The command that did not have the subcommand requested.
-            string (str):
-                The string that contains the invalid subcommand.
-                Note that this has had mentions removed to prevent abuse.
-
-        Returns:
-            Tuple[str, str, commands.Command]:
-                The error message to show,
-                the input that caused it,
-                and the command that doesn't have the requested subcommand.
-        """
+    def subcommand_not_found(
+        self, command: commands.Command, string: str
+    ) -> tuple[str, str, commands.Command]:
         if isinstance(command, commands.Group) and len(command.all_commands) > 0:
             message = 'Command "{}" has no subcommand named {}'.format(
                 command.qualified_name, string)
@@ -111,274 +492,25 @@ class HelpCommand(commands.HelpCommand):
 
         return message, string, command
 
-    async def send(self, content=None, *args, embed=None, **kwargs):
-        """Send a message to the user, diverting it to DMs
-        if the message is too long."""
-        length = 0
-        if content is not None:
-            length += len(content)
-        if embed is not None:
-            length += len(embed)
-
-        destination = self.get_destination()
-        ctx = self.context
-
-        if length >= self.help_message_length_threshold:
-            # Too long; send in DMs
-            await ctx.author.send(content, embed=embed, *args, **kwargs)
-
-            if ctx.guild is not None:
-                # User sent command in server; only give notification if they
-                # haven't recently received one
-                if not cooldown_message_length.update_rate_limit(ctx.message):
-                    await destination.send(
-                        'Help message is a bit long; sent it to you in DMs.',
-                        delete_after=8
-                    )
-        else:
-            await destination.send(content, embed=embed, *args, **kwargs)
-
-    async def create_help_category_page(self, mapping=None, *, page_num):
-        """Create an embed showing a page of categories."""
-        if mapping is None:
-            mapping = self.get_bot_mapping()
-
-        categories = self.mapping_to_list(mapping)
-
-        # Check if page num is valid
-        total_pages = math.ceil(len(categories) / self.help_categories_per_page)
-        if page_num not in range(1, total_pages + 1):
-            if total_pages == 1:
-                raise ValueError('Page number must be 1.')
-            raise ValueError(
-                f'Page number must be between 1 and {total_pages}.')
-
-        embed = discord.Embed(
-            title=f'Page {page_num}/{total_pages}',
-            color=utils.get_bot_color(self.context.bot),
-            description=(
-                'Type {0}help [command] for more info on a command.\n'
-                'You can also type {0}help [category] for '
-                'more info on a category (do not type spaces in the '
-                "category's name).".format(self.context.clean_prefix)
-            )
-        )
-
-        # Create fields
-        fields = []
-        start = self.help_categories_per_page * (page_num - 1)
-        end = start + self.help_categories_per_page
-        for category, cmds in itertools.islice(categories, start, end):
-            # Create string listing commands
-            field_text = []
-            for i, com in enumerate(cmds, 1):
-                if i == self.help_commands_per_category and len(cmds) != i:
-                    # Too many commands to show
-                    field_text.append('...')
-                    break
-                else:
-                    field_text.append(com.qualified_name)
-            field_text = '\n'.join(field_text)
-
-            fields.append((self.get_cog_name(category), field_text))
-
-        for field in fields:
-            embed.add_field(name=field[0], value=field[1])
-
-        return embed
-
-    async def create_help_cog_page(self, cog, cmds=None, *, page_num):
-        """Create an embed showing a page of commands in a cog."""
-        if cmds is None:
-            cmds = await self.filter_commands(
-                self.get_bot_mapping()[cog],  # includes injected commands
-                sort=True
-            )
-
-        total_pages = math.ceil(len(cmds) / self.help_cog_commands_per_page)
-
-        # Check if page num is valid
-        if page_num not in range(1, total_pages + 1):
-            if total_pages == 1:
-                raise ValueError('Page number must be 1.')
-            elif total_pages == 0:
-                return discord.Embed(
-                    title='Category help unavailable',
-                    color=utils.get_bot_color(self.context.bot),
-                    description=(
-                        'This category exists, but you cannot access any '
-                        'of its commands here.'
-                    )
-                )
-            raise ValueError(
-                f'Page number must be between 1 and {total_pages}.')
-
-        embed = discord.Embed(
-            title=f'{cog.qualified_name} - Page {page_num}/{total_pages}',
-            color=utils.get_bot_color(self.context.bot),
-            description=(
-                f'{cog.description}\nType {self.context.clean_prefix}help [command] '
-                'for more info on a command.'
-            )
-        )
-
-        # Create fields
-        start = self.help_cog_commands_per_page * (page_num - 1)
-        end = start + self.help_cog_commands_per_page
-        for com in itertools.islice(cmds, start, end):
-            embed.add_field(
-                name=com.qualified_name,
-                value=com.short_doc if com.short_doc else 'No description.'
-            )
-
-        return embed
-
-    def get_cog_name(self, cog):
-        return getattr(cog, 'qualified_name', self.no_category)
-
-    def mapping_to_list(
-        self, mapping
-    ) -> list[tuple[Optional[commands.Cog], list[commands.Command]]]:
-        """Convert the mapping returned by `get_bot_mapping()`
-        to a list sorted by cog name and command name.
-        """
-        # Remove items with no commands
-        to_remove = [k for k, v in mapping.items() if not v]
-        for k in to_remove:
-            del mapping[k]
-
-        items = sorted(
-            mapping.items(),
-            key=lambda x: self.get_cog_name(x[0])
-        )
-
-        for _, cmds in items:
-            cmds.sort(key=lambda x: x.qualified_name)
-
-        return items
-
-    async def send_error_message(self, error):
-        """Sends a help page if the user asks for a specific page.
-        Otherwise, sends an error message.
-
-        The result of `command_not_found` or
-        `command_has_no_subcommand_found` will be passed here.
-
-        Args:
-            error (str):
-                The error message to display to the user. Note that this has
-                had mentions removed to prevent abuse.
-
-        """
-        destination = self.get_destination()
-
-        error, string, *command = error
-        command = command[0] if command else None
-
-        try:
-            # Try converting into a page number
-            cog, page_num = None, int(string)
-        except ValueError:
-            try:
-                # Get and try converting page number
-                page_num = int(self.context.kwargs['command'].split()[1])
-                cog = self.context.bot.get_cog(string)
-            except (IndexError, ValueError):
-                # Not a page number request
-                return await self.send(error)
-
-        if cog is None:
-            # User requested a help page
-            try:
-                embed = await self.create_help_category_page(page_num=page_num)
-            except ValueError as e:
-                # Invalid page number
-                await destination.send(str(e))
-            else:
-                await self.send(embed=embed)
-        else:
-            # User requested a cog help page
-            try:
-                embed = await self.create_help_cog_page(cog, page_num=page_num)
-            except ValueError as e:
-                # Invalid page number
-                await destination.send(str(e))
-            else:
-                await self.send(embed=embed)
-
     async def send_bot_help(self, mapping):
         """Sends help when no arguments are given."""
-        embed = await self.create_help_category_page(mapping, page_num=1)
-
-        await self.send(embed=embed)
+        view = HelpView(await HelpView.get_page_source(mapping, self), self)
+        await view.start(self.get_destination())
 
     async def send_cog_help(self, cog):
         """Sends help for a specific cog."""
-        cmds = await self.filter_commands(
-            self.get_bot_mapping()[cog],  # includes injected commands
-            sort=True
-        )
-
-        if all(c.hidden for c in cmds):
-            # Cog has no visible commands; pretend it doesn't exist
-            ctx = self.context
-            content = self.context.message.content.replace(
-                ctx.prefix + ctx.invoked_with, '').strip()
-            return await self.send_error_message(
-                self.command_not_found(content))
-
-        embed = await self.create_help_cog_page(cog, cmds, page_num=1)
-
-        await self.send(embed=embed)
+        view = HelpView(await HelpView.get_page_source(cog, self), self)
+        await view.start(self.get_destination())
 
     async def send_group_help(self, group):
-        """Sends help for an individual group.
-
-        NOTE: Does not support groups containing over 25 commands.
-
-        """
-        embed = discord.Embed(
-            title=self.get_command_signature(group),
-            color=utils.get_bot_color(self.context.bot),
-            description=group.help or group.short_doc
-        )
-
-        # Add fields
-        for com in group.commands:
-            embed.add_field(
-                name=com.name,
-                value=com.short_doc or 'No description.'
-            )
-
-        await self.send(embed=embed)
+        """Sends help for an individual group."""
+        view = HelpView(await HelpView.get_page_source(group, self), self)
+        await view.start(self.get_destination())
 
     async def send_command_help(self, command):
         """Sends help for an individual command."""
-        description = [f'`{self.get_command_signature(command)}`\n']
-
-        if command.help:
-            description.append(command.help)
-        elif command.short_doc:
-            description.append(command.short_doc)
-        else:
-            description.append('There is no description for this command.')
-
-        embed = discord.Embed(
-            title=command.qualified_name,
-            color=utils.get_bot_color(self.context.bot),
-            description=''.join(description)
-        )
-
-        cog = None
-        if hasattr(command, 'injected_cog'):
-            cog = self.context.bot.get_cog(command.injected_cog)
-        cog = cog or command.cog
-
-        if cog:
-            embed.set_author(
-                name=f'In {self.get_cog_name(cog)} category')
-
-        await self.send(embed=embed)
+        view = HelpView(await HelpView.get_page_source(command, self), self)
+        await view.start(self.get_destination())
 
 
 def setup(bot):
