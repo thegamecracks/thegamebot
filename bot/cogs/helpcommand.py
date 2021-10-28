@@ -21,6 +21,8 @@ HELP_OBJECT = (
 )
 
 
+# NOTE: help objects are strongly referenced,
+# preventing cleanup of reloaded cogs/commands
 class HelpView(discord.ui.View):
     COGS_PER_PAGE = 5
     COMMANDS_PER_PAGE = 9
@@ -67,7 +69,19 @@ class HelpView(discord.ui.View):
                 per_page=cls.COGS_PER_PAGE
             )
         elif isinstance(obj, (commands.Cog, type(None))):
-            cmds = help_command.get_bot_mapping()[obj]
+            mapping = help_command.get_bot_mapping()
+            cmds = mapping.get(obj)
+
+            if cmds is None:
+                # Cog was either reloaded or unloaded;
+                # try querying by name and fallback to BotPageSource
+                if isinstance(obj, commands.Cog):
+                    obj = help_command.context.bot.get_cog(type(obj).__name__)
+                    cmds = mapping.get(obj)
+
+                if cmds is None:
+                    return await cls.get_page_source(mapping, help_command)
+
             cmds = await help_command.filter_commands(cmds, sort=True)
             return CogPageSource(obj, cmds, per_page=cls.COMMANDS_PER_PAGE)
         elif isinstance(obj, commands.Group):
