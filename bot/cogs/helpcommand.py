@@ -433,7 +433,7 @@ class HelpCommand(commands.HelpCommand):
     def __init__(self):
         super().__init__(
             command_attrs={
-                'help': 'Shows help about the bot, a command, or a category',
+                'help': 'Shows help about the bot, a command, or a category.',
                 'max_concurrency': commands.MaxConcurrency(
                     1, per=commands.BucketType.user, wait=False)
             }
@@ -532,6 +532,7 @@ class HelpCommand(commands.HelpCommand):
             user_id=self.context.author.id
         )
         await view.start(self.get_destination())
+        await view.wait()
 
     async def send_cog_help(self, cog):
         """Sends help for a specific cog."""
