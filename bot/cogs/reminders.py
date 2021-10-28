@@ -379,8 +379,9 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
         )
 
         await ctx.send(
-            'Added your {} reminder for {} in {}.'.format(
+            'Added your {} {} for {} in {}.'.format(
                 ctx.bot.inflector.ordinal(total_reminders + 1),
+                'announcement' if self.is_announcement(content) else 'reminder',
                 discord.utils.format_dt(due, style='F'),
                 'this channel' if channel == ctx.channel else channel.mention
             )
