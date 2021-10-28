@@ -28,14 +28,17 @@ class HelpView(discord.ui.View):
     COMMANDS_PER_PAGE = 9
 
     def __init__(
-        self, source: "PageSource",
+        self, *,
+        source: "PageSource",
         help_command: "HelpCommand",
+        user_id: int,
         last_help: Union["HelpView", HELP_OBJECT] = discord.utils.MISSING,
         start_page: int = 0
     ):
         super().__init__(timeout=60)
         self.source: "PageSource" = source
         self.help_command = help_command
+        self.user_id = user_id
         self.sub_help: Optional["HelpView"] = None
         if last_help is discord.utils.MISSING:
             last_help = self._get_last_help()
@@ -172,6 +175,15 @@ class HelpView(discord.ui.View):
         else:
             self.message = await channel.send(**self._get_message_kwargs())
 
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                'This is not your help message!',
+                ephemeral=True
+            )
+            return False
+        return True
+
     async def on_timeout(self):
         if self.sub_help is None:
             await self.message.delete()
@@ -182,8 +194,10 @@ class HelpView(discord.ui.View):
         obj = self.option_objects[index]
 
         self.sub_help = HelpView(
-            await self.get_page_source(obj, self.help_command),
-            self.help_command, self
+            source=await self.get_page_source(obj, self.help_command),
+            help_command=self.help_command,
+            user_id=self.user_id,
+            last_help=self
         )
         await self.sub_help.start(interaction)
 
@@ -225,13 +239,17 @@ class HelpView(discord.ui.View):
         if isinstance(obj, HelpView):
             # Create copy of last_help in case it timed out
             view = HelpView(
-                obj.source, obj.help_command,
-                obj.last_help, obj.current_page
+                source=obj.source,
+                help_command=obj.help_command,
+                user_id=self.user_id,
+                last_help=obj.last_help,
+                start_page=obj.current_page
             )
         else:
             view = HelpView(
-                await self.get_page_source(obj, self.help_command),
-                self.help_command
+                source=await self.get_page_source(obj, self.help_command),
+                help_command=self.help_command,
+                user_id=self.user_id
             )
         await view.start(interaction)
 
@@ -508,23 +526,24 @@ class HelpCommand(commands.HelpCommand):
 
     async def send_bot_help(self, mapping):
         """Sends help when no arguments are given."""
-        view = HelpView(await HelpView.get_page_source(mapping, self), self)
+        view = HelpView(
+            source=await HelpView.get_page_source(mapping, self),
+            help_command=self,
+            user_id=self.context.author.id
+        )
         await view.start(self.get_destination())
 
     async def send_cog_help(self, cog):
         """Sends help for a specific cog."""
-        view = HelpView(await HelpView.get_page_source(cog, self), self)
-        await view.start(self.get_destination())
+        return await self.send_bot_help(cog)
 
     async def send_group_help(self, group):
         """Sends help for an individual group."""
-        view = HelpView(await HelpView.get_page_source(group, self), self)
-        await view.start(self.get_destination())
+        return await self.send_bot_help(group)
 
     async def send_command_help(self, command):
         """Sends help for an individual command."""
-        view = HelpView(await HelpView.get_page_source(command, self), self)
-        await view.start(self.get_destination())
+        return await self.send_bot_help(command)
 
 
 def setup(bot):
