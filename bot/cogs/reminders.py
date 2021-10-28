@@ -5,7 +5,7 @@
 import asyncio
 import datetime
 import re
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 import dateparser
 from dateutil.relativedelta import relativedelta
@@ -42,8 +42,13 @@ class Reminders(commands.Cog):
     """Commands for setting up reminders."""
     qualified_name = 'Reminders'
 
+    ESCAPED_ROLE_MENTION = re.compile(r'\\<@&(\d+)>')
+    EVERYONE_ROLE_USER_MENTION = re.compile(r'@everyone|@here|<@[!&]?\d+>')
+    EVERYONE_ROLE_MENTION = re.compile(r'@everyone|@here|<@&(?P<id>\d+)>')
+
     MAXIMUM_REMINDERS = 10
     MAXIMUM_REMINDER_CONTENT = 250
+    MAXIMUM_ANNOUNCEMENT_CONTENT = 1000
     MINIMUM_REMINDER_TIME = 30
 
     DATEPARSER_SETTINGS = {
@@ -111,9 +116,15 @@ class Reminders(commands.Cog):
 
         return reminders
 
+    def is_announcement(self, content: str):
+        """Determine if a reminder's content is an announcement
+        (whether a user/role mention exists on the first line of the message).
 
+        When adding reminders in DMs, a newline can be prepended to the content
+        to prevent the reminder from being interpreted as an announcement.
 
-
+        """
+        return bool(self.EVERYONE_ROLE_USER_MENTION.search(content.split('\n', 1)[0]))
 
     async def parse_datetime(self, ctx, date_string: str) -> datetime.datetime:
         """Parse a string as a timezone-aware datetime."""
@@ -144,7 +155,7 @@ class Reminders(commands.Cog):
         name='reminder', aliases=('reminders',),
         invoke_without_command=True
     )
-    @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.cooldown(2, 6, commands.BucketType.user)
     async def client_reminders(self, ctx, index: int = None):
         """See your reminders."""
         reminder_list = await self.get_reminders(ctx.author.id)
@@ -154,14 +165,15 @@ class Reminders(commands.Cog):
 
         if index is None:
             lines = [
-                '{}. {}: {}'.format(
+                '{}. <#{}> {}: {}'.format(
                     i,
+                    reminder['channel_id'],
                     discord.utils.format_dt(
                         reminder['due'].replace(
                             tzinfo=datetime.timezone.utc
                         ), 'R'
                     ),
-                    utils.truncate_message(reminder['content'], 40, max_lines=1)
+                    utils.truncate_message(reminder['content'].lstrip(), 40, max_lines=1)
                 ) for i, reminder in enumerate(reminder_list, start=1)
             ]
 
@@ -180,8 +192,11 @@ class Reminders(commands.Cog):
         utcdue = reminder['due'].replace(tzinfo=datetime.timezone.utc)
         embed = discord.Embed(
             title=f'Reminder #{index:,}',
-            description=reminder['content'],
+            description=reminder['content'].lstrip(),
             color=utils.get_user_color(ctx.bot, ctx.author)
+        ).add_field(
+            name='Sends to',
+            value='<#{}>'.format(reminder['channel_id'])
         ).add_field(
             name='Due in',
             value='{}\n({})'.format(
@@ -240,99 +255,147 @@ Examples:
 
 
     @client_reminders.command(name='add')
-    async def client_reminders_add(self, ctx, *, time_and_reminder):
-        """Add a reminder to be sent in your DMs.
+    async def client_reminders_add(
+            self, ctx, channel: Optional[discord.TextChannel],
+            *, time_and_reminder):
+        """Create a reminder in the given or current channel.
 
 Usage:
-    <command> at 10pm EST to <x>
-    <command> in 30 sec/min/h/days to <x>
-    <command> on wednesday to <x>
+    remind at 10pm EST to <x>
+    remind in 30 sec/min/h/days to <x>
+    remind #announcements on wednesday to <x>
 Note that the time and your reminder message have to be separated with "to".
 If you have not explicitly said a timezone in the command but you have
 provided the bot your timezone before with "timezone set", that timezone will
 be used instead of UTC.
 
-Time is rounded down to the minute if seconds are not specified.
-You can have a maximum of 5 reminders."""
-        me_perms = ctx.channel.permissions_for(ctx.me)
+The channel parameter only allows channels where you can both send messages and mention everyone in.
+
+User mentions will be escaped except in DMs or where you are permitted to mention everyone.
+If you can mention, this command can be used to create scheduled server announcements with these steps:
+1. hide the "@you time" header by mentioning your members in the first line of your reminder
+2. use @all and @now in place of @\u200beveryone and @\u200bhere to avoid pinging people with your command
+3. prefix role mentions with a backslash \\ to avoid pinging roles
+The announcement can only be scheduled if the bot has sufficient permissions to ping each included mention."""
+        if channel is not None:
+            # Given channel must be in same guild and have enough permissions
+            if channel.guild != ctx.guild:
+                return await ctx.message.add_reaction('\N{CROSS MARK}')
+
+            user_perms = channel.permissions_for(ctx.author)
+            if not user_perms.send_messages or not user_perms.mention_everyone:
+                return await ctx.message.add_reaction('\N{CROSS MARK}')
+        else:
+            channel = ctx.channel
+            user_perms = channel.permissions_for(ctx.author)
+
+        me_perms = channel.permissions_for(ctx.me)
         if not me_perms.send_messages:
-            if me_perms.add_reactions:
-                await ctx.message.add_reaction('\N{FACE WITHOUT MOUTH}')
-            return
+            return await ctx.message.add_reaction('\N{FACE WITHOUT MOUTH}')
 
         total_reminders = len(await self.get_reminders(ctx.author.id))
-
-        if total_reminders < self.MAXIMUM_REMINDERS:
-            # Get current time in UTC without microseconds
-            utcnow = discord.utils.utcnow().replace(microsecond=0)
-            try:
-                # Separate time and reminder,
-                # also making sure that content is provided
-                due, content = [s.strip() for s in re.split(
-                    'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
-                )]
-                async with ctx.typing():
-                    due = await self.parse_datetime(ctx, due)
-                if due is None:
-                    return await ctx.send(
-                        'Could not understand your given time.')
-            except (ValueError, AttributeError):
-                return await ctx.send(
-                    'Could not understand your reminder request. Check this '
-                    "command's help page for allowed syntax."
-                )
-
-            td = due - utcnow
-            seconds_until = td.total_seconds()
-
-            if seconds_until < 0:
-                return await ctx.send(
-                    'You cannot create a reminder for the past.')
-            elif seconds_until < self.MINIMUM_REMINDER_TIME:
-                return await ctx.send(
-                    'You must set a reminder lasting for at '
-                    f'least {self.MINIMUM_REMINDER_TIME} seconds.'
-                )
-            elif not content:
-                return await ctx.send(
-                    'You must have a message with your reminder.')
-            elif len(content) > self.MAXIMUM_REMINDER_CONTENT:
-                diff = len(content) - self.MAXIMUM_REMINDER_CONTENT
-                return await ctx.send(
-                    'Please provide a message under {} {} (-{}).'.format(
-                        self.MAXIMUM_REMINDER_CONTENT,
-                        ctx.bot.inflector.plural('character', diff),
-                        diff
-                    )
-                )
-
-            await self.add_reminder(
-                user_id=ctx.author.id,
-                channel_id=ctx.channel.id,
-                due=due,
-                content=content
-            )
-
-            await ctx.send(
-                'Your {} reminder has been added for: {}'.format(
-                    ctx.bot.inflector.ordinal(total_reminders + 1),
-                    discord.utils.format_dt(due, style='F')
-                )
-            )
-        else:
-            await ctx.send(
+        if total_reminders >= self.MAXIMUM_REMINDERS:
+            return await ctx.send(
                 'You have reached the maximum limit of '
                 f'{self.MAXIMUM_REMINDERS} reminders.'
             )
 
+        # Get current time in UTC without microseconds
+        utcnow = discord.utils.utcnow().replace(microsecond=0)
+        try:
+            # Separate time and reminder,
+            # also making sure that content is provided
+            due, content = [s.strip() for s in re.split(
+                'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
+            )]
+            async with ctx.typing():
+                due = await self.parse_datetime(ctx, due)
+            if due is None:
+                return await ctx.send(
+                    'Could not understand your given time.')
+        except (ValueError, AttributeError):
+            return await ctx.send(
+                'Could not understand your reminder request. Check this '
+                "command's help page for allowed syntax."
+            )
+
+        td = due - utcnow
+        seconds_until = td.total_seconds()
+        if seconds_until < 0:
+            return await ctx.send(
+                'You cannot create a reminder for the past.')
+        elif seconds_until < self.MINIMUM_REMINDER_TIME:
+            return await ctx.send(
+                'You must set a reminder lasting for at '
+                f'least {self.MINIMUM_REMINDER_TIME} seconds.'
+            )
+        elif not content:
+            return await ctx.send('You must have a message with your reminder.')
+
+        # Fix/clean mentions
+        if user_perms.mention_everyone:
+            max_content_size = self.MAXIMUM_ANNOUNCEMENT_CONTENT
+            content = content.replace('@all', '@everyone').replace('@now', '@here')
+            content = self.ESCAPED_ROLE_MENTION.sub(r'<@&\1>', content)
+
+            if isinstance(channel, discord.DMChannel):
+                # Prepend a newline so the message is not
+                # considered an announcement (yes, this is stupid)
+                content = '\n' + content
+            elif not me_perms.mention_everyone:
+                # Prevent creating the announcement if there's a mention
+                # the bot cannot do properly
+                for m in self.EVERYONE_ROLE_MENTION.finditer(content):
+                    if m.group() in ('@everyone', '@here'):
+                        return await ctx.send(
+                            f'I am missing permissions to '
+                            f'ping everyone in {channel.mention}.'
+                        )
+                    role = channel.guild.get_role(int(m.group('id')))
+                    if role is not None and not role.mentionable:
+                        return await ctx.send(
+                            f'I am missing permissions to '
+                            f'properly ping the {role.mention} role.'
+                        )
+        else:
+            max_content_size = self.MAXIMUM_REMINDER_CONTENT
+            content = await commands.clean_content().convert(ctx, content)
+
+        diff = len(content) - max_content_size
+        if diff > 0:
+            return await ctx.send(
+                'Please provide a message under {:,d} {} (-{:,d}).'.format(
+                    max_content_size,
+                    ctx.bot.inflector.plural('character', max_content_size),
+                    diff
+                )
+            )
+
+        await self.add_reminder(
+            user_id=ctx.author.id,
+            channel_id=channel.id,
+            due=due,
+            content=content
+        )
+
+        await ctx.send(
+            'Added your {} reminder for {} in {}.'.format(
+                ctx.bot.inflector.ordinal(total_reminders + 1),
+                discord.utils.format_dt(due, style='F'),
+                'this channel' if channel == ctx.channel else channel.mention
+            )
+        )
+
 
     @commands.command(
-        name='remind', aliases=('remindme',),
+        name='remind', aliases=('remindme', 'announce'),
         brief='Shorthand for reminder add.',
         help=client_reminders_add.callback.__doc__
     )
-    async def client_remind(self, ctx, *, time_and_reminder):
-        await self.client_reminders_add(ctx, time_and_reminder=time_and_reminder)
+    async def client_remind(
+            self, ctx, channel: Optional[discord.TextChannel],
+            *, time_and_reminder):
+        await self.client_reminders_add(ctx, channel, time_and_reminder=time_and_reminder)
 
 
 
@@ -399,16 +462,23 @@ You can have a maximum of 5 reminders."""
                 f'ID {reminder_id}: reminder was deleted during wait'
             )
 
-        description = ['**', discord.utils.format_dt(entry['due'], style='F')]
-        if seconds < 0:
-            description.append(' (overdue)')
-        description.append('**\n')
-        description.append(entry['content'])
-        embed = discord.Embed(description=''.join(description))
+        description = []
+        # Include mention and time if message is not an announcement
+        if not self.is_announcement(entry['content']):
+            description.append(
+                '<@{}> **{}'.format(
+                    entry['user_id'],
+                    discord.utils.format_dt(entry['due'], style='F')
+                )
+            )
+            if seconds < 0:
+                description.append(' (overdue)')
+            description.append('**\n')
+        description.append(entry['content'].lstrip())
 
         channel = self.bot.get_partial_messageable(entry['channel_id'])
         try:
-            await channel.send(f'<@{entry["user_id"]}>', embed=embed)
+            await channel.send(''.join(description))
         except discord.Forbidden as e:
             logger.debug(
                 f'Reminders: failed to send reminder, ID {reminder_id}: '
