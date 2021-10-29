@@ -58,7 +58,7 @@ class Economy(commands.Cog):
             color=utils.get_user_color(ctx.bot, user)
         ).set_author(
             name=user.display_name,
-            icon_url=user.avatar.url
+            icon_url=user.display_avatar.url
         )
 
         await ctx.send(embed=embed)

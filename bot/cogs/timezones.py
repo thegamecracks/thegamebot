@@ -376,7 +376,7 @@ class Timezones(commands.Cog):
             color=utils.get_bot_color(self.bot)
         ).set_author(
             name=f'Requested by {user.display_name}',
-            icon_url=user.avatar.url
+            icon_url=user.display_avatar.url
         )
         jump_to = f'\n[Jump to message]({message.jump_url})'
         if tz_in == tz_out:
@@ -449,6 +449,7 @@ message: The message to remove a reaction from. If not provided, checks the last
         def valid_author_message(m):
             return m.author == ctx.author and self.get_clock_reaction(m)
 
+        me_perms = ctx.channel.permissions_for(ctx.me)
         clock = self.bot.get_emoji(self.clock_emoji)
         response = '\N{WHITE HEAVY CHECK MARK}'
 
@@ -466,12 +467,13 @@ message: The message to remove a reaction from. If not provided, checks the last
             response = '\N{CROSS MARK}'
         elif not getattr(self.get_clock_reaction(message), 'me', False):
             response = '\N{BLACK QUESTION MARK ORNAMENT}'
+        elif me_perms.manage_messages:
+            await message.clear_reaction(clock)
         else:
             await message.remove_reaction(clock, ctx.me)
 
         # Delete message if successful and message is in same channel
         if response == '\N{WHITE HEAVY CHECK MARK}':
-            me_perms = ctx.channel.permissions_for(ctx.me)
             if ctx.channel == message.channel and me_perms.manage_messages:
                 return await ctx.message.delete()
 

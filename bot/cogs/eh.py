@@ -406,7 +406,7 @@ class EventHandlers(commands.Cog):
                         round(error.retry_after * 10) / 10
                     )
                 ),
-                icon_url=ctx.author.avatar.url
+                icon_url=ctx.author.display_avatar.url
             )
 
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
@@ -447,7 +447,7 @@ class EventHandlers(commands.Cog):
                 color=utils.get_bot_color(ctx.bot)
             ).set_footer(
                 text=get_concurrency_description(),
-                icon_url=ctx.author.avatar.url
+                icon_url=ctx.author.display_avatar.url
             )
 
             await ctx.send(embed=embed)
@@ -516,7 +516,7 @@ class EventHandlers(commands.Cog):
                 )
             ).set_author(
                 name=ctx.author.display_name,
-                icon_url=ctx.author.avatar.url
+                icon_url=ctx.author.display_avatar.url
             )
             await ctx.send(embed=embed)
             raise error
@@ -530,7 +530,7 @@ class EventHandlers(commands.Cog):
                     'You can retry in {0} plural("second", {0}).'.format(
                         round(error.retry_after * 10) / 10)
                 ),
-                icon_url=ctx.author.avatar.url
+                icon_url=ctx.author.display_avatar.url
             )
 
             await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
@@ -553,7 +553,7 @@ class EventHandlers(commands.Cog):
                 )
             ).set_author(
                 name=ctx.author.display_name,
-                icon_url=ctx.author.avatar.url
+                icon_url=ctx.author.display_avatar.url
             )
             await ctx.send(embed=embed)
             raise error

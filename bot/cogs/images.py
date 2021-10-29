@@ -39,7 +39,7 @@ def embed_thatapiguy(ctx, response: dict):
         color=utils.get_user_color(ctx.bot, ctx.author)
     ).set_footer(
         text=f'Requested by {ctx.author.name}',
-        icon_url=ctx.author.avatar.url
+        icon_url=ctx.author.display_avatar.url
     ).set_image(
         url=response['url']
     )

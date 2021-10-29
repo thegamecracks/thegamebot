@@ -5,6 +5,7 @@
 import asyncio
 import datetime
 import re
+from typing import Literal, Optional, Union
 
 import dateparser
 from dateutil.relativedelta import relativedelta
@@ -12,14 +13,42 @@ import discord
 from discord.ext import commands, tasks
 import pytz
 
-from bot import utils
+from bot import errors, utils
+from bot.database.reminderdatabase import PartialReminderEntry, ReminderEntry
 from bot.other import discordlogger
+
+
+class IndexConverter(commands.Converter):
+    """Parse an integer (1) or range (1-4)."""
+
+    async def convert(self, ctx, arg) -> range:
+        error = errors.ErrorHandlerResponse(f'Could not understand "{arg}".')
+        values = []
+        for n in arg.split('-')[:3]:
+            try:
+                values.append(int(n))
+            except ValueError:
+                raise error
+
+        length = len(values)
+        if length == 1:
+            return range(values[0], values[0] + 1)
+        elif length == 2:
+            return range(values[0], values[1] + 1)
+        raise error
 
 
 class Reminders(commands.Cog):
     """Commands for setting up reminders."""
     qualified_name = 'Reminders'
 
+    ESCAPED_ROLE_MENTION = re.compile(r'\\<@&(\d+)>')
+    EVERYONE_ROLE_USER_MENTION = re.compile(r'@everyone|@here|<@[!&]?\d+>')
+    EVERYONE_ROLE_MENTION = re.compile(r'@everyone|@here|<@&(?P<id>\d+)>')
+
+    MAXIMUM_REMINDERS = 10
+    MAXIMUM_REMINDER_CONTENT = 250
+    MAXIMUM_ANNOUNCEMENT_CONTENT = 1000
     MINIMUM_REMINDER_TIME = 30
 
     DATEPARSER_SETTINGS = {
@@ -34,26 +63,26 @@ class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.cache = {}  # user_id: reminders
-        # NOTE: this bot is small so this isn't required but if the bot
-        # never restarts frequently, the cache could grow forever,
-        # so this could use an LRU cache implementation
         self.send_reminders_tasks = {}  # reminder_id: Task
         self.send_reminders.start()
 
     def cog_unload(self):
         self.send_reminders.cancel()
+        for task in self.send_reminders_tasks.values():
+            task.cancel()
 
 
 
 
 
-    async def add_reminder(self, user_id, utcdue, content):
-        """Adds a reminder and invalidates the user's cache."""
-        reminder_id = await self.bot.dbreminders.add_reminder(
-            user_id, utcdue, content)
-        self.cache.pop(user_id, None)
+    async def add_reminder(self, **entry: PartialReminderEntry):
+        """Adds a reminder and invalidates the user's cache.
+        Kwargs are passed through to dbreminders.add_reminder.
+        """
+        reminder_id = await self.bot.dbreminders.add_reminder(**entry)
+        self.cache.pop(entry['user_id'], None)
 
-        self.check_to_create_reminder(reminder_id, user_id, content, utcdue)
+        self.check_to_create_reminder(reminder_id=reminder_id, **entry)
 
     async def delete_reminder_by_id(self, reminder_id, pop=False):
         """Remove a reminder by reminder_id and update the caches."""
@@ -87,11 +116,18 @@ class Reminders(commands.Cog):
 
         return reminders
 
+    def is_announcement(self, content: str):
+        """Determine if a reminder's content is an announcement
+        (whether a user/role mention exists on the first line of the message).
 
+        When adding reminders in DMs, a newline can be prepended to the content
+        to prevent the reminder from being interpreted as an announcement.
 
+        """
+        return bool(self.EVERYONE_ROLE_USER_MENTION.search(content.split('\n', 1)[0]))
 
-
-    async def parse_datetime(self, ctx, date_string: str):
+    async def parse_datetime(self, ctx, date_string: str) -> datetime.datetime:
+        """Parse a string as a timezone-aware datetime."""
         # Determine timezone
         # Check string for timezone, then look in database, and fallback to UTC
         date_string, tz = dateparser.timezone_parser.pop_tz_offset_from_string(date_string)
@@ -109,221 +145,271 @@ class Reminders(commands.Cog):
         # Parse
         dt = dateparser.parse(date_string, settings=settings)
 
-        # Offset back to UTC and make it timezone-naive
-        dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-
         return dt
 
 
-    @commands.command(
-        name='addreminder',
-        aliases=['remindme'])
-    @commands.cooldown(2, 15, commands.BucketType.user)
-    async def client_addreminder(self, ctx, *, time_and_reminder):
-        """Add a reminder to be sent in your DMs.
+
+
+
+    @commands.group(
+        name='reminder', aliases=('reminders',),
+        invoke_without_command=True
+    )
+    @commands.cooldown(2, 6, commands.BucketType.user)
+    async def client_reminders(self, ctx, index: int = None):
+        """See a list of your reminders.
+
+index: If provided, shows more details about the given reminder."""
+        reminder_list = await self.get_reminders(ctx.author.id)
+
+        if not reminder_list:
+            return await ctx.send("You don't have any reminders.")
+
+        if index is None:
+            lines = [
+                '{}. <#{}> {}: {}'.format(
+                    i,
+                    reminder['channel_id'],
+                    discord.utils.format_dt(
+                        reminder['due'].replace(
+                            tzinfo=datetime.timezone.utc
+                        ), 'R'
+                    ),
+                    utils.truncate_message(reminder['content'].lstrip(), 40, max_lines=1)
+                ) for i, reminder in enumerate(reminder_list, start=1)
+            ]
+
+            embed = discord.Embed(
+                color=utils.get_user_color(ctx.bot, ctx.author),
+                description='\n'.join(lines)
+            ).set_author(
+                name=ctx.author.display_name,
+                icon_url=ctx.author.display_avatar.url
+            )
+            return await ctx.send(embed=embed)
+        elif not 0 < index <= len(reminder_list):
+            return await ctx.send('That index does not exist.')
+
+        reminder = reminder_list[index - 1]
+        utcdue = reminder['due'].replace(tzinfo=datetime.timezone.utc)
+        embed = discord.Embed(
+            title='{} #{:,}'.format(
+                'Announcement'
+                if self.is_announcement(reminder['content'])
+                else 'Reminder',
+                index
+            ),
+            description=reminder['content'].lstrip(),
+            color=utils.get_user_color(ctx.bot, ctx.author)
+        ).add_field(
+            name='Sends to',
+            value='<#{}>'.format(reminder['channel_id'])
+        ).add_field(
+            name='Due in',
+            value='{}\n({})'.format(
+                utils.timedelta_string(
+                    relativedelta(
+                        utcdue,
+                        discord.utils.utcnow()
+                    ),
+                    inflector=ctx.bot.inflector
+                ),
+                discord.utils.format_dt(utcdue, style='F')
+            )
+        )
+        await ctx.send(embed=embed)
+
+
+    @client_reminders.command(name='remove', aliases=('delete',))
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def client_reminders_remove(
+        self, ctx, *indices: Union[Literal['all'], IndexConverter]
+    ):
+        """Remove one or multiple reminders.
+
+Examples:
+    <prefix>reminder remove 1
+    <prefix>reminder remove 1-4
+    <prefix>reminder remove 1 3 5-7
+    <prefix>reminder remove all"""
+        if not indices:
+            return await ctx.send_help(ctx.command)
+
+        reminder_list = await self.get_reminders(ctx.author.id)
+
+        if not reminder_list:
+            return await ctx.send("You already have no reminders.")
+
+        if 'all' in indices:
+            valid = range(len(reminder_list))
+        else:
+            valid = {n - 1 for r in indices for n in r
+                     if 0 < n <= len(reminder_list)}
+
+        if not valid:
+            return await ctx.send('No valid indices were provided.')
+
+        for n in valid:
+            reminder = reminder_list[n]
+            await self.delete_reminder_by_id(reminder['reminder_id'])
+
+        await ctx.send(
+            '{} {} successfully deleted!'.format(
+                len(valid),
+                ctx.bot.inflector.plural('reminder', len(valid))
+            )
+        )
+
+
+    @client_reminders.command(name='add')
+    async def client_reminders_add(
+            self, ctx, channel: Optional[discord.TextChannel],
+            *, time_and_reminder):
+        """Create a reminder in the given or current channel.
 
 Usage:
-    <command> at 10pm EST to <x>
-    <command> in 30 sec/min/h/days to <x>
-    <command> on wednesday to <x>
+    remind at 10pm EST to <x>
+    remind in 30 sec/min/h/days to <x>
+    remind #announcements on wednesday to <x>
 Note that the time and your reminder message have to be separated with "to".
 If you have not explicitly said a timezone in the command but you have
 provided the bot your timezone before with "timezone set", that timezone will
 be used instead of UTC.
 
-Time is rounded down to the minute if seconds are not specified.
-You can have a maximum of 5 reminders."""
+The channel parameter only allows channels in the same server where you can both send messages and mention everyone in.
+
+User mentions will be escaped except in DMs or where you are permitted to mention everyone.
+If you can mention, this command can be used to create scheduled server announcements with these steps:
+1. hide the "@you time" header by mentioning your members in the first line of your message
+2. use @all and @now in place of @\u200beveryone and @\u200bhere to avoid pinging people with your command
+3. prefix role mentions with a backslash \\ to avoid pinging roles
+The announcement can only be scheduled if the bot has sufficient permissions to ping each included mention."""
+        if channel is not None:
+            # Given channel must be in same guild and have enough permissions
+            if channel.guild != ctx.guild:
+                return await ctx.message.add_reaction('\N{CROSS MARK}')
+
+            user_perms = channel.permissions_for(ctx.author)
+            if not user_perms.send_messages or not user_perms.mention_everyone:
+                return await ctx.message.add_reaction('\N{CROSS MARK}')
+        else:
+            channel = ctx.channel
+            user_perms = channel.permissions_for(ctx.author)
+
+        me_perms = channel.permissions_for(ctx.me)
+        if not me_perms.send_messages:
+            return await ctx.message.add_reaction('\N{FACE WITHOUT MOUTH}')
+
         total_reminders = len(await self.get_reminders(ctx.author.id))
-
-        if total_reminders < 5:
-            # Get current time in UTC without microseconds
-            utcnow = datetime.datetime.utcnow().replace(microsecond=0)
-            try:
-                # Separate time and reminder,
-                # also making sure that content is provided
-                when, content = [s.strip() for s in re.split(
-                    'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
-                )]
-                when = await self.parse_datetime(ctx, when)
-            except (ValueError, AttributeError):
-                return await ctx.send(
-                    'Could not understand your reminder request. Check this '
-                    "command's help page for allowed syntax."
-                )
-
-            td = when - utcnow
-            seconds_until = td.total_seconds()
-
-            if seconds_until < 0:
-                return await ctx.send(
-                    'You cannot create a reminder for the past.')
-            elif seconds_until < self.MINIMUM_REMINDER_TIME:
-                return await ctx.send(
-                    'You must set a reminder lasting for at '
-                    f'least {self.MINIMUM_REMINDER_TIME} seconds.'
-                )
-            elif not content:
-                return await ctx.send(
-                    'You must have a message with your reminder.')
-
-            # Round seconds down if td does not specify seconds
-            if td.seconds % 60 == 0:
-                utcnow = utcnow.replace(second=0)
-
-            await self.add_reminder(ctx.author.id, when, content)
-
-            await ctx.send(
-                'Your {} reminder has been added!'.format(
-                    ctx.bot.inflector.ordinal(total_reminders + 1)
-                ),
-                embed=discord.Embed(
-                    color=utils.get_user_color(ctx.bot, ctx.author),
-                    timestamp=when.replace(tzinfo=datetime.timezone.utc)
-                ).set_footer(text='Due date')
+        if total_reminders >= self.MAXIMUM_REMINDERS:
+            return await ctx.send(
+                'You have reached the maximum limit of '
+                f'{self.MAXIMUM_REMINDERS} reminders.'
             )
-        else:
-            await ctx.send('Sorry, but you have reached your maximum '
-                           'limit of 5 reminders.')
 
-
-
-
-    @commands.command(name='removereminder')
-    @commands.cooldown(2, 5, commands.BucketType.user)
-    async def client_removereminder(self, ctx, index: int):
-        """Remove a reminder.
-
-To see a list of your reminders and their indices, use the showreminders command.
-To remove several reminders, use the removereminders command."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You already don't have any reminders.")
-
+        # Get current time in UTC without microseconds
+        utcnow = discord.utils.utcnow().replace(microsecond=0)
         try:
-            reminder = reminder_list[index - 1]
-        except IndexError:
-            await ctx.send('That reminder index does not exist.')
-        else:
-            await self.delete_reminder_by_id(reminder['reminder_id'])
-            await ctx.send('Reminder successfully deleted!')
-
-
-
-
-
-    @commands.command(name='removereminders')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def client_removereminders(self, ctx, indices):
-        """Remove multiple reminders.
-
-You can remove "all" of your reminders or remove only a section of it by specifying the start and end indices ("1-4").
-To remove only one reminder, use the removereminder command."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You already don't have any reminders.")
-
-        if indices.lower() == 'all':
-            for reminder in reminder_list:
-                await self.delete_reminder_by_id(reminder['reminder_id'])
-            await ctx.send('Reminders successfully deleted!')
-
-        else:
-            try:
-                start, end = [int(n) for n in indices.split('-')]
-            except ValueError:
-                return await ctx.send_help(ctx.command)
-            start -= 1
-            if start < 0:
-                return await ctx.send('Start must be 1 or greater.')
-            elif end > len(reminder_list):
+            # Separate time and reminder,
+            # also making sure that content is provided
+            due, content = [s.strip() for s in re.split(
+                'to', time_and_reminder, maxsplit=1, flags=re.IGNORECASE
+            )]
+            async with ctx.typing():
+                due = await self.parse_datetime(ctx, due)
+            if due is None:
                 return await ctx.send(
-                    f'End must only go up to {len(reminder_list)}.')
+                    'Could not understand your given time.')
+        except (ValueError, AttributeError):
+            return await ctx.send(
+                'Could not understand your reminder request. Check this '
+                "command's help page for allowed syntax."
+            )
 
-            for i in range(start, end):
-                reminder = reminder_list[i]
-                await self.delete_reminder_by_id(reminder['reminder_id'])
-            await ctx.send('Reminders successfully deleted!')
+        td = due - utcnow
+        seconds_until = td.total_seconds()
+        if seconds_until < 0:
+            return await ctx.send(
+                'You cannot create a reminder for the past.')
+        elif seconds_until < self.MINIMUM_REMINDER_TIME:
+            return await ctx.send(
+                'You must set a reminder lasting for at '
+                f'least {self.MINIMUM_REMINDER_TIME} seconds.'
+            )
+        elif not content:
+            return await ctx.send('You must have a message with your reminder.')
 
+        # Fix/clean mentions
+        if user_perms.mention_everyone:
+            max_content_size = self.MAXIMUM_ANNOUNCEMENT_CONTENT
+            content = content.replace('@all', '@everyone').replace('@now', '@here')
+            content = self.ESCAPED_ROLE_MENTION.sub(r'<@&\1>', content)
 
-
-
-
-    @commands.command(name='showreminder')
-    @commands.cooldown(2, 5, commands.BucketType.user)
-    async def client_showreminder(self, ctx, index: int):
-        """Show one of your reminders."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You don't have any reminders.")
-
-        if index < 1:
-            return await ctx.send('Index must be 1 or greater.')
-
-        try:
-            reminder = reminder_list[index - 1]
-        except IndexError:
-            await ctx.send('That index does not exist.')
+            if isinstance(channel, discord.DMChannel):
+                # Prepend a newline so the message is not
+                # considered an announcement (yes, this is stupid)
+                content = '\n' + content
+            elif not me_perms.mention_everyone:
+                # Prevent creating the announcement if there's a mention
+                # the bot cannot do properly
+                for m in self.EVERYONE_ROLE_MENTION.finditer(content):
+                    if m.group() in ('@everyone', '@here'):
+                        return await ctx.send(
+                            f'I am missing permissions to '
+                            f'ping everyone in {channel.mention}.'
+                        )
+                    role = channel.guild.get_role(int(m.group('id')))
+                    if role is not None and not role.mentionable:
+                        return await ctx.send(
+                            f'I am missing permissions to '
+                            f'properly ping the {role.mention} role.'
+                        )
         else:
-            utcdue = reminder['due']
-            embed = discord.Embed(
-                title=f'Reminder #{index:,}',
-                description=reminder['content'],
-                color=utils.get_user_color(ctx.bot, ctx.author),
-                timestamp=utcdue.replace(tzinfo=datetime.timezone.utc)
-            ).add_field(
-                name='Due in',
-                value=utils.timedelta_string(
-                    relativedelta(
-                        utcdue,
-                        datetime.datetime.utcnow()
-                    ),
-                    inflector=ctx.bot.inflector
+            max_content_size = self.MAXIMUM_REMINDER_CONTENT
+            content = await commands.clean_content().convert(ctx, content)
+
+        diff = len(content) - max_content_size
+        if diff > 0:
+            return await ctx.send(
+                'Please provide a message under {:,d} {} (-{:,d}).'.format(
+                    max_content_size,
+                    ctx.bot.inflector.plural('character', max_content_size),
+                    diff
                 )
-            ).set_footer(text='Due date')
-            await ctx.send(embed=embed)
+            )
 
-
-
-
-
-    @commands.command(name='showreminders')
-    @commands.cooldown(1, 15, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
-    async def client_showreminders(self, ctx):
-        """Show all of your reminders."""
-        reminder_list = await self.get_reminders(ctx.author.id)
-
-        if len(reminder_list) == 0:
-            return await ctx.send("You don't have any reminders.")
-
-        # Create fields for each reminder, limiting them
-        # to 140 characters/5 lines
-        fields = [
-            utils.truncate_message(reminder['content'], 140, max_lines=5)
-            for reminder in reminder_list
-        ]
-        color = utils.get_user_color(ctx.bot, ctx.author)
-
-        embed = discord.Embed(
-            title=f"{ctx.author.display_name}'s Reminders",
-            color=color,
-            timestamp=datetime.datetime.now().astimezone()
+        await self.add_reminder(
+            user_id=ctx.author.id,
+            channel_id=channel.id,
+            due=due,
+            content=content
         )
 
-        for i, content in enumerate(fields, start=1):
-            embed.add_field(name=f'Reminder {i:,}', value=content)
+        await ctx.send(
+            'Added your {} {} for {} in {}.'.format(
+                ctx.bot.inflector.ordinal(total_reminders + 1),
+                'announcement' if self.is_announcement(content) else 'reminder',
+                discord.utils.format_dt(due, style='F'),
+                'this channel' if channel == ctx.channel else channel.mention
+            )
+        )
 
-        await ctx.send(embed=embed)
+
+    @commands.command(
+        name='remind', aliases=('remindme', 'announce'),
+        brief='Shorthand for reminder add.',
+        help=client_reminders_add.callback.__doc__
+    )
+    async def client_remind(
+            self, ctx, channel: Optional[discord.TextChannel],
+            *, time_and_reminder):
+        await self.client_reminders_add(ctx, channel, time_and_reminder=time_and_reminder)
 
 
 
 
 
-    def check_to_create_reminder(
-            self, reminder_id, user_id, content, utcwhen, utcnow=None):
+    def check_to_create_reminder(self, *, now=None, **entry: ReminderEntry):
         """Create a reminder task if needed.
 
         This does not store the reminder in the database.
@@ -332,36 +418,34 @@ To remove only one reminder, use the removereminder command."""
             bool: Indicates whether the task was created or not.
 
         """
-        if utcnow is None:
-            utcnow = datetime.datetime.utcnow()
-
-        td = utcwhen - utcnow
-        zero_td = datetime.timedelta()
-
-        if reminder_id in self.send_reminders_tasks:
+        if entry['reminder_id'] in self.send_reminders_tasks:
             # Task already exists; skip
             return False
+        elif now is None:
+            now = discord.utils.utcnow()
 
-        if td < self.send_reminders_near_due:
-            # Close to due date (or overdue); spin up task
-            self.create_reminder_task(
-                reminder_id, user_id, utcwhen, td, content)
-            return True
+        td = entry['due'] - now
+        is_soon = td < self.send_reminders_near_due
+        if is_soon:
+            self.create_reminder_task(td, entry)
 
-    def create_reminder_task(self, reminder_id, user_id, utcwhen, td, content):
+        return is_soon
+
+    def create_reminder_task(self, td, entry: ReminderEntry):
         """Adds a reminder task to the bot loop and logs it."""
-        task = self.bot.loop.create_task(
-            self.reminder_coro(reminder_id, user_id, utcwhen, content)
-        )
-        self.send_reminders_tasks[reminder_id] = task
+        task = self.bot.loop.create_task(self.reminder_coro(entry))
+        self.send_reminders_tasks[entry['reminder_id']] = task
 
         discordlogger.get_logger().info(
-            f'Reminders: created reminder task {reminder_id} '
-            f'for {user_id}, due in {td}')
+            'Reminders: created reminder task {} '
+            'for {}, due in {}'.format(
+                entry['reminder_id'], entry['user_id'], td
+            )
+        )
 
         return task
 
-    async def reminder_coro(self, reminder_id, user_id, utcwhen, content):
+    async def reminder_coro(self, entry: ReminderEntry):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry():
             await self.delete_reminder_by_id(reminder_id)
@@ -369,67 +453,91 @@ To remove only one reminder, use the removereminder command."""
         def remove_task():
             self.send_reminders_tasks.pop(reminder_id, None)
 
-        logger = discordlogger.get_logger()
-
-        db = self.bot.dbreminders
-
-        utcnow = datetime.datetime.utcnow()
-        seconds = (utcwhen - utcnow).total_seconds()
-
+        reminder_id = entry['reminder_id']
+        seconds = (entry['due'] - discord.utils.utcnow()).total_seconds()
         await asyncio.sleep(seconds)
 
-        if await db.get_one(db.TABLE_NAME, 'reminder_id',
-                            where={'reminder_id': reminder_id}) is None:
+        logger = discordlogger.get_logger()
+        db = self.bot.dbreminders
+        row = await db.get_one(
+            db.TABLE_NAME, 'reminder_id',
+            where={'reminder_id': reminder_id}
+        )
+        if row is None:
             # Reminder was deleted during wait; don't send
-            logger.info(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
+            logger.debug(
+                f'Reminders: canceled reminder {reminder_id}: '
                 'reminder was deleted during wait'
             )
-
-        user = await self.bot.try_user(user_id)
-
-        if user is None:
-            # Could not find user; remove database entry
-            logger.info(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
-                f'could not find user: {user_id}'
-            )
             await remove_entry()
-            remove_task()
-            return
+            return remove_task()
 
-        when_str = await self.bot.strftime_user(user.id, utcwhen, aware='%c %Z')
+        description = []
+        # Include mention and time if message is not an announcement
+        if not self.is_announcement(entry['content']):
+            description.append(
+                '<@{}> **{}'.format(
+                    entry['user_id'],
+                    discord.utils.format_dt(entry['due'], style='F')
+                )
+            )
+            if seconds < 0:
+                description.append(' (overdue)')
+            description.append('**\n')
+        description.append(entry['content'].lstrip())
 
-        if seconds == 0:
-            title = f'Late reminder for {when_str}'
-        else:
-            title = f'Reminder for {when_str}'
-        embed = discord.Embed(
-            title=title,
-            description=content,
-            color=utils.get_user_color(self.bot, user),
-            timestamp=datetime.datetime.now().astimezone()
-        )
+        channel = self.bot.get_channel(entry['channel_id'])
+        if channel is None:
+            # Might be a deleted channel but could also be a DM channel
+            try:
+                channel = await self.bot.fetch_channel(entry['channel_id'])
+            except (discord.NotFound, discord.Forbidden):
+                logger.debug(
+                    f'Reminders: canceled reminder {reminder_id}: '
+                    'channel no longer exists'
+                )
+                await remove_entry()
+                return remove_task()
+
+        if channel.guild is not None:
+            # Check if member is still in the guild
+            member = channel.guild.get_member(entry['user_id'])
+            if member is None and not channel.guild.chunked:
+                try:
+                    member = await channel.guild.fetch_member(entry['user_id'])
+                except discord.NotFound:
+                    pass
+
+            if member is None:
+                logger.debug(
+                    f'Reminders: canceled reminder {reminder_id}: '
+                    'member is no longer in the guild'
+                )
+                await remove_entry()
+                return remove_task()
+
+        # NOTE: multiple API calls could be made above if
+        # member/user left several reminders
 
         try:
-            await user.send(embed=embed)
+            await channel.send(''.join(description))
         except discord.Forbidden as e:
-            logger.info(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
+            logger.debug(
+                f'Reminders: failed to send reminder {reminder_id}: '
                 f'was forbidden from sending: {e}'
             )
+            await remove_entry()
         except discord.HTTPException as e:
-            logger.info(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
+            logger.warning(
+                f'Reminders: failed to send reminder {reminder_id}: '
                 f'HTTPException occurred: {e}'
             )
         else:
             # Successful; remove reminder task and database entry
-            logger.info('Reminders: successfully sent reminder, '
-                        f'ID {reminder_id}')
+            logger.debug(f'Reminders: successfully sent reminder {reminder_id}')
             await remove_entry()
         finally:
-            remove_task()
+            return remove_task()
 
     @tasks.loop(minutes=10)
     async def send_reminders(self):
@@ -437,12 +545,17 @@ To remove only one reminder, use the removereminder command."""
         spins up reminder tasks as needed.
         """
         db = self.bot.dbreminders
-        utcnow = datetime.datetime.utcnow()
+        now = discord.utils.utcnow()
 
         async for entry in db.yield_rows(db.TABLE_NAME):
+            due = entry['due'].replace(tzinfo=datetime.timezone.utc)
             self.check_to_create_reminder(
-                entry['reminder_id'], entry['user_id'],
-                entry['content'], entry['due'], utcnow
+                now=now,
+                reminder_id=entry['reminder_id'],
+                user_id=entry['user_id'],
+                channel_id=entry['channel_id'],
+                due=due,
+                content=entry['content']
             )
 
     @send_reminders.before_loop

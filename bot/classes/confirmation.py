@@ -38,7 +38,7 @@ class EmbedConfirmation(abc.ABC):
             color=self.color
         ).set_author(
             name=self.ctx.author.display_name,
-            icon_url=self.ctx.author.avatar.url
+            icon_url=self.ctx.author.display_avatar.url
         )
         self.embed = embed
         return embed
@@ -261,6 +261,9 @@ class ButtonConfirmation(EmbedConfirmation):
         view = ButtonConfirmationView.from_message(self.message)
         for button in view.children:
             button.disabled = True
+
+        if self._interaction is None:
+            return await self.message.edit(embed=self.embed, view=view)
 
         try:
             await self._interaction.response.edit_message(embed=self.embed, view=view)
