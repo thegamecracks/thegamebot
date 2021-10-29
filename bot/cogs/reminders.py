@@ -465,10 +465,12 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
         )
         if row is None:
             # Reminder was deleted during wait; don't send
-            return logger.debug(
-                'Reminders: failed to send reminder, '
-                f'ID {reminder_id}: reminder was deleted during wait'
+            logger.debug(
+                f'Reminders: canceled reminder {reminder_id}: '
+                'reminder was deleted during wait'
             )
+            await remove_entry()
+            return remove_task()
 
         description = []
         # Include mention and time if message is not an announcement
@@ -484,26 +486,58 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
             description.append('**\n')
         description.append(entry['content'].lstrip())
 
-        channel = self.bot.get_partial_messageable(entry['channel_id'])
+        channel = self.bot.get_channel(entry['channel_id'])
+        if channel is None:
+            # Might be a deleted channel but could also be a DM channel
+            try:
+                channel = await self.bot.fetch_channel(entry['channel_id'])
+            except (discord.NotFound, discord.Forbidden):
+                logger.debug(
+                    f'Reminders: canceled reminder {reminder_id}: '
+                    'channel no longer exists'
+                )
+                await remove_entry()
+                return remove_task()
+
+        if channel.guild is not None:
+            # Check if member is still in the guild
+            member = channel.guild.get_member(entry['user_id'])
+            if member is None and not channel.guild.chunked:
+                try:
+                    member = await channel.guild.fetch_member(entry['user_id'])
+                except discord.NotFound:
+                    pass
+
+            if member is None:
+                logger.debug(
+                    f'Reminders: canceled reminder {reminder_id}: '
+                    'member is no longer in the guild'
+                )
+                await remove_entry()
+                return remove_task()
+
+        # NOTE: multiple API calls could be made above if
+        # member/user left several reminders
+
         try:
             await channel.send(''.join(description))
         except discord.Forbidden as e:
             logger.debug(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
+                f'Reminders: failed to send reminder {reminder_id}: '
                 f'was forbidden from sending: {e}'
             )
+            await remove_entry()
         except discord.HTTPException as e:
             logger.warning(
-                f'Reminders: failed to send reminder, ID {reminder_id}: '
+                f'Reminders: failed to send reminder {reminder_id}: '
                 f'HTTPException occurred: {e}'
             )
         else:
             # Successful; remove reminder task and database entry
-            logger.debug(
-                f'Reminders: successfully sent reminder, ID {reminder_id}')
+            logger.debug(f'Reminders: successfully sent reminder {reminder_id}')
             await remove_entry()
         finally:
-            remove_task()
+            return remove_task()
 
     @tasks.loop(minutes=10)
     async def send_reminders(self):
