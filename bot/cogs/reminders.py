@@ -157,7 +157,9 @@ class Reminders(commands.Cog):
     )
     @commands.cooldown(2, 6, commands.BucketType.user)
     async def client_reminders(self, ctx, index: int = None):
-        """See your reminders."""
+        """See a list of your reminders.
+
+index: If provided, shows more details about the given reminder."""
         reminder_list = await self.get_reminders(ctx.author.id)
 
         if not reminder_list:
@@ -191,7 +193,12 @@ class Reminders(commands.Cog):
         reminder = reminder_list[index - 1]
         utcdue = reminder['due'].replace(tzinfo=datetime.timezone.utc)
         embed = discord.Embed(
-            title=f'Reminder #{index:,}',
+            title='{} #{:,}'.format(
+                'Announcement'
+                if self.is_announcement(reminder['content'])
+                else 'Reminder',
+                index
+            ),
             description=reminder['content'].lstrip(),
             color=utils.get_user_color(ctx.bot, ctx.author)
         ).add_field(
@@ -269,11 +276,11 @@ If you have not explicitly said a timezone in the command but you have
 provided the bot your timezone before with "timezone set", that timezone will
 be used instead of UTC.
 
-The channel parameter only allows channels where you can both send messages and mention everyone in.
+The channel parameter only allows channels in the same server where you can both send messages and mention everyone in.
 
 User mentions will be escaped except in DMs or where you are permitted to mention everyone.
 If you can mention, this command can be used to create scheduled server announcements with these steps:
-1. hide the "@you time" header by mentioning your members in the first line of your reminder
+1. hide the "@you time" header by mentioning your members in the first line of your message
 2. use @all and @now in place of @\u200beveryone and @\u200bhere to avoid pinging people with your command
 3. prefix role mentions with a backslash \\ to avoid pinging roles
 The announcement can only be scheduled if the bot has sufficient permissions to ping each included mention."""
