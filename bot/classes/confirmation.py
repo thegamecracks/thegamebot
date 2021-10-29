@@ -262,6 +262,9 @@ class ButtonConfirmation(EmbedConfirmation):
         for button in view.children:
             button.disabled = True
 
+        if self._interaction is None:
+            return await self.message.edit(embed=self.embed, view=view)
+
         try:
             await self._interaction.response.edit_message(embed=self.embed, view=view)
         except discord.HTTPException:
