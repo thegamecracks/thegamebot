@@ -16,6 +16,7 @@ import discord.http
 MISSING = object()
 
 
+# TODO: just use the types/interactions.py and existing http endpoints
 @dataclass(frozen=True)
 class OptionChoice:
     name: str
@@ -225,6 +226,7 @@ class ApplicationCommand:
             target_id, resolved = data['target_id'], data['resolved']
             user_data = resolved['users'][target_id]
             member_data = resolved['members'].get(target_id)
+            # BUG: in DMs the members field is unavailable
             if member_data:
                 member_data['user'] = user_data  # type: ignore
                 user = discord.Member(
@@ -233,6 +235,7 @@ class ApplicationCommand:
                     state=state
                 )
             else:
+                # FIXME: use store_user for this?
                 user = discord.User(data=user_data, state=state)
 
             return (user,), {}

@@ -38,6 +38,9 @@ class ApplicationCommandTest(ApplicationCommandsCog):
     )
     async def length(self, interaction: discord.Interaction, message: discord.Message):
         await interaction.response.send_message(
-            f'This message has {len(message.content):,} characters!',
+            '[This message]({}) has {:,} characters!'.format(
+                message.jump_url,
+                len(message.content)
+            ),
             ephemeral=True
         )
