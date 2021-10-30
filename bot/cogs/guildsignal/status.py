@@ -2,13 +2,12 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import abc
 import asyncio
 from dataclasses import dataclass, field
 import datetime
 import functools
 import io
-from typing import ClassVar, Generic, Optional, TypeVar, Union
+from typing import ClassVar, Optional, Protocol, TypeVar, Union
 
 import abattlemetrics as abm
 import discord
@@ -28,7 +27,7 @@ V = TypeVar('V', bound='ServerStatusView')
 
 
 @dataclass
-class ServerStatus(abc.ABC, Generic[T, V]):
+class ServerStatus(Protocol[T, V]):
     bot: commands.Bot
     # The channel and message ID of the message to edit
     channel_id: int
@@ -246,11 +245,10 @@ class ServerStatus(abc.ABC, Generic[T, V]):
         next_period = self._get_next_period(inclusive=True)
         await asyncio.sleep(next_period)
 
-    @abc.abstractmethod
     def create_embed(self, server: T) -> discord.Embed:
         """Create the server status embed."""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def create_player_count_graph(self, graphing_cog, *args) -> Optional[io.BytesIO]:
         """Graph the number of players over time.
 
@@ -263,8 +261,8 @@ class ServerStatus(abc.ABC, Generic[T, V]):
             None: No graph could be generated.
 
         """
+        raise NotImplementedError
 
-    @abc.abstractmethod
     async def fetch_server(self) -> Optional[T]:
         """Query the data for the server.
 
@@ -273,8 +271,8 @@ class ServerStatus(abc.ABC, Generic[T, V]):
             None: Failed to fetch the server. This cancels the update.
 
         """
+        raise NotImplementedError
 
-    @abc.abstractmethod
     async def get_graph_args(self, server: T) -> Optional[tuple]:
         """Return the arguments to be passed into create_player_count_graph().
 
@@ -284,10 +282,11 @@ class ServerStatus(abc.ABC, Generic[T, V]):
                 status to re-use the previous graph that was created.
 
         """
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def is_online(self, server: T) -> bool:
         """Return a bool indicating if the server is online."""
+        raise NotImplementedError
 
 
 class ServerStatusRefresh(discord.ui.Button['ServerStatusView']):
@@ -443,16 +442,16 @@ class BMServerStatus(ServerStatus[abm.Server, BMServerStatusView]):
             server.players,
             key=lambda p: discord.utils.remove_markdown(p.name).casefold()
         )
+        player_names: list[str] = []
         for i, p in enumerate(players):
             name = discord.utils.escape_markdown(p.name)
             if p.first_time:
                 name = f'__{name}__'
 
             score = f' ({p.score})' if p.score is not None else ''
-            players[i] = f'{name}{score}'
+            player_names.append(f'{name}{score}')
 
-        players: list[str]
-        self.add_fields(embed, players, name='Name (Score)')
+        self.add_fields(embed, player_names, name='Name (Score)')
 
         embed.description = '\n'.join(description)
 
