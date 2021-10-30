@@ -499,7 +499,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
                 await remove_entry()
                 return remove_task()
 
-        if channel.guild is not None:
+        if getattr(channel, 'guild', None) is not None:
             # Check if member is still in the guild
             member = channel.guild.get_member(entry['user_id'])
             if member is None and not channel.guild.chunked:
