@@ -18,6 +18,8 @@ from bot import errors, utils
 from bot.database.reminderdatabase import PartialReminderEntry, ReminderEntry
 from bot.other import discordlogger
 
+logger = discordlogger.get_logger()
+
 
 class IndexConverter(commands.Converter):
     """Parse an integer (1) or range (1-4)."""
@@ -90,19 +92,13 @@ class Reminders(commands.Cog):
         deleted = await self.bot.dbreminders.delete_reminder_by_id(
             reminder_id, pop=True)
 
-        updated_ids = frozenset(reminder['user_id'] for reminder in deleted)
-        updated_reminders = [reminder['reminder_id'] for reminder in deleted]
+        updated_ids = frozenset(entry['user_id'] for entry in deleted)
+        updated_reminders = [entry['reminder_id'] for entry in deleted]
 
         for user_id in updated_ids:
             user = self.cache.pop(user_id, None)
-            if user is not None:
-                discordlogger.get_logger().info(
-                    f'Reminders: Invalidated user cache, ID {user_id}')
         for reminder_id in updated_reminders:
             task = self.reminder_tasks.pop(reminder_id, None)
-            if task is not None:
-                discordlogger.get_logger().info(
-                    f'Reminders: Removed reminder task, ID {reminder_id}')
 
         if pop:
             return deleted
@@ -441,10 +437,10 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
             self.reminder_coro_remove_task, reminder_id
         ))
 
-        discordlogger.get_logger().info(
+        logger.debug(
             'Reminders: created reminder task {} '
             'for {}, due in {}'.format(
-                entry['reminder_id'], entry['user_id'], td
+                reminder_id, entry['user_id'], td
             )
         )
 
@@ -462,7 +458,6 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
         seconds = (entry['due'] - discord.utils.utcnow()).total_seconds()
         await asyncio.sleep(seconds)
 
-        logger = discordlogger.get_logger()
         db = self.bot.dbreminders
         row = await db.get_one(
             db.TABLE_NAME, 'reminder_id',
