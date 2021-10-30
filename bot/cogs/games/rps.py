@@ -229,7 +229,9 @@ class _RPS(commands.Cog):
 Times out after: 180s"""
         view = RPSDuelView(
             self._create_buttons(self.STANDARD),
-            {ctx.author, user} if user else set(),
+            {ctx.author, user}
+            if user and user != ctx.author
+            else set(),
             timeout=180
         )
         await view.start(ctx.send)
