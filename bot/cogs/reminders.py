@@ -4,6 +4,7 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import asyncio
 import datetime
+import functools
 import re
 from typing import Literal, Optional, Union
 
@@ -63,12 +64,12 @@ class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.cache = {}  # user_id: reminders
-        self.send_reminders_tasks = {}  # reminder_id: Task
+        self.reminder_tasks = {}  # reminder_id: Task
         self.send_reminders.start()
 
     def cog_unload(self):
         self.send_reminders.cancel()
-        for task in self.send_reminders_tasks.values():
+        for task in self.reminder_tasks.values():
             task.cancel()
 
 
@@ -98,7 +99,7 @@ class Reminders(commands.Cog):
                 discordlogger.get_logger().info(
                     f'Reminders: Invalidated user cache, ID {user_id}')
         for reminder_id in updated_reminders:
-            task = self.send_reminders_tasks.pop(reminder_id, None)
+            task = self.reminder_tasks.pop(reminder_id, None)
             if task is not None:
                 discordlogger.get_logger().info(
                     f'Reminders: Removed reminder task, ID {reminder_id}')
@@ -418,7 +419,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
             bool: Indicates whether the task was created or not.
 
         """
-        if entry['reminder_id'] in self.send_reminders_tasks:
+        if entry['reminder_id'] in self.reminder_tasks:
             # Task already exists; skip
             return False
         elif now is None:
@@ -433,8 +434,12 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
 
     def create_reminder_task(self, td, entry: ReminderEntry):
         """Adds a reminder task to the bot loop and logs it."""
+        reminder_id = entry['reminder_id']
         task = self.bot.loop.create_task(self.reminder_coro(entry))
-        self.send_reminders_tasks[entry['reminder_id']] = task
+        self.reminder_tasks[reminder_id] = task
+        task.add_done_callback(functools.partial(
+            self.reminder_coro_remove_task, reminder_id
+        ))
 
         discordlogger.get_logger().info(
             'Reminders: created reminder task {} '
@@ -445,13 +450,13 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
 
         return task
 
+    def reminder_coro_remove_task(self, reminder_id: int, task: asyncio.Task):
+        self.reminder_tasks.pop(reminder_id, None)
+
     async def reminder_coro(self, entry: ReminderEntry):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry():
             await self.delete_reminder_by_id(reminder_id)
-
-        def remove_task():
-            self.send_reminders_tasks.pop(reminder_id, None)
 
         reminder_id = entry['reminder_id']
         seconds = (entry['due'] - discord.utils.utcnow()).total_seconds()
@@ -469,8 +474,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
                 f'Reminders: canceled reminder {reminder_id}: '
                 'reminder was deleted during wait'
             )
-            await remove_entry()
-            return remove_task()
+            return await remove_entry()
 
         description = []
         # Include mention and time if message is not an announcement
@@ -496,8 +500,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
                     f'Reminders: canceled reminder {reminder_id}: '
                     'channel no longer exists'
                 )
-                await remove_entry()
-                return remove_task()
+                return await remove_entry()
 
         if getattr(channel, 'guild', None) is not None:
             # Check if member is still in the guild
@@ -513,8 +516,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
                     f'Reminders: canceled reminder {reminder_id}: '
                     'member is no longer in the guild'
                 )
-                await remove_entry()
-                return remove_task()
+                return await remove_entry()
 
         # NOTE: multiple API calls could be made above if
         # member/user left several reminders
@@ -536,8 +538,6 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
             # Successful; remove reminder task and database entry
             logger.debug(f'Reminders: successfully sent reminder {reminder_id}')
             await remove_entry()
-        finally:
-            return remove_task()
 
     @tasks.loop(minutes=10)
     async def send_reminders(self):
