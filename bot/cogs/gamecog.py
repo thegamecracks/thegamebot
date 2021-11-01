@@ -459,7 +459,7 @@ Otherwise, only you can play:
     @client_phasmophobia.command(name='evidence')
     @commands.cooldown(3, 10, commands.BucketType.user)
     async def client_phasmophobia_ghost_evidence(self, ctx, *, evidences):
-        """Determine the ghost(s) based on evidence.
+        """Determine the ghost based on evidence (outdated).
 Example usage:
     <command> emf level 5, fingerprints, freezing temp
 Available evidences:
@@ -601,7 +601,7 @@ Spirit Box"""
     async def client_unturned_item(self, ctx, *, item):
         """Search for an Unturned item by ID or name.
 Information was pre-scraped from https://unturneditems.com/.
-Up to date as of 3.20.15.0."""
+Last updated: 3.20.15.0."""
         def item_embed(entry):
             id_, name, rarity, url, dimensions, recipe_data = (
                 entry.id, entry.name, entry.rarity, entry.url,
