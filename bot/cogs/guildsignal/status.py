@@ -635,16 +635,16 @@ class _SignalHill_Status(commands.Cog):
                 server_map='Cam Lao Nam',
                 **self.create_server_status_params()
             ),
-            MCServerStatus(
-                bot=bot,
-                channel_id=852008953968984115,
-                message_id=852009695241175080,
-                line_color=0x5EE060,
-                mc_client=mcstatus.MinecraftServer.lookup(
-                    'signalhillgaming.apexmc.co'
-                ),
-                **self.create_server_status_params()
-            ),
+            # MCServerStatus(
+            #     bot=bot,
+            #     channel_id=852008953968984115,
+            #     message_id=852009695241175080,
+            #     line_color=0x5EE060,
+            #     mc_client=mcstatus.MinecraftServer.lookup(
+            #         'signalhillgaming.apexmc.co'
+            #     ),
+            #     **self.create_server_status_params()
+            # ),
             # BMServerStatus(
             #     bot=bot,
             #     channel_id=852008953968984115,
