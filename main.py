@@ -25,10 +25,6 @@ from bot.database import BotDatabaseMixin
 from bot import errors, utils
 from bot.other import discordlogger
 
-DISABLED_INTENTS = (
-    'bans', 'integrations', 'webhooks', 'invites',
-    'voice_states', 'typing'
-)
 USE_RESTART_FILE = False
 
 logger = discordlogger.get_logger()
@@ -61,7 +57,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'prog',
             'randomization',
             'reminders',
-            'slash',
             'tags',
             'timezones',
             'undefined',
@@ -187,6 +182,10 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
                                'Set up databases'):
             await self.db_setup()
 
+        with utils.update_text('Syncing slash commands',
+                               'Synced slash commands'):
+            await self.create_slash_commands()
+
     async def start(self, *args, **kwargs):
         logger = discordlogger.get_logger()
         print('Starting bot')
@@ -234,9 +233,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             return s, user
         return s
 
-    async def try_user(self, id):
-        return self.get_user(id) or await self.fetch_user(id)
-
 
 async def main():
     load_dotenv(override=True)
@@ -262,14 +258,22 @@ async def main():
     mplstyle.use(['data/discord.mplstyle', 'fast'])
 
     # Set up client
-    intents = discord.Intents.default()
-    intents.members = args.members
-    intents.presences = args.presences
-    for attr in DISABLED_INTENTS:
-        setattr(intents, attr, False)
+    intents = discord.Intents(
+        bans=False,
+        emojis_and_stickers=True,
+        guilds=True,
+        integrations=False,
+        invites=False,
+        members=args.members,
+        messages=True,
+        presences = args.presences,
+        reactions=True,
+        typing=False,
+        voice_states=False,
+        webhooks=False
+    )
 
     bot = TheGameBot(intents=intents, case_insensitive=True, strip_after_prefix=True)
-    await bot.setup()
 
     async def bootup_time(bot, start_time):
         """Calculate the bootup time of the bot."""

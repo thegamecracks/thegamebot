@@ -271,8 +271,7 @@ If you have Manage Server permissions you can also delete other people's tags.""
         tag = await ctx.bot.dbtags.get_tag(ctx.guild.id, name, include_aliases=True)
         if tag is None:
             return await ctx.send('That tag does not exist!')
-        elif tag['user_id'] != ctx.author.id and not ctx.channel.permissions_for(
-                ctx.author).manage_guild:
+        elif tag['user_id'] != ctx.author.id and not ctx.author_permissions().manage_guild:
             return await ctx.send('Cannot delete a tag made by someone else.')
 
         is_alias = tag['name'] != name

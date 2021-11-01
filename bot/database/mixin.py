@@ -66,6 +66,7 @@ class BotDatabaseMixin(commands.Bot):
                 await self.dbprefixes.add_prefix(guild.id, get_default_prefix())
                 prefix = await self.dbprefixes.get_prefix(guild.id)
 
+        # NOTE: slash prefix is included for enhanced-dpy slash commands to work
         if prefix is not None:
-            return commands.when_mentioned_or(prefix)(self, message)
-        return commands.when_mentioned(self, message)
+            return commands.when_mentioned_or(prefix, '/')(self, message)
+        return commands.when_mentioned_or('/')(self, message)

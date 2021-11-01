@@ -17,10 +17,6 @@ class DatabaseEvents(commands.Cog):
         self.bot = bot
         bot.loop.create_task(self.cleanup_tables())
 
-    @staticmethod
-    async def try_member(guild: discord.Guild, id: int):
-        return guild.get_member(id) or await guild.fetch_member(id)
-
     async def delete_many(self, table_name: str, column: str, ids):
         async with await self.bot.dbusers.connect(writing=True) as conn:
             query = 'DELETE FROM {} WHERE {} IN ({})'.format(
@@ -76,7 +72,7 @@ class DatabaseEvents(commands.Cog):
                 # NOTE: this shouldn't happen after checking guild table
                 continue
 
-            member = await self.try_member(guild, user_id)
+            member = await guild.try_member(user_id)
             if member is None:
                 authors_to_remove.append((guild_id, user_id))
 

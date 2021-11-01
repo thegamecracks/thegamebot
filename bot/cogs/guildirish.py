@@ -240,12 +240,7 @@ This requires a confirmation."""
                 # not in the guild
                 while row := await c.fetchone():
                     user_id = row['id']
-                    member = guild.get_member(user_id)
-                    if member is None:
-                        try:
-                            member = await guild.fetch_member(user_id)
-                        except discord.NotFound:
-                            pass
+                    member = await guild.try_member(user_id)
                     if member is None:
                         invalid_users.append(user_id)
 

@@ -567,7 +567,7 @@ By default, this is enabled."""
 This is useful if you have automatic timezone translation disabled but want it for a particular message.
 This can only be used on your messages unless you also have Manage Messages permission.
 The sender must have a timezone set to use this."""
-        perms = ctx.channel.permissions_for(ctx.author)
+        perms = ctx.author_permissions()
         if message.guild != ctx.guild:
             return await ctx.reply('The message must be in the same guild!')
         elif message.author.bot:

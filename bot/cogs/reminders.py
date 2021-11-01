@@ -499,13 +499,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
 
         if getattr(channel, 'guild', None) is not None:
             # Check if member is still in the guild
-            member = channel.guild.get_member(entry['user_id'])
-            if member is None and not channel.guild.chunked:
-                try:
-                    member = await channel.guild.fetch_member(entry['user_id'])
-                except discord.NotFound:
-                    pass
-
+            member = await channel.guild.try_member(entry['user_id'])
             if member is None:
                 logger.debug(
                     f'Reminders: canceled reminder {reminder_id}: '
