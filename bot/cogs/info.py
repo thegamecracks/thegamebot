@@ -262,7 +262,7 @@ This only counts channels that both you and the bot can see."""
 
         # Insert cooldown
         cooldown: commands.CooldownMapping = command._buckets
-        if cooldown is not None:
+        if cooldown._cooldown is not None:
             cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
                 cooldown._type, '')
             description.append(
