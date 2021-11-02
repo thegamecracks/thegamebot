@@ -28,6 +28,7 @@ def format_hour_and_minute(seconds: Union[float, int]) -> str:
 
 # Base cog
 class SignalHill(commands.Cog):
+    """Commands for Signal Hill."""
     qualified_name = 'Signal Hill'
 
     BM_SERVER_ID_INA = 10654566
