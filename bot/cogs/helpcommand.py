@@ -6,7 +6,7 @@
 import collections
 import functools
 import math
-from typing import Optional, Protocol, TypeVar, Union
+from typing import Any, Optional, Protocol, TypeVar
 
 import discord
 from discord.ext import commands
@@ -29,20 +29,20 @@ HELP_OBJECT = (
 class HelpView(discord.ui.View):
     COGS_PER_PAGE = 5
     COMMANDS_PER_PAGE = 9
+    TIMEOUT_MAX_EMBED_SIZE = 400
 
     def __init__(
         self, *,
         source: "PageSource",
         help_command: "HelpCommand",
         user_id: int,
-        last_help: Union["HelpView", HELP_OBJECT] = discord.utils.MISSING,
+        last_help: dict[str, Any] | HELP_OBJECT = discord.utils.MISSING,
         start_page: int = 0
     ):
         super().__init__(timeout=60)
         self.source: "PageSource" = source
         self.help_command = help_command
         self.user_id = user_id
-        self.sub_help: Optional["HelpView"] = None
         if last_help is discord.utils.MISSING:
             last_help = self._get_last_help()
         self.last_help = last_help
@@ -105,7 +105,7 @@ class HelpView(discord.ui.View):
             return self.source.command.parent or self.source.command.cog
         return self.help_command.get_bot_mapping()  # type: ignore
 
-    def _get_message_kwargs(self) -> dict:
+    def _get_message_kwargs(self) -> dict[str, Any]:
         return {'embed': self.embed, 'view': self}
 
     def _maybe_remove_item(self, item: discord.ui.Item):
@@ -144,6 +144,21 @@ class HelpView(discord.ui.View):
         self.next_page.disabled = on_last_page
         self.last_page.disabled = on_last_page
 
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                f'This help message is for <@{self.user_id}>!',
+                ephemeral=True
+            )
+            return False
+        return True
+
+    async def on_timeout(self):
+        if len(self.embed) > self.TIMEOUT_MAX_EMBED_SIZE:
+            await self.message.delete()
+        else:
+            await self.message.edit(view=None)
+
     async def respond(self, interaction: discord.Interaction):
         await interaction.response.edit_message(**self._get_message_kwargs())
 
@@ -179,31 +194,29 @@ class HelpView(discord.ui.View):
         else:
             self.message = await channel.send(**self._get_message_kwargs())
 
-    async def interaction_check(self, interaction):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                'This is not your help message!',
-                ephemeral=True
-            )
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.sub_help is None:
-            await self.message.delete()
+    def to_dict(self) -> dict[str, Any]:
+        """Return the kwargs needed to reconstruct this view."""
+        return {
+            'source': self.source,
+            'help_command': self.help_command,
+            'user_id': self.user_id,
+            'last_help': self.last_help,
+            'start_page': self.current_page
+        }
 
     @discord.ui.select(options=[], placeholder='Navigate...', row=0)
     async def navigate(self, select, interaction):
         index = int(select.values[0])
         obj = self.option_objects[index]
 
-        self.sub_help = HelpView(
+        view = HelpView(
             source=await self.get_page_source(obj, self.help_command),
             help_command=self.help_command,
             user_id=self.user_id,
-            last_help=self
+            last_help=self.to_dict()
         )
-        await self.sub_help.start(interaction)
+        self.stop()
+        await view.start(interaction)
 
     @discord.ui.button(
         emoji='\N{BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}',
@@ -240,15 +253,10 @@ class HelpView(discord.ui.View):
         self.stop()
 
         obj = self.last_help
-        if isinstance(obj, HelpView):
-            # Create copy of last_help in case it timed out
-            view = HelpView(
-                source=obj.source,
-                help_command=obj.help_command,
-                user_id=self.user_id,
-                last_help=obj.last_help,
-                start_page=obj.current_page
-            )
+        if isinstance(obj, dict):
+            # In case the original view timed out, the kwargs are
+            # stored so the view can be reconstructed
+            view = HelpView(**obj)
         else:
             view = HelpView(
                 source=await self.get_page_source(obj, self.help_command),
