@@ -62,7 +62,8 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'undefined',
             'uptime',
         )
-    ] + ['jishaku']
+    ]
+    EXT_LIST.append('jishaku')
 
     def __init__(self, *args, **kwargs):
         super().__init__(super().get_prefix, *args, **kwargs)
@@ -96,7 +97,14 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             print(f'Loading extension {i}/{len(self.EXT_LIST)}',
                   end='\r', flush=True)
             self.load_extension(name)
+
+            # Make sure jishaku isn't automatically converted into
+            # slash commands if slash_commands=True (enhanced-dpy)
+            if name == 'jishaku':
+                self.get_command("jsk").hidden = True  # type: ignore
+
         print(f'Loaded all extensions         ')
+
 
     def get_cog(self, name):
         cog = super().get_cog(name)
