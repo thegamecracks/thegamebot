@@ -100,17 +100,35 @@ class NoteDatabase(db.Database):
                 )
         return rows
 
-    async def delete_note_by_user_id(
-            self, user_id: int, guild_id: Optional[int], entry_num: int):
-        """Delete a note from the Notes table by foreign keys and entry_num."""
-        user_id = int(user_id)
-        entry_num = int(entry_num)
-        if guild_id is not None:
-            guild_id = int(guild_id)
+    # async def delete_note_by_user_id(
+    #         self, user_id: int, guild_id: Optional[int], entry_num: int):
+    #     """Delete a note from the Notes table by foreign keys and entry_num."""
+    #     user_id = int(user_id)
+    #     entry_num = int(entry_num)
+    #     if guild_id is not None:
+    #         guild_id = int(guild_id)
+    #
+    #     notes = await self.get_notes(user_id, guild_id)
+    #     note_id = notes[entry_num]['note_id']
+    #     await self.delete_rows(self.TABLE_NAME, {'note_id': note_id})
 
-        notes = await self.get_notes(user_id, guild_id)
-        note_id = notes[entry_num]['note_id']
-        await self.delete_rows(self.TABLE_NAME, {'note_id': note_id})
+    async def edit_note(self, note_id: int, content: str) -> int:
+        """Edit a note in the Notes table.
+
+        Note that the user should be in the database beforehand.
+
+        Args:
+            note_id (datetime.datetime): The ID of the note.
+            content (str): The new content of this note.
+
+        """
+        note_id = int(note_id)
+        content = str(content)
+
+        return await self.update_rows(
+            self.TABLE_NAME, {'content': content},
+            where={'note_id': note_id}
+        )
 
     async def get_notes(self, user_id: int, guild_id: Optional[int]):
         """Get one or more notes for a user.

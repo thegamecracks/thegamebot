@@ -131,6 +131,11 @@ class NoteManagement(commands.Cog):
 
         return deleted if pop else None
 
+    async def edit_note(self, user_id, guild_id, *args, **kwargs):
+        """Edits a note and invalidates the user's cache."""
+        await self.bot.dbnotes.edit_note(*args, **kwargs)
+        self.cache.pop((user_id, guild_id), None)
+
     async def get_notes(self, user_id: int, guild_id: Optional[int]):
         key = (user_id, guild_id)
         notes = self.cache.get(key)
@@ -275,6 +280,63 @@ notes add server ... (add a server note)"""
 
 
 
+    @client_notes.command(name='edit')
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
+    async def client_notes_edit(
+        self, ctx, location: Optional[GuildIDConverter], index: int,
+        *, content
+    ):
+        """Edit one of your notes.
+
+Examples:
+notes edit 1 ... (edit note 1 for your current location)
+notes edit global 1 ... (edit global note 1)
+notes edit server 3  (edit note 3 for your current server)
+
+To see the indices for your notes, use the "notes" command."""
+        location = GuildIDConverter.convert_after(ctx, location)
+        location_name = 'global' if location is None else 'server'
+
+        note_list = await self.get_notes(ctx.author.id, location)
+
+        length = len(note_list)
+        if length == 0:
+            return await ctx.send(
+                "You already don't have any {}.".format(
+                    'global notes' if location is None
+                    else 'notes in this server' if location == ctx.guild.id
+                    else 'notes in that server'
+                )
+            )
+        elif not 0 < index <= length:
+            return await ctx.send(
+                'Index {} is out of range. Your {} notes are 1-{:,}.'.format(
+                    index,
+                    location_name,
+                    length
+                )
+            )
+
+        await self.edit_note(
+            ctx.author.id, location,
+            note_list[index - 1]['note_id'],
+            content=content
+        )
+
+        await ctx.send(
+            ctx.bot.inflector.inflect(
+                "{} note #{} successfully edited!".format(
+                    location_name.capitalize(),
+                    index
+                )
+            )
+        )
+
+
+
+
+
     @client_notes.command(name='remove', aliases=('delete',))
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
@@ -283,12 +345,15 @@ notes add server ... (add a server note)"""
         *, index: IndexConverter
     ):
         """Remove one or more notes.
-The index parameter allows several formats:
+
+Examples:
 notes delete 1  (delete note 1 for your current location)
 notes delete global 1, 5  (delete global notes 1 and 5)
 notes delete server 3-8  (delete notes 3 through 8 for your current server)
-To see a list of your notes and their indices, use the "notes" command."""
+
+To see the indices for your notes, use the "notes" command."""
         location = GuildIDConverter.convert_after(ctx, location)
+        location_name = 'global' if location is None else 'server'
         index: Sequence[int]
 
         note_list = await self.get_notes(ctx.author.id, location)
@@ -304,10 +369,11 @@ To see a list of your notes and their indices, use the "notes" command."""
             )
         elif out_of_bounds := invalid_indices(length, index):
             return await ctx.send(
-                '{} {} {} out of range. Your notes are 1-{:,}.'.format(
+                '{} {} {} out of range. Your {} notes are 1-{:,}.'.format(
                     ctx.bot.inflector.plural('Index', len(out_of_bounds)),
                     ctx.bot.inflector.join(out_of_bounds),
                     ctx.bot.inflector.plural('is', len(out_of_bounds)),
+                    location_name,
                     length
                 )
             )
@@ -319,7 +385,7 @@ To see a list of your notes and their indices, use the "notes" command."""
             ctx.bot.inflector.inflect(
                 "{n:,} {loc} plural('note', {n}) successfully deleted!".format(
                     n=len(index),
-                    loc='global' if location is None else 'server'
+                    loc=location_name
                 )
             )
         )
