@@ -74,19 +74,17 @@ def truncate_message(
     `textwrap.shorten` will collapse whitespace.
 
     Message is stripped of whitespace initially, then after cutting the
-    message to just under max_size, trailing whitespace is stripped.
+    message to just under `max_size`, trailing whitespace is stripped.
 
     The placeholder will be prefixed with a newline if the trailing whitespace
     that was stripped includes a newline, or if excess lines were removed.
-    Otherwise it will prefix with a space.
-
-    The placeholder will not be prefixed if it would exceed the max_size.
+    Otherwise it will prefix with a space if it does not exceed `max_size`.
         >>> truncate_message('Hello world!', 11, placeholder='[...]')
         'Hello [...]'
         >>> truncate_message('Hello world!', 10, placeholder='[...]')
         'Hello[...]'
 
-    If the message is completely wiped and the placeholder exceeds max_size,
+    If the first word is too long and the placeholder exceeds `max_size`,
     an empty string is returned.
         >>> truncate_message('Hello world!', 5, placeholder='[...]')
         '[...]'
