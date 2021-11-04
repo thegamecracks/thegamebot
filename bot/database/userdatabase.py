@@ -94,7 +94,7 @@ class UserDatabase(db.Database):
         """
         user_id = int(user_id)
 
-        async with await self.connect(writing=bool(add)) as conn:
+        async with self.connect(writing=bool(add)) as conn:
             async with conn.cursor(transaction=True) as c:
                 if add:
                     await c.execute(

@@ -144,7 +144,7 @@ class Economy(commands.Cog):
         """Show the most wealthy members in the economy."""
         db = ctx.bot.dbcurrency
 
-        async with await db.connect() as conn:
+        async with db.connect() as conn:
             async with conn.cursor(transaction=True) as c:
                 await c.execute(
                     f'SELECT SUM(cents) AS total FROM {db.TABLE_NAME} '

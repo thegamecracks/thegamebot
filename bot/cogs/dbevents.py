@@ -18,7 +18,7 @@ class DatabaseEvents(commands.Cog):
         bot.loop.create_task(self.cleanup_tables())
 
     async def delete_many(self, table_name: str, column: str, ids):
-        async with await self.bot.dbusers.connect(writing=True) as conn:
+        async with self.bot.dbusers.connect(writing=True) as conn:
             query = 'DELETE FROM {} WHERE {} IN ({})'.format(
                 table_name, column, ', '.join([str(n) for n in ids])
             )
@@ -29,7 +29,7 @@ class DatabaseEvents(commands.Cog):
         db = self.bot.dbguilds
         to_remove = []
 
-        async with await db.connect() as conn:
+        async with db.connect() as conn:
             async with conn.execute(f'SELECT id FROM {db.TABLE_NAME}') as c:
                 while row := await c.fetchone():
                     if self.bot.get_guild(row['id']) is None:
@@ -53,7 +53,7 @@ class DatabaseEvents(commands.Cog):
 
         # Iterate through authors of tags/aliases and find
         # which authors are no longer in the guild
-        async with await db.connect() as conn:
+        async with db.connect() as conn:
             async with conn.execute(
                     f'SELECT DISTINCT guild_id, user_id FROM {t}') as c:
                 while row := await c.fetchone():

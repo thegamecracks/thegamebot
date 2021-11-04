@@ -568,7 +568,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             return round_ms(time.perf_counter() - start)
 
         async def poll_database():
-            async with await ctx.bot.dbusers.connect() as conn:
+            async with ctx.bot.dbusers.connect() as conn:
                 await conn.execute('SELECT 1')
 
         async def poll_message():
