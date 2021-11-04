@@ -184,7 +184,8 @@ class Database:
                     await c.execute(f'SELECT * FROM {table} WHERE {keys}', *values)
                     rows = await c.fetchall()
 
-                await c.execute(f'DELETE FROM {table} WHERE {keys}', *values)
+                if not pop or rows:
+                    await c.execute(f'DELETE FROM {table} WHERE {keys}', *values)
         return rows
 
     def _get_rows_query(
