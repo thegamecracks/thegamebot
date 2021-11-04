@@ -388,7 +388,7 @@ class CommandListPageSource(PageSource[commands.Command]):
         for group in groups:
             embed.add_field(
                 name='\u200b',
-                value='\n'.join([str(c.qualified_name) for c in group])
+                value='\n'.join([f'__{c.qualified_name}__' for c in group])
             )
 
         return embed
