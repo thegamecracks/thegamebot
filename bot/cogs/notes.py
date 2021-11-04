@@ -5,15 +5,15 @@
 import datetime
 import itertools
 import re
-from typing import Iterable, Optional
+from typing import Optional, Sequence
 
 import discord
 from discord.ext import commands
 
-from bot import errors, utils
+from bot import converters, errors, utils
 
 
-class IndexConverter(commands.Converter):
+class IndexConverter(commands.Converter[Sequence[int]]):
     """Convert an argument to a list of indices or a range.
 
     Formats supported:
@@ -24,7 +24,7 @@ class IndexConverter(commands.Converter):
     """
     int_regex = re.compile(r'-?\d+')
     
-    async def convert(self, ctx, argument) -> Iterable[int]:
+    async def convert(self, ctx, argument) -> Sequence[int]:
         # slice
         try:
             x, y = [int(n) for n in argument.split('-', 1)]
@@ -49,15 +49,60 @@ class IndexConverter(commands.Converter):
         return [int(n) - 1 for n in indices]
 
 
+class GuildIDConverter(commands.Converter[Optional[int]]):
+    async def convert(self, ctx, argument) -> Optional[int]:
+        argument = argument.lower()
+        if argument == 'global':
+            return 0
+        elif argument == 'server':
+            return getattr(ctx.guild, 'id', 0)
+
+        guild = await commands.GuildConverter().convert(ctx, argument)
+        if await guild.try_member(ctx.author.id):
+            return guild.id
+
+    @staticmethod
+    def convert_after(ctx: commands.Context, argument: Optional[int]) -> Optional[int]:
+        """Returns the context's guild id if the argument is None and passes-through otherwise.
+        Should be used if the converter is combined with Optional.
+        """
+        if argument is None:
+            # Either given by Optional converter or user inputted a guild they are not in
+            return getattr(ctx.guild, 'id', None)
+        elif argument == 0:
+            # User inputted "global", or "server" inside DMs,
+            # so do not default to the context's guild
+            return None
+        else:
+            # Actual guild ID
+            return argument
+
+
+def escape_codeblocks(content: str) -> str:
+    return converters.CodeBlock.REGEX.sub(
+        r'\`\`\`\g<code>\`\`\`',
+        content
+    )
+
+
+def invalid_indices(maximum: int, index: Sequence[int], *, limit=3):
+    """Return a list of 1-indexed strings indicating which
+    indices are out of bounds."""
+    over = (str(n + 1) for n in index if not 0 < n + 1 <= maximum)
+    if limit:
+        return list(itertools.islice(over, limit))
+    return list(over)
+
+
 class NoteManagement(commands.Cog):
     """Commands for saving notes."""
     qualified_name = 'Note Management'
 
-    max_notes_user = 20
+    MAX_NOTES_PER_LOCATION = 20
 
     def __init__(self, bot):
         self.bot = bot
-        self.cache = {}  # user_id: notes
+        self.cache = {}  # (user_id, guild_id): notes
         # NOTE: this bot is small so this isn't required but if the bot
         # never restarts frequently, the cache could grow forever,
         # so this could use an LRU cache implementation
@@ -66,38 +111,34 @@ class NoteManagement(commands.Cog):
 
 
 
-    async def add_note(self, user_id, *args, **kwargs):
+    async def add_note(self, user_id, guild_id, *args, **kwargs):
         """Adds a note and invalidates the user's cache."""
         await self.bot.dbusers.add_user(user_id)
-        await self.bot.dbnotes.add_note(user_id, *args, **kwargs)
-        self.cache.pop(user_id, None)
-
-    def invalid_indices(self, maximum: int, index: Iterable[int], *, limit=3):
-        """Return a list of 1-indexed strings indicating which
-        indices are out of bounds."""
-        over = (str(n + 1) for n in index if not 0 < n + 1 <= maximum)
-        if limit:
-            return list(itertools.islice(over, limit))
-        return list(over)
+        await self.bot.dbnotes.add_note(user_id, guild_id, *args, **kwargs)
+        self.cache.pop((user_id, guild_id), None)
 
     async def delete_notes_by_note_id(self, note_id, pop=False):
         """Remove a note by note_id and update the cache."""
         deleted = await self.bot.dbnotes.delete_notes_by_note_id(note_id, pop=True)
 
-        updated_ids = frozenset(note['user_id'] for note in deleted)
+        updated_keys = frozenset(
+            (note['user_id'], note['guild_id'])
+            for note in deleted
+        )
 
-        for user_id in updated_ids:
-            self.cache.pop(user_id, None)
+        for key in updated_keys:
+            self.cache.pop(key, None)
 
         return deleted if pop else None
 
-    async def get_notes(self, user_id):
-        notes = self.cache.get(user_id)
+    async def get_notes(self, user_id: int, guild_id: Optional[int]):
+        key = (user_id, guild_id)
+        notes = self.cache.get(key)
 
         if notes is None:
             # Uncached user; add them to cache
-            notes = await self.bot.dbnotes.get_notes(user_id)
-            self.cache[user_id] = notes
+            notes = await self.bot.dbnotes.get_notes(user_id, guild_id)
+            self.cache[key] = notes
 
         return notes
 
@@ -111,21 +152,27 @@ class NoteManagement(commands.Cog):
     )
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
-    async def client_notes(self, ctx, *, index: IndexConverter = None):
-        """Show your notes.
-The index parameter allows several formats:
-1  # show note 1
-1, 5  # show notes 1 and 5
-3-8  # show notes 3 through 8
+    async def client_notes(
+        self, ctx, location: Optional[GuildIDConverter],
+        *, index: IndexConverter = None
+    ):
+        """Show your global or server notes.
+
+Examples:
+note 1  (show note 1 for your current location)
+notes global 1, 5  (show your global notes 1 and 5)
+notes server 3-8  (show notes 3 through 8 for your current server)
 If nothing is provided, all notes are shown."""
-        index: Optional[Iterable[int]]
+        location = GuildIDConverter.convert_after(ctx, location)
+        location_name = 'global' if location is None else 'server'
+        index: Optional[Sequence[int]]
 
-        note_list = await self.get_notes(ctx.author.id)
-
+        note_list = await self.get_notes(ctx.author.id, location)
         length = len(note_list)
+
         if length == 0:
-            return await ctx.send("You don't have any notes.")
-        elif index and (out_of_bounds := self.invalid_indices(length, index)):
+            return await ctx.send(f"You don't have any {location_name} notes.")
+        elif index and (out_of_bounds := invalid_indices(length, index)):
             return await ctx.send(
                 '{} {} {} out of range. Your notes are 1-{:,}.'.format(
                     ctx.bot.inflector.plural('Index', len(out_of_bounds)),
@@ -142,29 +189,40 @@ If nothing is provided, all notes are shown."""
 
         color = utils.get_user_color(ctx.bot, ctx.author)
 
+        # TODO: pagination of notes
         if len(note_list) == 1:
-            index, note = next(zip(index, note_list))
+            i, note = next(zip(index, note_list))
             embed = discord.Embed(
-                title=f'Note #{index+1:,}',
                 description=note['content'],
                 color=color,
                 timestamp=note['time_of_entry']
+            ).set_author(
+                name=f"{ctx.author.display_name}'s {location_name} note #{i + 1}",
+                icon_url=ctx.author.display_avatar.url
             )
             return await ctx.send(embed=embed)
 
-        # Create fields for each note, limiting them to 140 characters/5 lines
-        fields = [
-            utils.truncate_message(note['content'], 140, max_lines=5)
-            for note in note_list
+        lines = [
+            '{}. {}'.format(
+                i,
+                utils.truncate_message(
+                    escape_codeblocks(note['content']),
+                    140, max_lines=1
+                )
+            )
+            for i, note in enumerate(note_list, start=1)
         ]
 
         embed = discord.Embed(
-            title=f"{ctx.author.display_name}'s Notes",
-            color=color
+            color=color,
+            description='\n'.join(lines)
+        ).set_author(
+            name="{}'s {} notes".format(
+                ctx.author.display_name,
+                location_name
+            ),
+            icon_url=ctx.author.display_avatar.url
         )
-
-        for i, content in zip(index, fields):
-            embed.add_field(name=f'Note {i+1:,}', value=content)
 
         await ctx.send(embed=embed)
 
@@ -175,24 +233,42 @@ If nothing is provided, all notes are shown."""
     @client_notes.command(name='add')
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
-    async def client_notes_add(self, ctx, *, note):
-        """Store a note."""
-        total_notes = len(await self.get_notes(ctx.author.id))
+    async def client_notes_add(
+        self, ctx,
+        location: Optional[GuildIDConverter],
+        *, note
+    ):
+        """Store a note.
 
-        if total_notes < self.max_notes_user:
+Examples:
+notes add ... (add a note in your current location)
+notes add global ... (add a global note)
+notes add server ... (add a server note)"""
+        location = GuildIDConverter.convert_after(ctx, location)
+        total_notes = len(await self.get_notes(ctx.author.id, location))
+
+        if total_notes < self.MAX_NOTES_PER_LOCATION:
             await self.add_note(
-                ctx.author.id, datetime.datetime.now().astimezone(), note
+                ctx.author.id, location,
+                datetime.datetime.now().astimezone(),
+                note
             )
 
             await ctx.send(
-                'Your {} note has been added!'.format(
-                    ctx.bot.inflector.ordinal(total_notes + 1)
+                'Your {} {} note has been added!'.format(
+                    ctx.bot.inflector.ordinal(total_notes + 1),
+                    'global' if location is None else 'server'
                 )
             )
         else:
             await ctx.send(
                 'Sorry, but you have reached your maximum limit of '
-                f'{self.max_notes_user:,} notes.'
+                '{:,} notes {}.'.format(
+                    self.MAX_NOTES_PER_LOCATION,
+                    'globally' if location is None
+                    else 'in this server' if location == ctx.guild.id
+                    else 'in that server'
+                )
             )
 
 
@@ -202,21 +278,31 @@ If nothing is provided, all notes are shown."""
     @client_notes.command(name='remove', aliases=('delete',))
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
-    async def client_notes_remove(self, ctx, *, index: IndexConverter):
+    async def client_notes_remove(
+        self, ctx, location: Optional[GuildIDConverter],
+        *, index: IndexConverter
+    ):
         """Remove one or more notes.
 The index parameter allows several formats:
-1  # delete note 1
-1, 5  # delete notes 1 and 5
-3-8  # delete notes 3 through 8
-To see a list of your notes and their indices, use the "notes show" command."""
-        index: Iterable[int]
+notes delete 1  (delete note 1 for your current location)
+notes delete global 1, 5  (delete global notes 1 and 5)
+notes delete server 3-8  (delete notes 3 through 8 for your current server)
+To see a list of your notes and their indices, use the "notes" command."""
+        location = GuildIDConverter.convert_after(ctx, location)
+        index: Sequence[int]
 
-        note_list = await self.get_notes(ctx.author.id)
+        note_list = await self.get_notes(ctx.author.id, location)
 
         length = len(note_list)
         if length == 0:
-            return await ctx.send("You already don't have any notes.")
-        elif out_of_bounds := self.invalid_indices(length, index):
+            return await ctx.send(
+                "You already don't have any {}.".format(
+                    'global notes' if location is None
+                    else 'notes in this server' if location == ctx.guild.id
+                    else 'notes in that server'
+                )
+            )
+        elif out_of_bounds := invalid_indices(length, index):
             return await ctx.send(
                 '{} {} {} out of range. Your notes are 1-{:,}.'.format(
                     ctx.bot.inflector.plural('Index', len(out_of_bounds)),
@@ -231,8 +317,9 @@ To see a list of your notes and their indices, use the "notes show" command."""
 
         await ctx.send(
             ctx.bot.inflector.inflect(
-                "{n:,} plural('note', {n}) successfully deleted!".format(
-                    n=len(index)
+                "{n:,} {loc} plural('note', {n}) successfully deleted!".format(
+                    n=len(index),
+                    loc='global' if location is None else 'server'
                 )
             )
         )
