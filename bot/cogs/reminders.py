@@ -392,6 +392,68 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
         )
 
 
+    @client_reminders.group(name='clear', aliases=('wipe',), invoke_without_command=True)
+    @commands.cooldown(1, 10, commands.BucketType.channel)
+    async def client_reminders_clear(self, ctx, channel: discord.TextChannel = None):
+        """Clear all your reminders in the given channel."""
+        channel = channel or ctx.channel
+        db = ctx.bot.dbreminders
+
+        # NOTE: doing manual request instead of having a database method
+        entries = await db.delete_rows(
+            db.TABLE_NAME, {'user_id': ctx.author.id, 'channel_id': channel.id},
+            pop=True
+        )
+
+        count = len(entries)
+        channel_reference = 'this channel' if channel == ctx.channel else channel.mention
+
+        if count == 0:
+            return await ctx.send(f'You have no reminders in {channel_reference}!')
+
+        await ctx.send(
+            'Cleared your {} {} in {}!'.format(
+                count,
+                ctx.bot.inflector.plural('reminder', count),
+                channel_reference
+            )
+        )
+
+
+    @client_reminders_clear.group(name='everyone', invoke_without_command=True)
+    @commands.guild_only()
+    async def client_reminders_clear_everyone(self, ctx, channel: discord.TextChannel = None):
+        """Clear everyone's reminders in the given channel.
+
+This requires the Manage Messages permission in the given channel."""
+        channel = channel or ctx.channel
+
+        if not channel.permissions_for(ctx.author).manage_messages:
+            return await ctx.send(
+                'You must have the Manage Messages permission '
+                "to clear everyone's reminders!"
+            )
+
+        db = ctx.bot.dbreminders
+        entries = await db.delete_rows(
+            db.TABLE_NAME, {'channel_id': channel.id}, pop=True
+        )
+
+        count = len(entries)
+        channel_reference = 'this channel' if channel == ctx.channel else channel.mention
+
+        if count == 0:
+            return await ctx.send(f'There are no reminders in {channel_reference}!')
+
+        await ctx.send(
+            'Cleared {} {} in {}!'.format(
+                count,
+                ctx.bot.inflector.plural('reminder', count),
+                channel_reference
+            )
+        )
+
+
     @commands.command(
         name='remind', aliases=('remindme', 'announce'),
         brief='Shorthand for reminder add.',
