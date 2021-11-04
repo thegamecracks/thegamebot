@@ -293,7 +293,7 @@ class Database:
             None
 
         """
-        row_keys, row_values = self.escape_row(row, ', ')
+        row_keys, row_values = self.escape_row(row, ', ', use_assignment=True)
         where_keys, where_values = self.escape_row(where, ' AND ')
         rows = None
 
@@ -362,26 +362,35 @@ class Database:
         return keys, placeholders, values
 
     @staticmethod
-    def escape_row(row: dict, sep: str) -> Tuple[str, list]:
+    def escape_row(row: dict, sep: str, *, use_assignment=False) -> Tuple[str, list]:
         """Turn a dictionary into placeholders and values.
 
         Example:
-            >>> keys, values = escape_row(row)
+            >>> keys, values = escape_row(row, ', ')
             >>> await conn.execute(
             ...     f'UPDATE {table} SET {keys}',
             ...     values
             ... )
+
+        Args:
+            row (dict): The row to convert into a query.
+            sep (str): The operator separating each key/value pair,
+                e.g. ' AND '
+            use_assignment (bool):
+                If True, the "=" operator is used, suitable for UPDATE queries.
+                When False, uses the "IS" operator to match nulls correctly.
 
         Returns:
             Tuple[str, List[Any]]: The placeholders for the WHERE clause
                 along with a list of values for each placeholder.
 
         """
+        op = '=' if use_assignment else ' IS '
         keys, values = [], []
         for k, v in row.items():
             keys.append(k)
             values.append(v)
-        keys = sep.join([f'{k}=?' for k in row])
+        keys = sep.join([f'{k}{op}?' for k in row])
         return keys, values
 
     @classmethod
