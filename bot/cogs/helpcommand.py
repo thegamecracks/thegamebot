@@ -253,7 +253,7 @@ class HelpView(discord.ui.View):
         self.stop()
 
         obj = self.last_help
-        if isinstance(obj, dict):
+        if isinstance(obj, dict) and all(isinstance(k, str) for k in obj):
             # In case the original view timed out, the kwargs are
             # stored so the view can be reconstructed
             view = HelpView(**obj)
