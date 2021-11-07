@@ -207,13 +207,13 @@ If nothing is provided, all notes are shown."""
 
         lines = [
             '{}. {}'.format(
-                i,
+                i + 1,
                 utils.truncate_message(
                     escape_codeblocks(note['content']),
                     140, max_lines=1
                 )
             )
-            for i, note in enumerate(note_list, start=1)
+            for i, note in zip(index, note_list)
         ]
 
         embed = discord.Embed(
