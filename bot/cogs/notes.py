@@ -236,7 +236,7 @@ If nothing is provided, all notes are shown."""
     async def client_notes_add(
         self, ctx,
         location: Optional[GuildIDConverter],
-        *, note
+        *, content
     ):
         """Store a note.
 
@@ -251,7 +251,7 @@ notes add server ... (add a server note)"""
             await self.add_note(
                 ctx.author.id, location,
                 datetime.datetime.now().astimezone(),
-                note
+                content
             )
 
             await ctx.send(
