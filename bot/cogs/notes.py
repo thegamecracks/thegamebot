@@ -205,16 +205,13 @@ If nothing is provided, all notes are shown."""
             )
             return await ctx.send(embed=embed)
 
-        lines = [
-            '{}. {}'.format(
-                i + 1,
-                utils.truncate_message(
-                    escape_codeblocks(note['content']),
-                    140, max_lines=1
-                )
-            )
-            for i, note in zip(index, note_list)
-        ]
+        lines = []
+        for i, note in zip(index, note_list):
+            content = escape_codeblocks(note['content'])
+            truncated = utils.truncate_simple(content, 140, '...')
+            first_line, *extra = truncated.split('\n', 1)
+            extra = '...' if extra else ''
+            lines.append(f'{i + 1}. {first_line}{extra}')
 
         embed = discord.Embed(
             color=color,
