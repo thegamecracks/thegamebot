@@ -82,16 +82,6 @@
     "bot_color": "0xFF8002",
     "default_StreamingURL": "https://www.twitch.tv/thegamecracks",
     "default_prefix": ";",
-    "deniedmessages": [
-        "Nope.",
-        "Not havin' it.",
-        "Denied.",
-        "Negative.",
-        "Uh, no.",
-        "Sorry, no.",
-        "No go.",
-        "Ineffective."
-    ],
     "message_limit": 1,
     "message_size": 2000,
     "owner_ids": [

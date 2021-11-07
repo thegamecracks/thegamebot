@@ -352,9 +352,6 @@ class EventHandlers(commands.Cog):
             else:
                 return 'in this DM'
 
-        def get_denied_message():
-            return random.choice(ctx.bot.get_cog('Settings').get('deniedmessages'))
-
         def missing_x_to_run(x, items):
             count = len(items)
             if count == 1:
@@ -479,7 +476,7 @@ class EventHandlers(commands.Cog):
         elif isinstance(error, commands.NoPrivateMessage):
             await ctx.send('You must be in a server to use this command.')
         elif isinstance(error, commands.NotOwner):
-            await ctx.send(get_denied_message(), delete_after=6)
+            await ctx.message.add_reaction('\N{CROSS MARK}')
         elif isinstance(error, commands.NSFWChannelRequired):
             await ctx.send('The channel must be NSFW.')
         elif isinstance(error, commands.PrivateMessageOnly):
