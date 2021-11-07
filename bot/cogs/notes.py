@@ -83,7 +83,7 @@ def escape_codeblocks(content: str) -> str:
     )
 
 
-def invalid_indices(maximum: int, index: list[int], *, limit=3) -> list[int]:
+def invalid_indices(maximum: int, index: list[int], *, limit=3) -> list[str]:
     """Return a list of 1-indexed strings indicating which
     indices are out of bounds."""
     over = (str(n + 1) for n in index if not 0 < n + 1 <= maximum)
