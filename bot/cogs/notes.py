@@ -5,7 +5,7 @@
 import datetime
 import itertools
 import re
-from typing import Optional, Sequence
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -13,40 +13,38 @@ from discord.ext import commands
 from bot import converters, errors, utils
 
 
-class IndexConverter(commands.Converter[Sequence[int]]):
+class IndexConverter(commands.Converter[list[int]]):
     """Convert an argument to a list of indices or a range.
 
     Formats supported:
         1        # [0]
-        1, 5, 9  # [0, 4, 8]
-        1-3      # range(0, 3)
+        1, 9, 4  # [0, 4, 8]; indices are sorted
+        1-3      # [0, 1, 2]
 
     """
-    int_regex = re.compile(r'-?\d+')
+    FORMAT_REGEX = re.compile(r'(?P<start>\d+)(?:-(?P<end>\d+))?')
     
-    async def convert(self, ctx, argument) -> Sequence[int]:
-        # slice
-        try:
-            x, y = [int(n) for n in argument.split('-', 1)]
+    async def convert(self, ctx, argument) -> list[int]:
+        indices = set()
 
-            if x - 1 < 0:
+        for m in self.FORMAT_REGEX.finditer(argument):
+            start = int(m['start'])
+            end = int(m['end'] or start)
+
+            if start < 1:
                 raise errors.IndexOutOfBoundsError(
                     'Your starting index cannot be below 1.')
-            elif y < x:
+            elif end < start:
                 raise errors.IndexOutOfBoundsError(
                     'Your end index cannot be lower than your starting index.')
 
-            return range(x - 1, y)
-        except ValueError:
-            pass
+            for i in range(start - 1, end):
+                indices.add(i)
 
-        # list
-        indices = self.int_regex.findall(argument)
         if not indices:
-            raise errors.IndexOutOfBoundsError(
-                'Could not understand your range.')
-                
-        return [int(n) - 1 for n in indices]
+            raise errors.ErrorHandlerResponse('No indices were specified.')
+
+        return sorted(indices)
 
 
 class GuildIDConverter(commands.Converter[Optional[int]]):
@@ -85,7 +83,7 @@ def escape_codeblocks(content: str) -> str:
     )
 
 
-def invalid_indices(maximum: int, index: Sequence[int], *, limit=3):
+def invalid_indices(maximum: int, index: list[int], *, limit=3) -> list[int]:
     """Return a list of 1-indexed strings indicating which
     indices are out of bounds."""
     over = (str(n + 1) for n in index if not 0 < n + 1 <= maximum)
@@ -170,7 +168,7 @@ notes server 3-8  (show notes 3 through 8 for your current server)
 If nothing is provided, all notes are shown."""
         location = GuildIDConverter.convert_after(ctx, location)
         location_name = 'global' if location is None else 'server'
-        index: Optional[Sequence[int]]
+        index: Optional[list[int]]
 
         note_list = await self.get_notes(ctx.author.id, location)
         length = len(note_list)
@@ -354,7 +352,7 @@ notes delete server 3-8  (delete notes 3 through 8 for your current server)
 To see the indices for your notes, use the "notes" command."""
         location = GuildIDConverter.convert_after(ctx, location)
         location_name = 'global' if location is None else 'server'
-        index: Sequence[int]
+        index: list[int]
 
         note_list = await self.get_notes(ctx.author.id, location)
 
