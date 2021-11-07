@@ -77,10 +77,22 @@ class GuildIDConverter(commands.Converter[Optional[int]]):
 
 
 def escape_codeblocks(content: str) -> str:
-    return converters.CodeBlock.REGEX.sub(
-        r'\`\`\`\g<code>\`\`\`',
-        content
-    )
+    """Escape any code blocks in a given text."""
+    parts = []
+    last_index = 0
+
+    # General form: pre ```block``` post
+    # For each match, append pre and ```block```,
+    # then check post for the same pattern, repeat if needed,
+    # and append the remainder of that at the very end
+    for m in converters.CodeBlock.REGEX.finditer(content):
+        parts.append(content[last_index:m.start()])
+        parts.append(discord.utils.escape_markdown(m.expand(r'```\g<code>```')))
+        last_index = m.end()
+
+    parts.append(content[last_index:])
+
+    return ''.join(parts)
 
 
 def invalid_indices(maximum: int, index: list[int], *, limit=3) -> list[str]:
@@ -207,6 +219,8 @@ If nothing is provided, all notes are shown."""
 
         lines = []
         for i, note in zip(index, note_list):
+            # NOTE: it is possible that truncate_simple will cut off
+            # between a backslash and a markdown character
             content = escape_codeblocks(note['content'])
             truncated = utils.truncate_simple(content, 140, '...')
             first_line, *extra = truncated.split('\n', 1)
