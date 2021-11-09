@@ -302,7 +302,7 @@ class CSClub(commands.Cog):
         if message.channel.id != self.SUGGESTIONS_CHANNEL_ID:
             return
         elif message.type == discord.MessageType.thread_created:
-            await message.delete()
+            await message.delete(delay=10)
 
     @commands.Cog.listener('on_thread_delete')
     async def on_suggestion_delete(self, thread: discord.Thread, *, keep_in_database=False):
