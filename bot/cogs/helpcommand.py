@@ -548,17 +548,13 @@ class HelpCommand(commands.HelpCommand):
         return getattr(cog, 'qualified_name', 'No Category')
 
     def command_not_found(self, string):
-        return 'No command called "{}" found.'.format(string), string
+        return 'No command called "{}" found.'.format(string)
 
     def subcommand_not_found(self, command, string):
         if isinstance(command, commands.Group) and len(command.all_commands) > 0:
-            message = 'Command "{}" has no subcommand named {}'.format(
+            return 'Command "{}" has no subcommand named {}'.format(
                 command.qualified_name, string)
-        else:
-            message = 'Command "{}" has no subcommands.'.format(
-                command.qualified_name)
-
-        return message, string, command
+        return 'Command "{}" has no subcommands.'.format(command.qualified_name)
 
     async def send_bot_help(self, mapping: HELP_OBJECT):
         """Sends help when no arguments are given."""
