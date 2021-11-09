@@ -137,6 +137,9 @@ class SuggestionsView(discord.ui.View):
         self.cooldown = commands.CooldownMapping.from_cooldown(
             1, 600, commands.BucketType.user
         )
+        self.edit_lock = asyncio.Lock()
+        # This lock should be used by anything that edits the message
+        # to ensure state is not overridden
 
     @property
     def partial_message(self) -> Optional[discord.PartialMessage]:
@@ -166,6 +169,17 @@ class SuggestionsView(discord.ui.View):
         suggestions = await self.fetch_suggestions()
         return await self.partial_message.edit(embed=suggestions.to_embed())
 
+    async def on_error(self, error, item: discord.ui.Button, interaction):
+        if isinstance(error, errors.SkipInteractionResponse):
+            return
+
+        # Make sure button isn't deadlocked
+        if item.disabled and interaction.response.is_done():
+            item.disabled = False
+            await interaction.edit_original_message(view=self)
+
+        raise error
+
     @discord.ui.button(
         custom_id='create',
         emoji='\N{MEMO}',
@@ -173,51 +187,60 @@ class SuggestionsView(discord.ui.View):
         style=discord.ButtonStyle.blurple
     )
     async def create_suggestion(self, button: discord.ui.Button, interaction: discord.Interaction):
-        # Parse the current suggestion embed for thread data
-        suggestions = await self.fetch_suggestions(interaction.message)
+        async with self.edit_lock:
+            # Parse the current suggestion embed for thread data
+            suggestions = await self.fetch_suggestions(interaction.message)
 
-        # Disallow having more than one active suggestion
-        existing = discord.utils.get(suggestions, user_id=interaction.user.id)
-        if existing is not None:
-            return await interaction.response.send_message(
-                f'You already have an active suggestion: <#{existing.thread_id}>',
-                ephemeral=True
-            )
-
-        # Check that user is not on cooldown
-        bucket = self.cooldown.get_bucket(utils.MockMessage(interaction.user))  # type: ignore
-        retry_after = bucket.get_retry_after()
-        if retry_after:
-            return await interaction.response.send_message(
-                'Please wait {} before creating another suggestion!'.format(
-                    humanize.naturaldelta(retry_after)  # type: ignore
+            # Disallow having more than one active suggestion
+            existing = discord.utils.get(suggestions, user_id=interaction.user.id)
+            if existing is not None:
+                return await interaction.response.send_message(
+                    f'You already have an active suggestion: <#{existing.thread_id}>',
+                    ephemeral=True
                 )
+
+            # Check that user is not on cooldown
+            bucket = self.cooldown.get_bucket(utils.MockMessage(interaction.user))  # type: ignore
+            retry_after = bucket.get_retry_after()
+            if retry_after:
+                return await interaction.response.send_message(
+                    'Please wait {} before creating another suggestion!'.format(
+                        humanize.naturaldelta(retry_after)  # type: ignore
+                    ),
+                )
+
+            # Start creating thread, temporarily disabling the button
+            button.disabled = True
+            try:
+                await interaction.response.edit_message(view=self)
+            except discord.HTTPException:
+                raise errors.SkipInteractionResponse('Timed out before edit')
+
+            thread = await interaction.channel.create_thread(
+                name='By ' + interaction.user.display_name,
+                type=discord.ChannelType.public_thread
             )
 
-        # Defer before creating thread in case it's ratelimited
-        await interaction.response.defer()
-        thread = await interaction.channel.create_thread(
-            name='By ' + interaction.user.display_name,
-            type=discord.ChannelType.public_thread
-        )
+            # Update cooldown
+            bucket.update_rate_limit()
 
-        # Update cooldown
-        bucket.update_rate_limit()
+            # Add to database
+            async with self.cog.bot.dbusers.connect(writing=True) as conn:
+                await conn.execute(
+                    'INSERT INTO CSClubSuggestions VALUES (?, ?)',
+                    thread.id, interaction.user.id
+                )
 
-        # Add to database
-        async with self.cog.bot.dbusers.connect(writing=True) as conn:
-            await conn.execute(
-                'INSERT INTO CSClubSuggestions VALUES (?, ?)',
-                thread.id, interaction.user.id
-            )
+            # Update the message
+            suggestions.append(Suggestion(
+                thread.archive_timestamp,
+                interaction.user.id,
+                thread.id
+            ))
+            embed = suggestions.to_embed()
 
-        # Update the message
-        suggestions.append(Suggestion(
-            thread.archive_timestamp,
-            interaction.user.id,
-            thread.id
-        ))
-        await interaction.edit_original_message(embed=suggestions.to_embed())
+            button.disabled = False
+            await interaction.edit_original_message(embed=embed, view=self)
 
         # Send initial message
         await thread.send(
@@ -296,26 +319,30 @@ class CSClub(commands.Cog):
                 )
 
         # Remove from embed if it exists
-        suggestions = await self.suggestions_view.fetch_suggestions()
-        existing = discord.utils.get(suggestions, thread_id=thread.id)
-        if existing is not None:
-            suggestions.remove(existing)
-            await self.suggestions_view.update()
+        async with self.suggestions_view.edit_lock:
+            suggestions = await self.suggestions_view.fetch_suggestions()
+            existing = discord.utils.get(suggestions, thread_id=thread.id)
+            if existing is not None:
+                suggestions.remove(existing)
+                await self.suggestions_view.update()
 
     @commands.Cog.listener('on_thread_update')
     async def on_suggestion_update(self, before: discord.Thread, after: discord.Thread):
         if after.parent_id != self.SUGGESTIONS_CHANNEL_ID:
             return
         elif not before.archived and after.archived:
+            # Archived; remove from embed
             return await self.on_suggestion_delete(after, keep_in_database=True)
         elif before.archived and not after.archived:
-            suggestions = await self.suggestions_view.fetch_suggestions()
-            suggestions.append(Suggestion(
-                after.archive_timestamp,
-                await self.fetch_suggestion_user_id(after.id),
-                after.id
-            ))
-            return await self.suggestions_view.update()
+            # Unarchived; add back to embed
+            async with self.suggestions_view.edit_lock:
+                suggestions = await self.suggestions_view.fetch_suggestions()
+                suggestions.append(Suggestion(
+                    after.archive_timestamp,
+                    await self.fetch_suggestion_user_id(after.id),
+                    after.id
+                ))
+                return await self.suggestions_view.update()
 
     # Database stuff
 
