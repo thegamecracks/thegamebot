@@ -207,6 +207,7 @@ class SuggestionsView(discord.ui.View):
                     'Please wait {} before creating another suggestion!'.format(
                         humanize.naturaldelta(retry_after)  # type: ignore
                     ),
+                    ephemeral=True
                 )
 
             # Start creating thread, temporarily disabling the button
