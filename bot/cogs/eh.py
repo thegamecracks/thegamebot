@@ -4,6 +4,7 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import random
 import time
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -260,6 +261,15 @@ class EventHandlers(commands.Cog):
             )
 
         # Error message functions
+        async def send(*args, **kwargs) -> Optional[discord.Message]:
+            is_interaction = ctx.interaction is not None
+            return await ctx.send(
+                *args,
+                ephemeral=is_interaction,
+                return_message=not is_interaction,
+                **kwargs
+            )
+
         def convert_perms_to_english(perms):
             """Run through a list of permissions and convert them into
             user-friendly representations.
@@ -364,11 +374,11 @@ class EventHandlers(commands.Cog):
 
         # Send an error message
         if isinstance(error, commands.BadBoolArgument):
-            await ctx.send('Expected a boolean (true/false) answer '
-                           f'instead of "{error.argument}".\n'
-                           f'Usage: `{get_command_signature()}`')
+            await send('Expected a boolean (true/false) answer '
+                       f'instead of "{error.argument}".\n'
+                       f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.BotMissingPermissions):
-            await ctx.send(
+            await send(
                 'I am {}'.format(
                     missing_x_to_run(
                         'permission',
@@ -383,15 +393,15 @@ class EventHandlers(commands.Cog):
                 error, 'missing_roles',
                 getattr(error, 'missing_role', None)
             )
-            await ctx.send(
+            await send(
                 'I am {}'.format(
                     missing_x_to_run('role', convert_roles(roles))
                 )
             )
         elif isinstance(error, commands.ChannelNotFound):
-            await ctx.send(f'I cannot find the given channel "{error.argument}".')
+            await send(f'I cannot find the given channel "{error.argument}".')
         elif isinstance(error, commands.ChannelNotReadable):
-            await ctx.send('I cannot read messages in the channel '
+            await send('I cannot read messages in the channel '
                            f'{error.argument.mention}.')
         elif isinstance(error, commands.CommandOnCooldown):
             embed = discord.Embed(
@@ -406,15 +416,15 @@ class EventHandlers(commands.Cog):
                 icon_url=ctx.author.display_avatar.url
             )
 
-            await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
+            await send(embed=embed, delete_after=min(error.retry_after, 20))
         elif isinstance(error, commands.DisabledCommand):
-            await ctx.send('This command is currently disabled.')
+            await send('This command is currently disabled.')
         elif isinstance(error, commands.EmojiNotFound):
-            await ctx.send(f'I cannot find the given emoji "{error.argument}"')
+            await send(f'I cannot find the given emoji "{error.argument}"')
         elif isinstance(error, commands.ExpectedClosingQuoteError):
-            await ctx.send('Expected a closing quotation mark.')
+            await send('Expected a closing quotation mark.')
         elif isinstance(error, commands.BadFlagArgument):
-            await ctx.send(
+            await send(
                 f'Failed to parse your input for the "{error.flag.name}" flag.')
         elif isinstance(error, commands.BadLiteralArgument):
             if len(error.literals) > 1:
@@ -426,19 +436,19 @@ class EventHandlers(commands.Cog):
                 )
             else:
                 values = f'**{error.literals[0]}**'
-            await ctx.send(f'"{error.param.name}" parameter must be {values}.')
+            await send(f'"{error.param.name}" parameter must be {values}.')
         elif isinstance(error, (commands.MissingFlagArgument,
                                 commands.MissingRequiredFlag)):
-            await ctx.send(
+            await send(
                 f'You must provide a value for the "{error.flag.name}" flag.')
         elif isinstance(error, commands.TooManyFlags):
-            await ctx.send(
+            await send(
                 'Too many values were provided for the "{0.flag.name}" '
                 'flag. The max number of values allowed is '
                 '{0.flag.max_args}.'.format(error)
             )
         elif isinstance(error, commands.InvalidEndOfQuotedStringError):
-            await ctx.send('Expected a space after a closing quotation mark.')
+            await send('Expected a space after a closing quotation mark.')
         elif isinstance(error, commands.MaxConcurrencyReached):
             embed = discord.Embed(
                 color=utils.get_bot_color(ctx.bot)
@@ -447,14 +457,14 @@ class EventHandlers(commands.Cog):
                 icon_url=ctx.author.display_avatar.url
             )
 
-            await ctx.send(embed=embed)
+            await send(embed=embed)
         elif isinstance(error, commands.MessageNotFound):
-            await ctx.send('I cannot find the given message.')
+            await send('I cannot find the given message.')
         elif isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f'Missing parameter "{error.param.name}"\n'
-                           f'Usage: `{get_command_signature()}`')
+            await send(f'Missing parameter "{error.param.name}"\n'
+                       f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.MissingPermissions):
-            await ctx.send(
+            await send(
                 'You are {}'.format(
                     missing_x_to_run(
                         'permission',
@@ -468,21 +478,21 @@ class EventHandlers(commands.Cog):
                 error, 'missing_roles',
                 getattr(error, 'missing_role', None)
             )
-            await ctx.send(
+            await send(
                 'You are {}'.format(
                     missing_x_to_run('role', convert_roles(roles))
                 )
             )
         elif isinstance(error, commands.NoPrivateMessage):
-            await ctx.send('You must be in a server to use this command.')
+            await send('You must be in a server to use this command.')
         elif isinstance(error, commands.NotOwner):
             await ctx.message.add_reaction('\N{CROSS MARK}')
         elif isinstance(error, commands.NSFWChannelRequired):
-            await ctx.send('The channel must be NSFW.')
+            await send('The channel must be NSFW.')
         elif isinstance(error, commands.PrivateMessageOnly):
-            await ctx.send('You must be in DMs to use this command.')
+            await send('You must be in DMs to use this command.')
         elif isinstance(error, commands.UnexpectedQuoteError):
-            await ctx.send('Did not expect a quotation mark.')
+            await send('Did not expect a quotation mark.')
         elif isinstance(error, errors.UnknownTimezoneError):
             embed = discord.Embed(
                 description='Unknown timezone given. See the [Time Zone Map]'
@@ -490,17 +500,17 @@ class EventHandlers(commands.Cog):
                             'for the names of timezones supported.',
                 color=utils.get_bot_color(ctx.bot)
             )
-            await ctx.send(embed=embed)
+            await send(embed=embed)
         elif isinstance(error, (commands.UserNotFound,
                                 commands.MemberNotFound)):
-            await ctx.send('I cannot find the given user.')
+            await send('I cannot find the given user.')
         elif isinstance(error_unpacked, errors.ErrorHandlerResponse):
             # superclass
-            await ctx.send(str(error))
+            await send(str(error))
         elif isinstance(error, commands.UserInputError):
             # superclass
-            await ctx.send('Failed to parse your parameters.\n'
-                           f'Usage: `{get_command_signature()}`')
+            await send('Failed to parse your parameters.\n'
+                       f'Usage: `{get_command_signature()}`')
         elif isinstance(error, commands.ConversionError):
             embed = discord.Embed(
                 color=utils.get_bot_color(ctx.bot),
@@ -515,7 +525,7 @@ class EventHandlers(commands.Cog):
                 name=ctx.author.display_name,
                 icon_url=ctx.author.display_avatar.url
             )
-            await ctx.send(embed=embed)
+            await send(embed=embed)
             raise error
         elif isinstance(error, checks.UserOnCooldown):
             # User has invoked too many commands
@@ -530,14 +540,14 @@ class EventHandlers(commands.Cog):
                 icon_url=ctx.author.display_avatar.url
             )
 
-            await ctx.send(embed=embed, delete_after=min(error.retry_after, 20))
+            await send(embed=embed, delete_after=min(error.retry_after, 20))
         elif (isinstance(error_unpacked, discord.Forbidden)
               and error_unpacked.code == 50007):
             # Cannot send messages to this user
-            await ctx.send('I tried DMing you but you have your DMs '
-                           'disabled for this server.')
+            await send('I tried DMing you but you have your DMs '
+                       'disabled for this server.')
         elif isinstance(error_unpacked, errors.SettingsNotFound):
-            await ctx.send('Fatal error: settings could not be loaded.')
+            await send('Fatal error: settings could not be loaded.')
         elif isinstance(error, commands.CommandInvokeError):
             embed = discord.Embed(
                 color=utils.get_bot_color(ctx.bot),
@@ -552,7 +562,7 @@ class EventHandlers(commands.Cog):
                 name=ctx.author.display_name,
                 icon_url=ctx.author.display_avatar.url
             )
-            await ctx.send(embed=embed)
+            await send(embed=embed)
             raise error
         elif not isinstance(error, self.IGNORE_EXCEPTIONS_AFTER):
             raise error
