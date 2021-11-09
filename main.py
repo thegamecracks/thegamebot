@@ -44,6 +44,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'gamecog',
             'games',
             'graphing',
+            'guildclub',
             'guildirish',
             'guildsignal',
             'images',
