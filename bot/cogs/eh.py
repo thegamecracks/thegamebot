@@ -94,32 +94,26 @@ class EventHandlers(commands.Cog):
     }
 
     MAX_CONCURRENCY_DESCRIPTIONS = {
-        commands.BucketType.default: 'Too many people are currently using this '
-                                     'command globally. The limit is '
-                                     '{times} concurrently.',
+        commands.BucketType.default: 'This command has globally reached the '
+                                     'maximum concurrent usage of {n}.',
 
-        commands.BucketType.user: 'You are using this command too many times. '
-                                  'The personal limit is {times} concurrently.',
+        commands.BucketType.user: "You have reached this command's maximum "
+                                  'concurrent usage of {n}.',
 
-        commands.BucketType.guild: 'Too many people are currently using this '
-                                   'command {here}. The limit is '
-                                   '{times} concurrently.',
+        commands.BucketType.guild: 'This command has reached the maximum '
+                                   'concurrent usage of {n} {here}.',
 
-        commands.BucketType.channel: 'Too many people are currently using this '
-                                     'command {here}. The limit is '
-                                     '{times} concurrently.',
+        commands.BucketType.channel: 'This command has reached the maximum '
+                                     'concurrent usage of {n} {here}.',
 
-        commands.BucketType.member: 'You are using this command too many times '
-                                    '{here}. The personal limit is '
-                                    '{times} concurrently.',
+        commands.BucketType.member: "You have reached this command's maximum "
+                                    'concurrent usage of {n} {here}.',
 
-        commands.BucketType.category: 'Too many people are currently using this '
-                                      'command in this server category. '
-                                      'The limit is {times} concurrently.',
+        commands.BucketType.category: 'This command has reached the maximum '
+                                      'concurrent usage of {n} in this channel category.',
 
-        commands.BucketType.role: 'Too many people with the same role are using '
-                                  'this command. The limit is '
-                                  '{times} concurrently.'
+        commands.BucketType.role: 'This command has reached the maximum '
+                                  'concurrent usage of {n} for your top role.'
     }
 
     PERMS_TO_ENGLISH = {
@@ -322,6 +316,7 @@ class EventHandlers(commands.Cog):
 
             return description.format(
                 here=get_cooldown_here(error.per),
+                n=error.number,
                 times=ctx.bot.inflector.inflect(
                     '{0} plural("time", {0})'.format(
                         error.number
@@ -345,6 +340,7 @@ class EventHandlers(commands.Cog):
 
             return description.format(
                 here=get_cooldown_here(error.type),
+                n=error.cooldown.rate,
                 times=ctx.bot.inflector.inflect(
                     '{0} plural("time", {0}) '
                     'every {1} plural("second", {1})'.format(
