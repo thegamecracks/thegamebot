@@ -226,6 +226,7 @@ class SuggestionsView(discord.ui.View):
             bucket.update_rate_limit()
 
             # Add to database
+            await self.cog.bot.dbusers.add_user(interaction.user.id)
             async with self.cog.bot.dbusers.connect(writing=True) as conn:
                 await conn.execute(
                     'INSERT INTO CSClubSuggestions VALUES (?, ?)',
