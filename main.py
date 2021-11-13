@@ -67,7 +67,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
     EXT_LIST.append('jishaku')
 
     def __init__(self, *args, **kwargs):
-        super().__init__(super().get_prefix, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # Allow case-insensitive references to cogs
         # (see "?tag case insensitive cogs" on the discord.py server)
@@ -275,7 +275,7 @@ async def main():
         invites=False,
         members=args.members,
         messages=True,
-        presences = args.presences,
+        presences=args.presences,
         reactions=True,
         typing=False,
         voice_states=False,

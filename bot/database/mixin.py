@@ -19,6 +19,29 @@ from .userdatabase import UserDatabase
 from bot import errors
 
 
+async def command_prefix(bot, message):
+    def get_default_prefix():
+        try:
+            return bot.get_cog('Settings').get('default_prefix')
+        except errors.SettingsNotFound:
+            return None
+
+    guild = message.guild
+
+    if guild is None:
+        prefix = get_default_prefix()
+    else:
+        await bot.dbguilds.add_guild(guild.id)
+        prefix = await bot.dbprefixes.get_prefix(guild.id)
+        if prefix is None:
+            await bot.dbprefixes.add_prefix(guild.id, get_default_prefix())
+            prefix = await bot.dbprefixes.get_prefix(guild.id)
+
+    if prefix is not None:
+        return commands.when_mentioned_or(prefix)(bot, message)
+    return commands.when_mentioned(bot, message)
+
+
 class BotDatabaseMixin(commands.Bot):
     DATABASE_MAIN_PATH = 'data/thegamebot.db'
     DATABASE_IRISH_PATH = 'data/irishsquad.db'
@@ -28,7 +51,7 @@ class BotDatabaseMixin(commands.Bot):
                  'dbtags')
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(command_prefix, *args, **kwargs)
 
         self.dbpool = ConnectionPool()
         self.dbcurrency = CurrencyDatabase(self, self.DATABASE_MAIN_PATH)
@@ -47,26 +70,3 @@ class BotDatabaseMixin(commands.Bot):
             db = getattr(self, attr)
             async with asqlite.connect(db.path) as conn:
                 await db.setup_table(conn)
-
-    async def get_prefix(self, message):
-        def get_default_prefix():
-            try:
-                return self.get_cog('Settings').get('default_prefix')
-            except errors.SettingsNotFound:
-                return None
-
-        guild = message.guild
-
-        if guild is None:
-            prefix = get_default_prefix()
-        else:
-            await self.dbguilds.add_guild(guild.id)
-            prefix = await self.dbprefixes.get_prefix(guild.id)
-            if prefix is None:
-                await self.dbprefixes.add_prefix(guild.id, get_default_prefix())
-                prefix = await self.dbprefixes.get_prefix(guild.id)
-
-        # NOTE: slash prefix is included for enhanced-dpy slash commands to work
-        if prefix is not None:
-            return commands.when_mentioned_or(prefix, '/')(self, message)
-        return commands.when_mentioned_or('/')(self, message)
