@@ -10,6 +10,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
+from bot.classes.confirmation import ButtonConfirmation
 from bot import converters, errors, utils
 
 
@@ -387,17 +388,22 @@ To see the indices for your notes, use the "notes" command."""
                 )
             )
 
-        note_ids = [note_list[i]['note_id'] for i in index]
-        await self.delete_notes_by_note_id(note_ids)
-
-        await ctx.send(
-            ctx.bot.inflector.inflect(
-                "{n:,} {loc} plural('note', {n}) successfully deleted!".format(
-                    n=len(index),
-                    loc=location_name
-                )
-            )
+        note_str = '{n} {loc} {notes}'.format(
+            n=len(index),
+            loc=location_name,
+            notes=ctx.bot.inflector.plural('note', len(index))
         )
+
+        prompt = ButtonConfirmation(ctx, utils.get_user_color(ctx.bot, ctx.author))
+        if await prompt.confirm(f'Are you sure you want to delete {note_str}?'):
+            await prompt.update(f'Deleting {note_str}...', color=prompt.YES)
+
+            note_ids = [note_list[i]['note_id'] for i in index]
+            await self.delete_notes_by_note_id(note_ids)
+
+            await prompt.update(f'{note_str} successfully deleted!')
+        else:
+            await prompt.update('Cancelled note deletion.', color=prompt.NO)
 
 
 
