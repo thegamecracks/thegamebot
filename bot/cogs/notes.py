@@ -3,6 +3,7 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
+import functools
 import itertools
 import re
 from typing import Optional, Sequence, Iterable, cast
@@ -143,6 +144,38 @@ def invalid_indices(maximum: int, index: Iterable[int], *, limit=3) -> list[str]
     return list(over)
 
 
+class NoteView(discord.ui.View):
+    """Provides extra buttons when viewing a single note.
+
+    Args:
+        index (int): The note index.
+        kwargs: All columns of the note.
+
+    """
+    message: Optional[discord.Message] = None
+
+    def __init__(self, *, index: int, **kwargs):
+        super().__init__(timeout=30)
+        self.index = index
+        self.content = kwargs.get('content', '')
+
+        if self.escaped_content == self.content:
+            self.remove_item(self.view_raw)  # type: ignore
+
+    @functools.cached_property
+    def escaped_content(self):
+        return discord.utils.escape_mentions(
+            discord.utils.escape_markdown(self.content)
+        )
+
+    async def on_timeout(self):
+        await self.message.edit(view=None)
+
+    @discord.ui.button(label='View raw')
+    async def view_raw(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message(self.escaped_content, ephemeral=True)
+
+
 class NoteManagement(commands.Cog):
     """Commands for saving notes."""
     qualified_name = 'Note Management'
@@ -254,7 +287,9 @@ If nothing is provided, all notes are shown."""
                 name=f"{ctx.author.display_name}'s {location.note} #{i + 1}",
                 icon_url=ctx.author.display_avatar.url
             )
-            return await ctx.send(embed=embed)
+            view = NoteView(index=i, **note)
+            view.message = await ctx.send(embed=embed, view=view)
+            return
 
         lines = []
         for i, note in zip(index, note_list):
