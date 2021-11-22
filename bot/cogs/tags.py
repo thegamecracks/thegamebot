@@ -12,12 +12,6 @@ from bot.classes.confirmation import ButtonConfirmation
 from bot import errors, utils
 
 
-def cleanup_tag_content(s: str):
-    return discord.utils.escape_mentions(
-        discord.utils.escape_markdown(s)
-    )
-
-
 class TagContentConverter(commands.Converter):
     """Ensure a string is suitable for content of a tag.
 
@@ -31,7 +25,7 @@ class TagContentConverter(commands.Converter):
     async def convert(self, ctx, arg):
         param = ctx.current_parameter.name
 
-        raw_arg = cleanup_tag_content(arg)
+        raw_arg = utils.rawify_content(arg)
         diff = len(raw_arg) - self.TAG_MAX_CONTENT_LENGTH
         if diff > 0:
             raise errors.ErrorHandlerResponse(
@@ -430,7 +424,7 @@ Useful for copy pasting any of the tag's markdown."""
         if tag is None:
             return await ctx.send('This tag does not exist.')
 
-        escaped = cleanup_tag_content(tag['content'])
+        escaped = utils.rawify_content(tag['content'])
         await ctx.send(escaped, allowed_mentions=discord.AllowedMentions.none())
 
 

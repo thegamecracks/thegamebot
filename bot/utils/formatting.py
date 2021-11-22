@@ -3,7 +3,22 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import itertools
+import re
 from typing import Iterable, Optional
+
+import discord
+
+
+CHANNEL_MENTION_REGEX = re.compile(r'<#\d+>')
+def rawify_content(s: str) -> str:
+    return CHANNEL_MENTION_REGEX.sub(
+        r'\\\g<0>',
+        discord.utils.escape_mentions(
+            discord.utils.escape_markdown(
+                s
+            )
+        )
+    )   
 
 
 def format_table(

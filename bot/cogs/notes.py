@@ -164,9 +164,7 @@ class NoteView(discord.ui.View):
 
     @functools.cached_property
     def escaped_content(self):
-        return discord.utils.escape_mentions(
-            discord.utils.escape_markdown(self.content)
-        )
+        return utils.rawify_content(self.content)
 
     async def on_timeout(self):
         await self.message.edit(view=None)
