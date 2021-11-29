@@ -96,8 +96,8 @@ class _CSClub_Roles(commands.Cog):
         self.bot = bot
         self.base = base
 
-        self.role_view = RoleView(self.base.guild, self.ROLES)
-        bot.add_view(self.role_view, message_id=self.ROLE_VIEW_MESSAGE_ID)
+        self.role_view: RoleView | None = None
+        asyncio.create_task(self.start_listening_for_roles())
 
     @property
     def partial_role_message(self):
@@ -106,11 +106,19 @@ class _CSClub_Roles(commands.Cog):
             type=discord.ChannelType.text
         ).get_partial_message(self.ROLE_VIEW_MESSAGE_ID)
 
+    async def start_listening_for_roles(self):
+        await self.bot.wait_until_ready()
+        self.role_view = view = RoleView(self.base.guild, self.ROLES)
+        self.bot.add_view(view, message_id=self.ROLE_VIEW_MESSAGE_ID)
+
     @commands.Cog.listener('on_guild_role_update')
     @locked_coroutine
     async def on_role_name_update(
             self, before: discord.Role, after: discord.Role):
         """Update the role view's buttons if one of the roles is renamed."""
+        if self.role_view is None:
+            return
+
         button = discord.utils.get(self.role_view.children, role__id=before.id)
         if button is None:
             return
