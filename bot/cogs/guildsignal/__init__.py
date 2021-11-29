@@ -49,6 +49,7 @@ class SignalHill(commands.Cog):
         return self.bot.get_guild(self.GUILD_ID)
 
 
+# noinspection PyProtectedMember
 def setup(bot):
     from . import (
         status,

@@ -19,6 +19,7 @@ class CSClub(commands.Cog):
         return self.bot.get_guild(self.GUILD_ID)
 
 
+# noinspection PyProtectedMember
 def setup(bot):
     from . import (
         suggestions
