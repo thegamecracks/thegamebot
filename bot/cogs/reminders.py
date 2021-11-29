@@ -275,12 +275,11 @@ be used instead of UTC.
 
 The channel parameter only allows channels in the same server where you can both send messages and mention everyone in.
 
-User mentions will be escaped except in DMs or where you are permitted to mention everyone.
-If you can mention, this command can be used to create scheduled server announcements with these steps:
-1. hide the "@you time" header by mentioning your members in the first line of your message
-2. use @all and @now in place of @\u200beveryone and @\u200bhere to avoid pinging people with your command
-3. prefix role mentions with a backslash \\ to avoid pinging roles
-The announcement can only be scheduled if the bot has sufficient permissions to ping each included mention."""
+If you are able to mention everyone, this command can be used for scheduled announcements by following these steps:
+1. mention a member or role in the first line of your message, which hides the reminder header
+2. to avoid pinging with @\u200beveryone and @\u200bhere, use @all and @now instead
+3. as well, prefix role mentions with a backslash
+User mentions will otherwise be escaped except in DMs."""
         if channel is not None:
             # Given channel must be in same guild and have enough permissions
             if channel.guild != ctx.guild:
