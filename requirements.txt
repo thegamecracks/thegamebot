@@ -3,7 +3,7 @@ asqlite @ git+https://github.com/Rapptz/asqlite@ffc55a5b3d1b5e9c440c01620148be7f
 autopep8==1.6.0
 dateparser==1.1.0
 discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@fbb8803779373357e274e1540b368365fd9d8074
-discord.py @ git+https://github.com/iDevision/enhanced-discord.py@96153bb177d5a9e0be81f8c05e57d8777f4cd926
+discord.py @ git+https://github.com/iDevision/enhanced-discord.py@2c7d3c0f89d781fd420db291d0938c2e9422fea6
 emoji==1.6.1
 humanize==3.12.0
 inflect==5.3.0
