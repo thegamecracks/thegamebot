@@ -22,10 +22,12 @@ class CSClub(commands.Cog):
 # noinspection PyProtectedMember
 def setup(bot):
     from . import (
+        roles,
         suggestions
     )
 
     cogs = (
+        roles._CSClub_Roles,
         suggestions._CSClub_Suggestions,
     )
 
