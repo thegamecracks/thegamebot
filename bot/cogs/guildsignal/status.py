@@ -631,29 +631,9 @@ class _SignalHill_Status(commands.Cog):
                 message_id=891139679209001001,
                 line_color=0x2FE4BF,
                 bm_client=base.bm_client,
-                server_id=base.BM_SERVER_ID_SOG,
-                server_map='Cam Lao Nam',
+                server_id=base.BM_SERVER_ID_DAYZ,
                 **self.create_server_status_params()
-            ),
-            # MCServerStatus(
-            #     bot=bot,
-            #     channel_id=852008953968984115,
-            #     message_id=852009695241175080,
-            #     line_color=0x5EE060,
-            #     mc_client=mcstatus.MinecraftServer.lookup(
-            #         'signalhillgaming.apexmc.co'
-            #     ),
-            #     **self.create_server_status_params()
-            # ),
-            # BMServerStatus(
-            #     bot=bot,
-            #     channel_id=852008953968984115,
-            #     message_id=852009695241175080,
-            #     line_color=0x5EE060,
-            #     bm_client=base.bm_client,
-            #     server_id=base.BM_SERVER_ID_MCF,
-            #     **self.create_server_status_params()
-            # ),
+            )
         ]
         self.server_status_toggle()
 
