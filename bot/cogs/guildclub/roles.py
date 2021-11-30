@@ -189,10 +189,10 @@ class _CSClub_Roles(commands.Cog):
         for view, message in views:
             button = discord.utils.get(view.children, role__id=before.id)
             if button is None:
+                continue
+            elif button.config.label is not None:
                 return
             elif before.name == after.name:
-                return
-            elif button.config.label is not None:
                 return
 
             button.label = after.name
