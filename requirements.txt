@@ -2,12 +2,11 @@ abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics@de7d75fbf30
 asqlite @ git+https://github.com/Rapptz/asqlite@ffc55a5b3d1b5e9c440c01620148be7fa6493ef5
 autopep8==1.6.0
 dateparser==1.1.0
-discord-ext-menus @ git+https://github.com/Rapptz/discord-ext-menus@fbb8803779373357e274e1540b368365fd9d8074
-discord.py @ git+https://github.com/iDevision/enhanced-discord.py@2c7d3c0f89d781fd420db291d0938c2e9422fea6
+disnake==2.3.0
+disnake-jishaku==2.6.5
 emoji==1.6.1
 humanize==3.12.0
 inflect==5.3.0
-jishaku==2.3.1
 matplotlib==3.4.3
 mcstatus==6.5.0
 numpy==1.21.4
@@ -16,5 +15,4 @@ Pint==0.18
 psutil==5.8.0
 python-dateutil==2.8.2
 python-dotenv==0.19.1
-pytz==2021.3
 qrcode==7.3.1
