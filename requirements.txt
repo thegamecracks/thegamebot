@@ -2,7 +2,7 @@ abattlemetrics @ git+https://github.com/thegamecracks/abattlemetrics@de7d75fbf30
 asqlite @ git+https://github.com/Rapptz/asqlite@ffc55a5b3d1b5e9c440c01620148be7fa6493ef5
 autopep8==1.6.0
 dateparser==1.1.0
-disnake==2.3.0
+disnake==2.3.1
 disnake-jishaku==2.6.5
 emoji==1.6.1
 humanize==3.12.0
