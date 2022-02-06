@@ -17,6 +17,7 @@ EXT_LIST = [
     'bot.cogs.' + c for c in (
         'settings',  # dependency
         'eh',
+        'games',
         'helpcommand',
         'test'
     )
