@@ -11,10 +11,11 @@ import disnake
 from disnake.ext import commands
 from dotenv import load_dotenv
 
-from bot.other import discordlogger
+from bot import errors, discordlogger
 
 EXT_LIST = [
     'bot.cogs.' + c for c in (
+        'settings',  # dependency
         'eh',
         'test'
     )
@@ -25,6 +26,19 @@ logger = discordlogger.get_logger()
 
 
 class TheGameBot(commands.Bot):
+    def get_settings(self):
+        """ Retrieves the Settings cog.
+
+        :rtype: :class:`bot.cogs.settings.Settings`
+        :raises bot.errors.SettingsNotFound:
+            The Settings cog was not loaded.
+
+        """
+        cog = self.get_cog('Settings')
+        if cog is None:
+            raise errors.SettingsNotFound()
+        return cog
+
     async def start(self, *args, **kwargs):
         n_extensions = len(EXT_LIST)
         for i, name in enumerate(EXT_LIST, start=1):
