@@ -17,6 +17,7 @@ EXT_LIST = [
     'bot.cogs.' + c for c in (
         'settings',  # dependency
         'eh',
+        'helpcommand',
         'test'
     )
 ]
@@ -26,6 +27,18 @@ logger = discordlogger.get_logger()
 
 
 class TheGameBot(commands.Bot):
+    def get_bot_color(self) -> int:
+        """Gets the bot's set color from settings.
+
+        :raises bot.errors.SettingsNotFound:
+            The Settings cog was not loaded.
+        :raises KeyError:
+            The settings file is missing the general-color key.
+
+        """
+        settings = self.get_settings()
+        return settings.get('general', 'color')
+
     def get_settings(self):
         """ Retrieves the Settings cog.
 
