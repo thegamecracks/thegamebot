@@ -8,6 +8,7 @@ import os
 import pprint
 import shutil
 from typing import Any
+import uuid
 
 from disnake.ext import commands
 
@@ -212,8 +213,11 @@ class Settings(commands.Cog):
         except Exception as e:
             raise ValueError('Could not parse cache') from e
 
-        with open(self.path, 'w', encoding='utf-8') as f:
+        # atomically overwrite the settings
+        temp = '{}-{}.tmp'.format(uuid.uuid4(), self.path)
+        with open(temp, 'w', encoding='utf-8') as f:
             parser.write(f, space_around_delimiters=False)
+        os.replace(temp, self.path)
 
     def set(self, section: str, key: str, value):
         """Add or change a setting."""
