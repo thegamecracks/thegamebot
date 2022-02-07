@@ -14,6 +14,9 @@ from disnake.ext import commands
 
 SETTINGS_TYPE = dict[str, dict[str, Any]]
 
+def create_parser():
+    return configparser.ConfigParser(default_section='general')
+
 
 def rename_enumerate(src, dst, **kwargs):
     """Rename a file and automatically enumerate the filename
@@ -191,7 +194,7 @@ class Settings(commands.Cog):
             if autosetup:
                 self.setup(check_corrupt=False)
 
-            parser = configparser.ConfigParser()
+            parser = create_parser()
             with open(self.path, encoding='utf-8') as f:
                 parser.read_file(f)
 
@@ -207,7 +210,7 @@ class Settings(commands.Cog):
         if self._cache is None:
             raise ValueError('Settings cache does not exist')
 
-        parser = configparser.ConfigParser()
+        parser = create_parser()
         try:
             parser.read_dict(self._cache)
         except Exception as e:
