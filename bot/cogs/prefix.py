@@ -123,7 +123,7 @@ For prefixes ending with a space or multi-word prefixes, you must specify it wit
         if prefix == current_prefix:
             await ctx.send('That is already the current prefix.')
         else:
-            # Escape escape characters before printing
+            # Escape characters before printing
             clean_prefix = prefix.replace('\\', r'\\')
             await self.update_prefix(ctx.guild.id, prefix)
             await ctx.send(f'Successfully changed prefix to: "{clean_prefix}"')
