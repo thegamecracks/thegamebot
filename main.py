@@ -5,13 +5,16 @@
 import argparse
 import asyncio
 import os
+import pathlib
+import sqlite3
 import sys
 
 import disnake
 from disnake.ext import commands
 from dotenv import load_dotenv
+import inflect
 
-from bot import errors, discordlogger
+from bot import database, discordlogger, errors
 
 EXT_LIST = [
     'bot.cogs.' + c for c in (
@@ -19,6 +22,7 @@ EXT_LIST = [
         'eh',
         'games',
         'helpcommand',
+        'prefix',
         'test'
     )
 ]
@@ -28,17 +32,78 @@ logger = discordlogger.get_logger()
 
 
 class TheGameBot(commands.Bot):
-    def get_bot_color(self) -> int:
-        """Gets the bot's set color from settings.
+    """
 
-        :raises bot.errors.SettingsNotFound:
-            The Settings cog was not loaded.
-        :raises KeyError:
-            The settings file is missing the general-color key.
+    Attributes
+    ----------
+    dbpool: The pool for handling access to multiple database connections.
+        This is automatically opened during `self.start()`.
+    db: A Database instance for accessing `DATABASE_MAIN_FILE`.
+    inflector: An `inflect.engine()` instance for handling grammar.
+
+    """
+    DATABASE_MAIN_FILE = 'data/thegamebot.db'
+    DATABASE_MAIN_SCHEMA = 'data/thegamebot.sql'
+
+    def __init__(self, *args, **kwargs):
+        self.dbpool = database.ConnectionPool()
+        self.db = database.Database(self.dbpool, self.DATABASE_MAIN_FILE)
+        self.inflector = inflect.engine()
+
+        super().__init__(*args, **kwargs)
+
+    def db_setup(self):
+        """Initialize the database if it does not exist."""
+        if pathlib.Path(self.DATABASE_MAIN_FILE).exists():
+            return
+
+        with open(self.DATABASE_MAIN_SCHEMA) as f:
+            script = f.read()
+
+        conn = sqlite3.connect(self.DATABASE_MAIN_FILE)
+        conn.executescript(script)
+        conn.commit()
+        conn.close()
+
+    def get_bot_color(self) -> int:
+        """A shorthand for getting the bot color from settings.
+
+        If an error occurs while getting the setting, returns 0x000000.
 
         """
-        settings = self.get_settings()
-        return settings.get('general', 'color')
+        try:
+            settings = self.get_settings()
+        except errors.SettingsNotFound:
+            return 0
+
+        return settings.get('general', 'color', 0)
+
+    def get_default_prefix(self) -> str | None:
+        """A shorthand for getting the default prefix from settings.
+
+        If an error occurs while getting the prefix, returns None.
+
+        """
+        try:
+            settings = self.get_settings()
+        except errors.SettingsNotFound:
+            return None
+
+        return settings.get('general', 'default_prefix', None)
+
+    async def get_prefix(self, message) -> list[str] | str | None:
+        def wrap(*prefixes: str):
+            if not prefixes or prefixes[0] is None:
+                return commands.when_mentioned(self, message)
+            return commands.when_mentioned_or(*prefixes)(self, message)
+
+        if message.guild is None:
+            return wrap(self.get_default_prefix())
+
+        cog = self.get_cog('Prefix')
+        if cog is None:
+            return wrap(self.get_default_prefix())
+        return wrap(await cog.fetch_prefix(message.guild.id))
 
     def get_settings(self):
         """ Retrieves the Settings cog.
@@ -54,6 +119,9 @@ class TheGameBot(commands.Bot):
         return cog
 
     async def start(self, *args, **kwargs):
+        self.db_setup()
+        print('Initialized database')
+
         n_extensions = len(EXT_LIST)
         for i, name in enumerate(EXT_LIST, start=1):
             state = f'Loading extension {i}/{n_extensions}\r'
@@ -61,7 +129,8 @@ class TheGameBot(commands.Bot):
             self.load_extension(name)
         print('Loaded all extensions      ')
 
-        return await super().start(*args, **kwargs)
+        async with self.dbpool:
+            await super().start(*args, **kwargs)
 
 
 async def main():
@@ -81,7 +150,6 @@ async def main():
         logger.error(s)
         return print(s)
 
-    # Set up client
     intents = disnake.Intents(
         bans=False,
         emojis_and_stickers=True,
@@ -99,7 +167,6 @@ async def main():
 
     bot = TheGameBot(
         intents=intents,
-        command_prefix=';;',
         case_insensitive=True,
         strip_after_prefix=True
     )
