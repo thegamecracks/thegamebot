@@ -266,12 +266,12 @@ class Settings(commands.Cog):
 
     @commands.group(name='cache', hidden=True)
     @commands.is_owner()
-    async def cache_group(self, ctx):
+    async def cache_group(self, ctx: commands.Context):
         """Manage the settings cache."""
 
     @cache_group.command(name='wipe', aliases=('dump', 'clear', 'refresh'))
     @commands.max_concurrency(1)
-    async def cache_wipe(self, ctx, save: int = 1):
+    async def cache_wipe(self, ctx: commands.Context, save: int = 1):
         """Clear the settings cache.
 
 save:
@@ -292,7 +292,7 @@ save:
         await ctx.send(content)
 
     @cache_group.command(name='show', aliases=('display',))
-    async def cache_display(self, ctx):
+    async def cache_display(self, ctx: commands.Context):
         """Display the contents of the settings cache.
 
 The message will be given in DMs."""
