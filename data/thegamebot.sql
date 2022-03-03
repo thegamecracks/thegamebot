@@ -43,7 +43,7 @@ CREATE TABLE Currency (
     FOREIGN KEY (
         guild_id
     )
-    REFERENCES guild (id) ON DELETE CASCADE,
+    REFERENCES guild (guild_id) ON DELETE CASCADE,
     FOREIGN KEY (
         user_id
     )
@@ -52,9 +52,9 @@ CREATE TABLE Currency (
 
 
 CREATE TABLE guild (
-    id     INTEGER NOT NULL
-                   PRIMARY KEY,
-    prefix TEXT    CHECK (LENGTH(prefix) <= 20) 
+    guild_id INTEGER NOT NULL
+                     PRIMARY KEY,
+    prefix   TEXT    CHECK (LENGTH(prefix) <= 20) 
 );
 
 
@@ -63,7 +63,7 @@ CREATE TABLE Notes (
                             NOT NULL,
     user_id       INTEGER   NOT NULL
                             REFERENCES Users (id) ON DELETE CASCADE,
-    guild_id      INTEGER   REFERENCES guild (id) ON DELETE CASCADE
+    guild_id      INTEGER   REFERENCES guild (guild_id) ON DELETE CASCADE
                             DEFAULT NULL,
     time_of_entry TIMESTAMP,
     content       TEXT      NOT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE TagAliases (
     FOREIGN KEY (
         guild_id
     )
-    REFERENCES guild (id) ON DELETE CASCADE,
+    REFERENCES guild (guild_id) ON DELETE CASCADE,
     FOREIGN KEY (
         guild_id,
         name
@@ -131,7 +131,7 @@ CREATE TABLE Tags (
     FOREIGN KEY (
         guild_id
     )
-    REFERENCES guild (id) ON DELETE CASCADE,
+    REFERENCES guild (guild_id) ON DELETE CASCADE,
     FOREIGN KEY (
         user_id
     )

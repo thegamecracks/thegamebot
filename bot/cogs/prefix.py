@@ -26,14 +26,14 @@ class Prefix(commands.Cog):
         if prefix is not None:
             return prefix
 
-        condition = {'id': guild_id}
+        condition = {'guild_id': guild_id}
         db = self.bot.db
         row = await db.get_one('guild', 'prefix', where=condition)
 
         prefix: str | None
         if row is None:
             prefix = self.bot.get_default_prefix()
-            row = {'id': guild_id, 'prefix': prefix}
+            row = {'guild_id': guild_id, 'prefix': prefix}
             await db.add_row('guild', row)
         elif row['prefix'] is None:
             prefix = self.bot.get_default_prefix()
@@ -58,8 +58,8 @@ class Prefix(commands.Cog):
         """
         async with self.bot.db.connect(writing=True) as conn:
             await conn.execute(
-                'INSERT INTO guild (id, prefix) VALUES (?, ?) '
-                'ON CONFLICT (id) DO UPDATE SET prefix=?',
+                'INSERT INTO guild (guild_id, prefix) VALUES (?, ?) '
+                'ON CONFLICT (guild_id) DO UPDATE SET prefix=?',
                 guild_id, prefix, prefix
             )
 
