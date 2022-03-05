@@ -274,8 +274,9 @@ class TagDatabase(db.Database):
                     await c.execute(f"""
                         SELECT * FROM {t} LEFT JOIN {t_aliases}
                             ON {t}.name = {t_aliases}.name
-                        WHERE {t}.name = ? OR {t_aliases}.alias = ?
-                    """, name, name)
+                        WHERE {t}.guild_id = ? AND {t}.name = ?
+                            OR {t_aliases}.guild_id = ? AND {t_aliases}.alias = ?
+                    """, guild_id, name, guild_id, name)
                     tag = await c.fetchone()
                     if tag:
                         key = (guild_id, tag['name'])
