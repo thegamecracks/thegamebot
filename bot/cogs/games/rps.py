@@ -222,14 +222,22 @@ class _RPS(commands.Cog):
         ) -> tuple[RPSButton]:
         return tuple(RPSButton(value, **kwargs) for value, kwargs in items)
 
-    @commands.command(name='rps')
+    @commands.command(name='rps', slash_command=True)
     @commands.cooldown(2, 15, commands.BucketType.member)
-    async def client_rps(self, ctx, user: discord.User = None):
-        """Start a game of rock, paper, scissors, optionally against a specific user.
+    async def client_rps(
+        self, ctx,
+        user: discord.User = commands.Option(
+            None, description='A specific player to duel.'
+        )
+    ):
+        """Start a game of rock, paper, scissors.
 Times out after: 180s"""
         view = RPSDuelView(
             self._create_buttons(self.STANDARD),
-            {ctx.author, user} if user else set(),
+            {ctx.author, user}
+            if user and user != ctx.author
+            else set(),
             timeout=180
         )
+
         await view.start(ctx.send)

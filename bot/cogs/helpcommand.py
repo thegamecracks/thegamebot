@@ -6,18 +6,21 @@
 import collections
 import functools
 import math
-from typing import Optional, Union
+from typing import Any, Optional, Protocol, TypeVar
 
 import discord
 from discord.ext import commands
 
 from bot import utils
 
+T = TypeVar('T')
+
 _original_help_command: commands.HelpCommand | None = None
+BOT_MAPPING = dict[commands.Cog | None, commands.Command]
 HELP_OBJECT = (
-    dict[commands.Cog | None, commands.Command]  # send_bot_help
-    | commands.Cog | None                        # send_cog_help
-    | commands.Command                           # send_group/command_help
+    BOT_MAPPING            # send_bot_help
+    | commands.Cog | None  # send_cog_help
+    | commands.Command     # send_group/command_help
 )
 
 
@@ -26,20 +29,20 @@ HELP_OBJECT = (
 class HelpView(discord.ui.View):
     COGS_PER_PAGE = 5
     COMMANDS_PER_PAGE = 9
+    TIMEOUT_MAX_EMBED_SIZE = 400
 
     def __init__(
         self, *,
         source: "PageSource",
         help_command: "HelpCommand",
         user_id: int,
-        last_help: Union["HelpView", HELP_OBJECT] = discord.utils.MISSING,
+        last_help: dict[str, Any] | HELP_OBJECT = discord.utils.MISSING,
         start_page: int = 0
     ):
         super().__init__(timeout=60)
         self.source: "PageSource" = source
         self.help_command = help_command
         self.user_id = user_id
-        self.sub_help: Optional["HelpView"] = None
         if last_help is discord.utils.MISSING:
             last_help = self._get_last_help()
         self.last_help = last_help
@@ -54,7 +57,7 @@ class HelpView(discord.ui.View):
         self.can_navigate = True
 
         if isinstance(source, BotPageSource):  # top-level bot help
-            self.remove_item(self.back_source)  # type: ignore
+            self.remove_item(self.go_back)  # type: ignore
             self.remove_item(self.stop_help)  # type: ignore
             self.stop_help.row = 1
             self.add_item(self.stop_help)  # type: ignore
@@ -66,6 +69,7 @@ class HelpView(discord.ui.View):
         cls, obj: HELP_OBJECT,
         help_command: "HelpCommand"
     ) -> "PageSource":
+        """Create a page source from a help object."""
         if isinstance(obj, dict):
             return BotPageSource(
                 await help_command.filter_bot_mapping(obj),
@@ -83,7 +87,7 @@ class HelpView(discord.ui.View):
                     cmds = mapping.get(obj)
 
                 if cmds is None:
-                    return await cls.get_page_source(mapping, help_command)
+                    return await cls.get_page_source(mapping, help_command)  # type: ignore
 
             cmds = await help_command.filter_commands(cmds, sort=True)
             return CogPageSource(obj, cmds, per_page=cls.COMMANDS_PER_PAGE)
@@ -96,12 +100,12 @@ class HelpView(discord.ui.View):
         return self.first_page, self.prev_page, self.next_page, self.last_page  # type: ignore
 
     def _get_last_help(self) -> HELP_OBJECT:
-        """Determine the help object that comes before self.source."""
+        """Determine the help object that comes before `self.source`."""
         if isinstance(self.source, (CommandPageSource, GroupPageSource)):
             return self.source.command.parent or self.source.command.cog
         return self.help_command.get_bot_mapping()  # type: ignore
 
-    def _get_message_kwargs(self) -> dict:
+    def _get_message_kwargs(self) -> dict[str, Any]:
         return {'embed': self.embed, 'view': self}
 
     def _maybe_remove_item(self, item: discord.ui.Item):
@@ -134,11 +138,26 @@ class HelpView(discord.ui.View):
 
         # Disable/enable buttons if we're on the first/last page
         on_first_page = self.current_page == 0
-        on_last_page = self.current_page == self.source.max_pages - 1
+        on_last_page = self.current_page + 1 == self.source.max_pages
         self.first_page.disabled = on_first_page
         self.prev_page.disabled = on_first_page
         self.next_page.disabled = on_last_page
         self.last_page.disabled = on_last_page
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                f'This help message is for <@{self.user_id}>!',
+                ephemeral=True
+            )
+            return False
+        return True
+
+    async def on_timeout(self):
+        if len(self.embed) > self.TIMEOUT_MAX_EMBED_SIZE:
+            await self.message.delete()
+        else:
+            await self.message.edit(view=None)
 
     async def respond(self, interaction: discord.Interaction):
         await interaction.response.edit_message(**self._get_message_kwargs())
@@ -152,7 +171,7 @@ class HelpView(discord.ui.View):
         else:
             self._clear_pagination()
 
-        # NOTE: back_source is only updated during __init__
+        # NOTE: go_back is only updated during __init__
 
         if self.options:
             self._update_navigation()
@@ -175,31 +194,29 @@ class HelpView(discord.ui.View):
         else:
             self.message = await channel.send(**self._get_message_kwargs())
 
-    async def interaction_check(self, interaction):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                'This is not your help message!',
-                ephemeral=True
-            )
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.sub_help is None:
-            await self.message.delete()
+    def to_dict(self) -> dict[str, Any]:
+        """Return the kwargs needed to reconstruct this view."""
+        return {
+            'source': self.source,
+            'help_command': self.help_command,
+            'user_id': self.user_id,
+            'last_help': self.last_help,
+            'start_page': self.current_page
+        }
 
     @discord.ui.select(options=[], placeholder='Navigate...', row=0)
     async def navigate(self, select, interaction):
         index = int(select.values[0])
         obj = self.option_objects[index]
 
-        self.sub_help = HelpView(
+        view = HelpView(
             source=await self.get_page_source(obj, self.help_command),
             help_command=self.help_command,
             user_id=self.user_id,
-            last_help=self
+            last_help=self.to_dict()
         )
-        await self.sub_help.start(interaction)
+        self.stop()
+        await view.start(interaction)
 
     @discord.ui.button(
         emoji='\N{BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}',
@@ -232,19 +249,14 @@ class HelpView(discord.ui.View):
     @discord.ui.button(
         emoji='\N{LEFTWARDS ARROW WITH HOOK}',
         style=discord.ButtonStyle.blurple, row=2)
-    async def back_source(self, button, interaction):
+    async def go_back(self, button, interaction):
         self.stop()
 
         obj = self.last_help
-        if isinstance(obj, HelpView):
-            # Create copy of last_help in case it timed out
-            view = HelpView(
-                source=obj.source,
-                help_command=obj.help_command,
-                user_id=self.user_id,
-                last_help=obj.last_help,
-                start_page=obj.current_page
-            )
+        if isinstance(obj, dict) and all(isinstance(k, str) for k in obj):
+            # In case the original view timed out, the kwargs are
+            # stored so the view can be reconstructed
+            view = HelpView(**obj)
         else:
             view = HelpView(
                 source=await self.get_page_source(obj, self.help_command),
@@ -261,12 +273,29 @@ class HelpView(discord.ui.View):
         await interaction.message.delete()
 
 
-class PageSource:
-    def __init__(self, entries: list, *, per_page: int):
+class PageSourceProto(Protocol[T]):
+    def get_page(self, page_num: int) -> list[T]: ...
+
+    @property
+    def max_pages(self) -> int: return 0
+
+    def get_page_options(
+        self, menu: HelpView, page: list[T]
+    ) -> tuple[list[discord.SelectOption], list[HELP_OBJECT]]: ...
+
+    def format_page(self, menu: HelpView, page: list[T]) -> discord.Embed: ...
+
+
+class PageSource(PageSourceProto[T]):
+    """A stripped down version of discord.ext.menus.PageSource
+    for displaying one or more pages in the help view.
+    """
+
+    def __init__(self, entries: list[T], *, per_page: int):
         self.entries = entries
         self.per_page = per_page
 
-    def get_page(self, page_num: int) -> list:
+    def get_page(self, page_num):
         start = page_num * self.per_page
         return self.entries[start:start + self.per_page]
 
@@ -275,17 +304,21 @@ class PageSource:
         pages, remainder = divmod(len(self.entries), self.per_page)
         return pages + bool(remainder)
 
-    def get_page_options(
-        self, menu: HelpView, page: list
-    ) -> tuple[list[discord.SelectOption], list[HELP_OBJECT]]:
+    def get_page_options(self, menu, page):
+        """Returns a list of options mapping to their corresponding
+        help objects for the user to select.
+        """
         raise NotImplementedError
 
-    def format_page(self, menu: HelpView, page: list) -> discord.Embed:
+    def format_page(self, menu, page):
+        """Returns an embed presenting the items in the page."""
         raise NotImplementedError
 
 
-class BotPageSource(PageSource):
-    def __init__(self, mapping: dict, *args, **kwargs):
+class BotPageSource(PageSource[tuple[commands.Cog | None, list[commands.Command]]]):
+    """Displays the bot's available cogs and commands in each cog."""
+
+    def __init__(self, mapping: BOT_MAPPING, *args, **kwargs):
         super().__init__(list(mapping.items()), *args, **kwargs)
 
     def get_page_options(
@@ -330,7 +363,7 @@ class BotPageSource(PageSource):
         return embed
 
 
-class CommandListPageSource(PageSource):
+class CommandListPageSource(PageSource[commands.Command]):
     def get_page_options(self, menu, page: list[commands.Command]):
         options, objects = [], []
         for i, cmd in enumerate(page):
@@ -355,13 +388,15 @@ class CommandListPageSource(PageSource):
         for group in groups:
             embed.add_field(
                 name='\u200b',
-                value='\n'.join([str(c.qualified_name) for c in group])
+                value='\n'.join([f'__{c.qualified_name}__' for c in group])
             )
 
         return embed
 
 
 class CogPageSource(CommandListPageSource):
+    """Displays the commands inside a cog."""
+
     def __init__(self, cog: commands.Cog, cmds: list[commands.Command], *args, **kwargs):
         super().__init__(cmds, *args, **kwargs)
         self.cog = cog
@@ -378,6 +413,8 @@ class CogPageSource(CommandListPageSource):
 
 
 class GroupPageSource(CommandListPageSource):
+    """Displays a command group along with its subcommands."""
+
     def __init__(self, group: commands.Group, *args, **kwargs):
         super().__init__(list(group.commands), *args, **kwargs)
         self.command = group
@@ -397,7 +434,9 @@ class GroupPageSource(CommandListPageSource):
         return embed
 
 
-class CommandPageSource(PageSource):
+class CommandPageSource(PageSource[commands.Command]):
+    """Displays a command."""
+
     def __init__(self, command: commands.Command):
         super().__init__([command], per_page=1)
         self.command = command
@@ -419,7 +458,6 @@ class CommandPageSource(PageSource):
             )
         )
 
-        # Show which cog the command is in if any
         cog = command.cog
         if hasattr(command, 'injected_cog'):
             cog = ctx.bot.get_cog(command.injected_cog)
@@ -509,22 +547,16 @@ class HelpCommand(commands.HelpCommand):
     def get_cog_name(cog: commands.Cog | None):
         return getattr(cog, 'qualified_name', 'No Category')
 
-    def command_not_found(self, string: str) -> tuple[str, str]:
-        return 'No command called "{}" found.'.format(string), string
+    def command_not_found(self, string):
+        return 'No command called "{}" found.'.format(string)
 
-    def subcommand_not_found(
-        self, command: commands.Command, string: str
-    ) -> tuple[str, str, commands.Command]:
+    def subcommand_not_found(self, command, string):
         if isinstance(command, commands.Group) and len(command.all_commands) > 0:
-            message = 'Command "{}" has no subcommand named {}'.format(
+            return 'Command "{}" has no subcommand named {}'.format(
                 command.qualified_name, string)
-        else:
-            message = 'Command "{}" has no subcommands.'.format(
-                command.qualified_name)
+        return 'Command "{}" has no subcommands.'.format(command.qualified_name)
 
-        return message, string, command
-
-    async def send_bot_help(self, mapping):
+    async def send_bot_help(self, mapping: HELP_OBJECT):
         """Sends help when no arguments are given."""
         view = HelpView(
             source=await HelpView.get_page_source(mapping, self),
@@ -534,15 +566,15 @@ class HelpCommand(commands.HelpCommand):
         await view.start(self.get_destination())
         await view.wait()
 
-    async def send_cog_help(self, cog):
+    async def send_cog_help(self, cog: commands.Cog):
         """Sends help for a specific cog."""
         return await self.send_bot_help(cog)
 
-    async def send_group_help(self, group):
+    async def send_group_help(self, group: commands.Group):
         """Sends help for an individual group."""
         return await self.send_bot_help(group)
 
-    async def send_command_help(self, command):
+    async def send_command_help(self, command: commands.Command):
         """Sends help for an individual command."""
         return await self.send_bot_help(command)
 

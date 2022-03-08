@@ -38,6 +38,9 @@ class ReminderDatabase(db.Database):
         FOREIGN KEY (user_id) REFERENCES Users(id)
             ON DELETE CASCADE
     );
+    CREATE INDEX IF NOT EXISTS ix_reminders_users ON {TABLE_NAME}(user_id);
+    CREATE INDEX IF NOT EXISTS ix_reminders_channels ON {TABLE_NAME}(channel_id);
+    CREATE INDEX IF NOT EXISTS ix_reminders_user_channel ON {TABLE_NAME}(user_id, channel_id);
     """
 
     async def add_reminder(
@@ -68,8 +71,6 @@ class ReminderDatabase(db.Database):
     async def delete_reminder_by_id(self, reminder_id: int, pop=False):
         """Delete a reminder from the Reminders table.
 
-        reminder_id is not escaped.
-
         Args:
             reminder_id (int)
             pop (bool): If True, gets the reminders before deleting them.
@@ -82,26 +83,22 @@ class ReminderDatabase(db.Database):
         reminder_id = int(reminder_id)
 
         return await self.delete_rows(
-            self.TABLE_NAME, {'reminder_id': reminder_id}, pop=pop)
+            self.TABLE_NAME, {'reminder_id': reminder_id}, pop=pop
+        )
 
     async def delete_reminder_by_user_id(
             self, user_id: int, entry_num: int, pop=False):
-        """Delete a reminder from the Reminders table by user_id and entry_num.
-
-        user_id is not escaped.
-
-        """
+        """Delete a reminder from the Reminders table by user_id and entry_num."""
         user_id = int(user_id)
 
         reminders = await self.get_reminders(user_id)
         reminder_id = reminders[entry_num]['reminder_id']
         return await self.delete_rows(
-            self.TABLE_NAME, {'reminder_id': reminder_id}, pop=pop)
+            self.TABLE_NAME, {'reminder_id': reminder_id}, pop=pop
+        )
 
     async def get_reminders(self, user_id: int, *columns: str):
         """Get one or more reminders for a user.
-
-        user_id is not escaped.
 
         Args:
             user_id (int): The id of the user to get reminders from.

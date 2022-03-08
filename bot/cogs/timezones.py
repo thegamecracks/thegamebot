@@ -27,25 +27,6 @@ class TranslationCheck(enum.Enum):
     NO_TIMEZONE = enum.auto()
 
 
-class MockMessage:
-    """A mock message object sufficient for most cooldown BucketTypes.
-
-    BucketTypes supported:
-        default (technically you don't need a message at all for this)
-        user
-        guild (guild parameter is still optional)
-        channel (channel required)
-        member (guild optional)
-        category (channel required)
-        role (author must be Member if channel is not DM)
-        """
-    def __init__(self, author, *, channel: discord.TextChannel = None,
-                 guild: discord.Guild = None):
-        self.author = author
-        self.channel = channel
-        self.guild = guild
-
-
 class Timezones(commands.Cog):
     """Stores the database for tracking message timestamps."""
 
@@ -243,7 +224,7 @@ class Timezones(commands.Cog):
         user = await self.bot.try_user(payload.user_id)
 
         if not self.translate_timezone_cooldown.update_rate_limit(
-                MockMessage(user, channel=c, guild=c.guild)):
+                utils.MockMessage(user, channel=c, guild=c.guild)):  # type: ignore
             # not rate limited; start translation
             await self.translate_timezone(
                 user, m, times,
@@ -567,7 +548,7 @@ By default, this is enabled."""
 This is useful if you have automatic timezone translation disabled but want it for a particular message.
 This can only be used on your messages unless you also have Manage Messages permission.
 The sender must have a timezone set to use this."""
-        perms = ctx.channel.permissions_for(ctx.author)
+        perms = ctx.author_permissions()
         if message.guild != ctx.guild:
             return await ctx.reply('The message must be in the same guild!')
         elif message.author.bot:

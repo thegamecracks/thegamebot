@@ -149,7 +149,7 @@ class IrishSquad(commands.Cog):
         """Show the squad's total charges."""
         db = self.bot.dbirish.charges
 
-        async with await db.connect() as conn:
+        async with db.connect() as conn:
             async with conn.cursor(transaction=True) as c:
                 await c.execute(f'SELECT SUM(amount) AS total FROM {db.TABLE_NAME}')
                 total = (await c.fetchone())['total']
@@ -201,7 +201,7 @@ This requires a confirmation."""
 
         if confirmed:
             db = ctx.bot.dbirish.charges
-            async with await db.connect(writing=True) as conn:
+            async with db.connect(writing=True) as conn:
                 await conn.execute(f'DELETE FROM {db.TABLE_NAME}')
 
             await prompt.update('Completed charge wipe!', color=prompt.YES)
@@ -234,18 +234,13 @@ This requires a confirmation."""
 
         invalid_users = []
 
-        async with await db.connect(writing=True) as conn:
+        async with db.connect(writing=True) as conn:
             async with await conn.execute('SELECT id FROM Users') as c:
                 # Remove all IDs from the Users table if they are
                 # not in the guild
                 while row := await c.fetchone():
                     user_id = row['id']
-                    member = guild.get_member(user_id)
-                    if member is None:
-                        try:
-                            member = await guild.fetch_member(user_id)
-                        except discord.NotFound:
-                            pass
+                    member = await guild.try_member(user_id)
                     if member is None:
                         invalid_users.append(user_id)
 

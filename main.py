@@ -25,10 +25,6 @@ from bot.database import BotDatabaseMixin
 from bot import errors, utils
 from bot.other import discordlogger
 
-DISABLED_INTENTS = (
-    'bans', 'integrations', 'webhooks', 'invites',
-    'voice_states', 'typing'
-)
 USE_RESTART_FILE = False
 
 logger = discordlogger.get_logger()
@@ -48,6 +44,7 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'gamecog',
             'games',
             'graphing',
+            'guildclub',
             'guildirish',
             'guildsignal',
             'images',
@@ -61,16 +58,16 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             'prog',
             'randomization',
             'reminders',
-            'slash',
             'tags',
             'timezones',
             'undefined',
             'uptime',
         )
-    ] + ['jishaku']
+    ]
+    EXT_LIST.append('jishaku')
 
     def __init__(self, *args, **kwargs):
-        super().__init__(super().get_prefix, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # Allow case-insensitive references to cogs
         # (see "?tag case insensitive cogs" on the discord.py server)
@@ -101,7 +98,14 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             print(f'Loading extension {i}/{len(self.EXT_LIST)}',
                   end='\r', flush=True)
             self.load_extension(name)
+
+            # Make sure jishaku isn't automatically converted into
+            # slash commands if slash_commands=True (enhanced-dpy)
+            if name == 'jishaku':
+                self.get_command("jsk").hidden = True  # type: ignore
+
         print(f'Loaded all extensions         ')
+
 
     def get_cog(self, name):
         cog = super().get_cog(name)
@@ -187,6 +191,10 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
                                'Set up databases'):
             await self.db_setup()
 
+        with utils.update_text('Syncing slash commands',
+                               'Synced slash commands'):
+            await self.create_slash_commands()
+
     async def start(self, *args, **kwargs):
         logger = discordlogger.get_logger()
         print('Starting bot')
@@ -234,9 +242,6 @@ class TheGameBot(BotDatabaseMixin, commands.Bot):
             return s, user
         return s
 
-    async def try_user(self, id):
-        return self.get_user(id) or await self.fetch_user(id)
-
 
 async def main():
     load_dotenv(override=True)
@@ -262,14 +267,22 @@ async def main():
     mplstyle.use(['data/discord.mplstyle', 'fast'])
 
     # Set up client
-    intents = discord.Intents.default()
-    intents.members = args.members
-    intents.presences = args.presences
-    for attr in DISABLED_INTENTS:
-        setattr(intents, attr, False)
+    intents = discord.Intents(
+        bans=False,
+        emojis_and_stickers=True,
+        guilds=True,
+        integrations=False,
+        invites=False,
+        members=args.members,
+        messages=True,
+        presences=args.presences,
+        reactions=True,
+        typing=False,
+        voice_states=False,
+        webhooks=False
+    )
 
     bot = TheGameBot(intents=intents, case_insensitive=True, strip_after_prefix=True)
-    await bot.setup()
 
     async def bootup_time(bot, start_time):
         """Calculate the bootup time of the bot."""

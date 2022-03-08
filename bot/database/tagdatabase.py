@@ -80,7 +80,7 @@ class TagDatabase(db.Database):
         self.__alias_cache.pop((guild_id, alias), None)
 
     async def _cache_delete_aliases_by_name(self, guild_id: int, name: str):
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.execute(
                     f'SELECT alias FROM {self.TABLE_ALIASES_NAME} '
                     'WHERE guild_id = ? AND name = ?',
@@ -89,7 +89,7 @@ class TagDatabase(db.Database):
                     self._cache_delete_alias(guild_id, row['alias'])
 
     async def _cache_delete_aliases_by_user(self, guild_id: int, user_id: int):
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.execute(
                     f'SELECT alias FROM {self.TABLE_ALIASES_NAME} '
                     'WHERE guild_id = ? AND user_id = ?',
@@ -101,7 +101,7 @@ class TagDatabase(db.Database):
         self.__cache.pop((guild_id, name), None)
 
     async def _cache_delete_tags_by_user(self, guild_id: int, user_id: int):
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.execute(
                     f'SELECT name FROM {self.TABLE_NAME} '
                     'WHERE guild_id = ? AND user_id = ?',
@@ -268,14 +268,15 @@ class TagDatabase(db.Database):
             return tag
 
         if include_aliases:
-            async with await self.connect() as conn:
+            async with self.connect() as conn:
                 async with conn.cursor() as c:
                     t, t_aliases = self.TABLE_NAME, self.TABLE_ALIASES_NAME
                     await c.execute(f"""
                         SELECT * FROM {t} LEFT JOIN {t_aliases}
                             ON {t}.name = {t_aliases}.name
-                        WHERE {t}.name = ? OR {t_aliases}.alias = ?
-                    """, name, name)
+                        WHERE {t}.guild_id = ? AND {t}.name = ?
+                            OR {t_aliases}.guild_id = ? AND {t_aliases}.alias = ?
+                    """, guild_id, name, guild_id, name)
                     tag = await c.fetchone()
                     if tag:
                         key = (guild_id, tag['name'])
@@ -298,7 +299,7 @@ class TagDatabase(db.Database):
 
         self._cache_delete_alias(guild_id, alias)
 
-        async with await self.connect(writing=True) as conn:
+        async with self.connect(writing=True) as conn:
             await conn.execute(
                 f'UPDATE {self.TABLE_ALIASES_NAME} SET user_id = ? '
                 'WHERE guild_id = ? AND alias = ?',
@@ -317,7 +318,7 @@ class TagDatabase(db.Database):
 
         self._cache_delete_tag(guild_id, name)
 
-        async with await self.connect(writing=True) as conn:
+        async with self.connect(writing=True) as conn:
             await conn.execute(
                 f'UPDATE {self.TABLE_NAME} SET user_id = ? '
                 'WHERE guild_id = ? AND name = ?',
@@ -330,7 +331,7 @@ class TagDatabase(db.Database):
 
         await self._cache_delete_aliases_by_user(guild_id, user_id)
 
-        async with await self.connect(writing=True) as conn:
+        async with self.connect(writing=True) as conn:
             await conn.execute(
                 f'UPDATE {self.TABLE_ALIASES_NAME} SET user_id = NULL '
                 'WHERE guild_id = ? AND user_id = ?',
@@ -343,7 +344,7 @@ class TagDatabase(db.Database):
 
         await self._cache_delete_tags_by_user(guild_id, user_id)
 
-        async with await self.connect(writing=True) as conn:
+        async with self.connect(writing=True) as conn:
             await conn.execute(
                 f'UPDATE {self.TABLE_NAME} SET user_id = NULL '
                 'WHERE guild_id = ? AND user_id = ?',
@@ -390,7 +391,7 @@ class TagDatabase(db.Database):
         if column:
             order = ' ORDER BY {} {}'.format(column, 'DESC' if reverse else 'ASC')
 
-        async with await self.connect() as conn:
+        async with self.connect() as conn:
             async with conn.execute(
                     f'SELECT * FROM {self.TABLE_NAME} '
                     f'WHERE {conditions}{order}',

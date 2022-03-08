@@ -28,8 +28,10 @@ def format_hour_and_minute(seconds: Union[float, int]) -> str:
 
 # Base cog
 class SignalHill(commands.Cog):
+    """Commands for Signal Hill."""
     qualified_name = 'Signal Hill'
 
+    BM_SERVER_ID_DAYZ = 13242521
     BM_SERVER_ID_INA = 10654566
     BM_SERVER_ID_SOG = 12854991
     BM_SERVER_ID_MCF = 12516655
@@ -47,6 +49,7 @@ class SignalHill(commands.Cog):
         return self.bot.get_guild(self.GUILD_ID)
 
 
+# noinspection PyProtectedMember
 def setup(bot):
     from . import (
         status,

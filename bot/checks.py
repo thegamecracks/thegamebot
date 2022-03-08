@@ -34,13 +34,8 @@ def is_in_guild(*guild_ids):
         if guild is None:
             return False
 
-        if guild.get_member(ctx.author.id):
-            return True
-
-        try:
-            await guild.fetch_member(ctx.author.id)
-        except discord.HTTPException:
-            return False
+        member = await guild.try_member(ctx.author.id)
+        return member is not None
         
     async def predicate(ctx):
         if ctx.guild and ctx.guild.id in guild_ids:

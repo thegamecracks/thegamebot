@@ -98,7 +98,7 @@ class CurrencyDatabase(db.Database):
         await self.add_entry(guild_id, user1)
         await self.add_entry(guild_id, user2)
 
-        async with await self.connect(writing=True) as conn:
+        async with self.connect(writing=True) as conn:
             async with conn.transaction():
                 await conn.execute(
                     f'UPDATE {self.TABLE_NAME} SET cents = cents - ? '

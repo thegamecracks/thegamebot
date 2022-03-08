@@ -262,7 +262,7 @@ This only counts channels that both you and the bot can see."""
 
         # Insert cooldown
         cooldown: commands.CooldownMapping = command._buckets
-        if cooldown is not None:
+        if cooldown._cooldown is not None:
             cooldown_type = self.COMMANDINFO_BUCKETTYPE_DESCRIPTIONS.get(
                 cooldown._type, '')
             description.append(
@@ -568,7 +568,7 @@ cumulative: If true, makes the number of messages cumulative when graphing."""
             return round_ms(time.perf_counter() - start)
 
         async def poll_database():
-            async with await ctx.bot.dbusers.connect() as conn:
+            async with ctx.bot.dbusers.connect() as conn:
                 await conn.execute('SELECT 1')
 
         async def poll_message():
@@ -634,7 +634,7 @@ Format referenced from the Ayana bot."""
         )
         count_text_ch = len(guild.text_channels)
         count_voice_ch = len(guild.voice_channels)
-        owner = guild.owner or await guild.fetch_member(guild.owner_id)
+        owner = await guild.try_member(guild.owner_id)
         roles = guild.roles
 
         embed = discord.Embed(

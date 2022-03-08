@@ -4,6 +4,7 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import asyncio
 import datetime
+import functools
 import re
 from typing import Literal, Optional, Union
 
@@ -16,6 +17,8 @@ import pytz
 from bot import errors, utils
 from bot.database.reminderdatabase import PartialReminderEntry, ReminderEntry
 from bot.other import discordlogger
+
+logger = discordlogger.get_logger()
 
 
 class IndexConverter(commands.Converter):
@@ -63,12 +66,12 @@ class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.cache = {}  # user_id: reminders
-        self.send_reminders_tasks = {}  # reminder_id: Task
+        self.reminder_tasks = {}  # reminder_id: Task
         self.send_reminders.start()
 
     def cog_unload(self):
         self.send_reminders.cancel()
-        for task in self.send_reminders_tasks.values():
+        for task in self.reminder_tasks.values():
             task.cancel()
 
 
@@ -89,19 +92,13 @@ class Reminders(commands.Cog):
         deleted = await self.bot.dbreminders.delete_reminder_by_id(
             reminder_id, pop=True)
 
-        updated_ids = frozenset(reminder['user_id'] for reminder in deleted)
-        updated_reminders = [reminder['reminder_id'] for reminder in deleted]
+        updated_ids = frozenset(entry['user_id'] for entry in deleted)
+        updated_reminders = [entry['reminder_id'] for entry in deleted]
 
         for user_id in updated_ids:
             user = self.cache.pop(user_id, None)
-            if user is not None:
-                discordlogger.get_logger().info(
-                    f'Reminders: Invalidated user cache, ID {user_id}')
         for reminder_id in updated_reminders:
-            task = self.send_reminders_tasks.pop(reminder_id, None)
-            if task is not None:
-                discordlogger.get_logger().info(
-                    f'Reminders: Removed reminder task, ID {reminder_id}')
+            task = self.reminder_tasks.pop(reminder_id, None)
 
         if pop:
             return deleted
@@ -278,12 +275,11 @@ be used instead of UTC.
 
 The channel parameter only allows channels in the same server where you can both send messages and mention everyone in.
 
-User mentions will be escaped except in DMs or where you are permitted to mention everyone.
-If you can mention, this command can be used to create scheduled server announcements with these steps:
-1. hide the "@you time" header by mentioning your members in the first line of your message
-2. use @all and @now in place of @\u200beveryone and @\u200bhere to avoid pinging people with your command
-3. prefix role mentions with a backslash \\ to avoid pinging roles
-The announcement can only be scheduled if the bot has sufficient permissions to ping each included mention."""
+If you are able to mention everyone, this command can be used for scheduled announcements by following these steps:
+1. mention a member or role in the first line of your message, which hides the reminder header
+2. to avoid pinging with @\u200beveryone and @\u200bhere, use @all and @now instead
+3. as well, prefix role mentions with a backslash
+User mentions will otherwise be escaped except in DMs."""
         if channel is not None:
             # Given channel must be in same guild and have enough permissions
             if channel.guild != ctx.guild:
@@ -395,6 +391,68 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
         )
 
 
+    @client_reminders.group(name='clear', aliases=('wipe',), invoke_without_command=True)
+    @commands.cooldown(1, 10, commands.BucketType.channel)
+    async def client_reminders_clear(self, ctx, channel: discord.TextChannel = None):
+        """Clear all your reminders in the given channel."""
+        channel = channel or ctx.channel
+        db = ctx.bot.dbreminders
+
+        # NOTE: doing manual request instead of having a database method
+        entries = await db.delete_rows(
+            db.TABLE_NAME, {'user_id': ctx.author.id, 'channel_id': channel.id},
+            pop=True
+        )
+
+        count = len(entries)
+        channel_reference = 'this channel' if channel == ctx.channel else channel.mention
+
+        if count == 0:
+            return await ctx.send(f'You have no reminders in {channel_reference}!')
+
+        await ctx.send(
+            'Cleared your {} {} in {}!'.format(
+                count,
+                ctx.bot.inflector.plural('reminder', count),
+                channel_reference
+            )
+        )
+
+
+    @client_reminders_clear.group(name='everyone', invoke_without_command=True)
+    @commands.guild_only()
+    async def client_reminders_clear_everyone(self, ctx, channel: discord.TextChannel = None):
+        """Clear everyone's reminders in the given channel.
+
+This requires the Manage Messages permission in the given channel."""
+        channel = channel or ctx.channel
+
+        if not channel.permissions_for(ctx.author).manage_messages:
+            return await ctx.send(
+                'You must have the Manage Messages permission '
+                "to clear everyone's reminders!"
+            )
+
+        db = ctx.bot.dbreminders
+        entries = await db.delete_rows(
+            db.TABLE_NAME, {'channel_id': channel.id}, pop=True
+        )
+
+        count = len(entries)
+        channel_reference = 'this channel' if channel == ctx.channel else channel.mention
+
+        if count == 0:
+            return await ctx.send(f'There are no reminders in {channel_reference}!')
+
+        await ctx.send(
+            'Cleared {} {} in {}!'.format(
+                count,
+                ctx.bot.inflector.plural('reminder', count),
+                channel_reference
+            )
+        )
+
+
     @commands.command(
         name='remind', aliases=('remindme', 'announce'),
         brief='Shorthand for reminder add.',
@@ -418,7 +476,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
             bool: Indicates whether the task was created or not.
 
         """
-        if entry['reminder_id'] in self.send_reminders_tasks:
+        if entry['reminder_id'] in self.reminder_tasks:
             # Task already exists; skip
             return False
         elif now is None:
@@ -433,31 +491,34 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
 
     def create_reminder_task(self, td, entry: ReminderEntry):
         """Adds a reminder task to the bot loop and logs it."""
+        reminder_id = entry['reminder_id']
         task = self.bot.loop.create_task(self.reminder_coro(entry))
-        self.send_reminders_tasks[entry['reminder_id']] = task
+        self.reminder_tasks[reminder_id] = task
+        task.add_done_callback(functools.partial(
+            self.reminder_coro_remove_task, reminder_id
+        ))
 
-        discordlogger.get_logger().info(
+        logger.debug(
             'Reminders: created reminder task {} '
             'for {}, due in {}'.format(
-                entry['reminder_id'], entry['user_id'], td
+                reminder_id, entry['user_id'], td
             )
         )
 
         return task
+
+    def reminder_coro_remove_task(self, reminder_id: int, task: asyncio.Task):
+        self.reminder_tasks.pop(reminder_id, None)
 
     async def reminder_coro(self, entry: ReminderEntry):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry():
             await self.delete_reminder_by_id(reminder_id)
 
-        def remove_task():
-            self.send_reminders_tasks.pop(reminder_id, None)
-
         reminder_id = entry['reminder_id']
         seconds = (entry['due'] - discord.utils.utcnow()).total_seconds()
         await asyncio.sleep(seconds)
 
-        logger = discordlogger.get_logger()
         db = self.bot.dbreminders
         row = await db.get_one(
             db.TABLE_NAME, 'reminder_id',
@@ -469,8 +530,7 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
                 f'Reminders: canceled reminder {reminder_id}: '
                 'reminder was deleted during wait'
             )
-            await remove_entry()
-            return remove_task()
+            return await remove_entry()
 
         description = []
         # Include mention and time if message is not an announcement
@@ -496,25 +556,17 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
                     f'Reminders: canceled reminder {reminder_id}: '
                     'channel no longer exists'
                 )
-                await remove_entry()
-                return remove_task()
+                return await remove_entry()
 
-        if channel.guild is not None:
+        if getattr(channel, 'guild', None) is not None:
             # Check if member is still in the guild
-            member = channel.guild.get_member(entry['user_id'])
-            if member is None and not channel.guild.chunked:
-                try:
-                    member = await channel.guild.fetch_member(entry['user_id'])
-                except discord.NotFound:
-                    pass
-
+            member = await channel.guild.try_member(entry['user_id'])
             if member is None:
                 logger.debug(
                     f'Reminders: canceled reminder {reminder_id}: '
                     'member is no longer in the guild'
                 )
-                await remove_entry()
-                return remove_task()
+                return await remove_entry()
 
         # NOTE: multiple API calls could be made above if
         # member/user left several reminders
@@ -536,8 +588,6 @@ The announcement can only be scheduled if the bot has sufficient permissions to 
             # Successful; remove reminder task and database entry
             logger.debug(f'Reminders: successfully sent reminder {reminder_id}')
             await remove_entry()
-        finally:
-            return remove_task()
 
     @tasks.loop(minutes=10)
     async def send_reminders(self):

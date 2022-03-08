@@ -6,8 +6,6 @@ import pathlib
 import sys
 import traceback
 
-import prettify_exceptions
-
 from bot.other import discordlogger
 
 logger = discordlogger.get_logger()
@@ -65,23 +63,3 @@ def exception_message(
     msg += f'\n{exc_type.__name__}: {exc_value}'
 
     return msg
-
-
-def exception_message_pretty(
-        exc_type=None, exc_value=None, exc_traceback=None,
-        header: str = '', log_handler=logger) -> str:
-    """Create a traceback message using the prettify_exceptions module.
-    This acts similar to `exception_message`."""
-    if exc_type is None and exc_value is None and exc_traceback is None:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-    elif exc_type is None or exc_value is None or exc_traceback is None:
-        raise ValueError('An exception type/value/traceback was passed '
-                         'but is missing the other values')
-
-    if log_handler is not None:
-        log_handler.exception('')
-
-    return '\n'.join(
-        prettify_exceptions.DefaultFormatter().format_exception(
-            exc_type, exc_value, exc_traceback)
-    )
