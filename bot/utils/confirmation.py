@@ -20,8 +20,8 @@ class ConfirmationButton(discord.ui.Button['ConfirmationView']):
 
     @classmethod
     def create_from(cls, button: discord.ui.Button, value: bool):
-        obj = cls.from_component(button)
-        obj.value = value
+        obj = cls(value)
+        obj._underlying = button._underlying
         return obj
 
 
