@@ -223,38 +223,6 @@ class NoteManagement(commands.Cog):
     def __init__(self, bot: TheGameBot):
         self.bot = bot
 
-    async def add_note(
-        self, user_id: int, guild_id: int | None,
-        time_of_entry: datetime.datetime, content: str
-    ):
-        async with self.bot.db.connect(writing=True) as conn:
-            await conn.execute(
-                'INSERT OR IGNORE INTO user (user_id) VALUES (?)',
-                user_id
-            )
-            await conn.execute(
-                """
-                INSERT INTO note (user_id, guild_id, time_of_entry, content)
-                    VALUES (?, ?, ?, ?);
-                """,
-                user_id, guild_id, time_of_entry, content
-            )
-
-    async def delete_notes(self, note_ids: Sequence[int]):
-        """Deletes a list of notes by their ids."""
-        async with self.bot.db.connect(writing=True) as conn:
-            await conn.executemany(
-                'DELETE FROM note WHERE note_id = ?',
-                note_ids
-            )
-
-    async def edit_note(self, note_id: int, content: str):
-        async with self.bot.db.connect(writing=True) as conn:
-            await conn.execute(
-                'UPDATE note SET content = ? WHERE note_id = ?',
-                content, note_id
-            )
-
     def send_invalid_indices(
         self, channel: discord.abc.Messageable,
         out_of_bounds: list[str], location: Location, total: int
@@ -364,11 +332,19 @@ notes add server ... (add a server note)"""
             total = await query_note_count(conn, ctx.author.id, location.id)
 
         if total < self.MAX_NOTES_PER_LOCATION:
-            await self.add_note(
-                ctx.author.id, location.id,
-                datetime.datetime.now().astimezone(),
-                content
-            )
+            async with self.bot.db.connect(writing=True) as conn:
+                await conn.execute(
+                    'INSERT OR IGNORE INTO user (user_id) VALUES (?)',
+                    ctx.author.id
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO note (user_id, guild_id, time_of_entry, content)
+                        VALUES (?, ?, ?, ?);
+                    """,
+                    ctx.author.id, location.id,
+                    datetime.datetime.now().astimezone(), content
+                )
 
             await ctx.send(
                 'Your {nth} {note} has been added!'.format(
@@ -382,7 +358,6 @@ notes add server ... (add a server note)"""
                 f'{self.MAX_NOTES_PER_LOCATION:,} {location.notes_in}.'
             )
 
-    # FIXME: command only runs once and can't be used again?
     @notes.command(name='edit')
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes_edit(
@@ -415,7 +390,10 @@ To see the indices for your notes, use the "notes" command."""
                 row = await c.fetchone()
                 note_id: int = row['note_id']
 
-            await self.edit_note(note_id, content=content)
+            await conn.execute(
+                'UPDATE note SET content = ? WHERE note_id = ?',
+                content, note_id
+            )
 
         await ctx.send(f"{location.note} #{index} successfully edited!".capitalize())
 
