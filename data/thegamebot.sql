@@ -15,7 +15,7 @@ CREATE TABLE Blackjack (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) ON DELETE CASCADE
+    REFERENCES user (user_id) ON DELETE CASCADE
 );
 
 
@@ -26,7 +26,7 @@ CREATE TABLE CSClubSuggestions (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) ON DELETE CASCADE
+    REFERENCES user (user_id) ON DELETE CASCADE
 );
 
 
@@ -47,7 +47,7 @@ CREATE TABLE Currency (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) ON DELETE CASCADE
+    REFERENCES user (user_id) ON DELETE CASCADE
 );
 
 
@@ -58,11 +58,11 @@ CREATE TABLE guild (
 );
 
 
-CREATE TABLE Notes (
+CREATE TABLE note (
     note_id       INTEGER   PRIMARY KEY
                             NOT NULL,
     user_id       INTEGER   NOT NULL
-                            REFERENCES Users (id) ON DELETE CASCADE,
+                            REFERENCES user (user_id) ON DELETE CASCADE,
     guild_id      INTEGER   REFERENCES guild (guild_id) ON DELETE CASCADE
                             DEFAULT NULL,
     time_of_entry TIMESTAMP,
@@ -70,7 +70,7 @@ CREATE TABLE Notes (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) 
+    REFERENCES user (user_id) 
 );
 
 
@@ -78,14 +78,14 @@ CREATE TABLE Reminders (
     reminder_id INTEGER   PRIMARY KEY AUTOINCREMENT
                           NOT NULL,
     user_id     INTEGER   NOT NULL
-                          REFERENCES Users (id) ON DELETE CASCADE,
+                          REFERENCES user (user_id) ON DELETE CASCADE,
     channel_id  INTEGER   NOT NULL,
     due         TIMESTAMP,
     content     TEXT      NOT NULL,
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) 
+    REFERENCES user (user_id) 
 );
 
 
@@ -111,7 +111,7 @@ CREATE TABLE TagAliases (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) ON DELETE SET NULL
+    REFERENCES user (user_id) ON DELETE SET NULL
 );
 
 
@@ -135,12 +135,12 @@ CREATE TABLE Tags (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES Users (id) ON DELETE SET NULL
+    REFERENCES user (user_id) ON DELETE SET NULL
 );
 
 
-CREATE TABLE Users (
-    id              INTEGER NOT NULL
+CREATE TABLE user (
+    user_id         INTEGER NOT NULL
                             PRIMARY KEY,
     timezone        TEXT,
     timezone_public BOOLEAN NOT NULL
@@ -150,7 +150,7 @@ CREATE TABLE Users (
 );
 
 
-CREATE INDEX ix_notes_users ON Notes (
+CREATE INDEX ix_notes_users ON note (
     user_id,
     guild_id
 );
