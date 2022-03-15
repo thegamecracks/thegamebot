@@ -4,6 +4,7 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import argparse
 import asyncio
+import logging
 import os
 import pathlib
 import sqlite3
@@ -14,7 +15,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import inflect
 
-from bot import database, discordlogger, errors
+from bot import database, errors
 
 EXT_LIST = [
     'bot.cogs.' + c for c in (
@@ -29,7 +30,13 @@ EXT_LIST = [
 ]
 EXT_LIST.append('jishaku')
 
-logger = discordlogger.get_logger()
+logger = logging.getLogger('discord')
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(
+    filename='discord.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
 
 
 class TheGameBot(commands.Bot):
