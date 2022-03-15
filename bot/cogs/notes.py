@@ -276,7 +276,7 @@ If nothing is provided, all notes are shown."""
                 )
             ]
 
-        color = ctx.author.color or self.bot.get_bot_color()
+        color = ctx.author.color.value or self.bot.get_bot_color()
 
         # TODO: pagination of notes
         if len(note_list) == 1:
@@ -430,7 +430,7 @@ To see the indices for your notes, use the "notes" command."""
         view = ConfirmationView(ctx.author)
         await view.start(
             ctx,
-            color=ctx.author.color or self.bot.get_bot_color(),
+            color=ctx.author.color.value or self.bot.get_bot_color(),
             title=f'Are you sure you want to delete {note_str}?'
         )
 
