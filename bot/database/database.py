@@ -83,7 +83,7 @@ class ConnectionPool:
     __slots__ = ('_connections', '_running')
 
     def __init__(self):
-        self._connections = {}
+        self._connections: dict[str, Connector] = {}
         self._running = False
 
     def get_connector(self, path, *, writing: bool) -> ConnectorProtocol:
@@ -117,8 +117,8 @@ class ConnectionPool:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        for conn, lock in self._connections.values():
-            await conn.close()
+        for connector in self._connections.values():
+            await connector.conn.close()
         self._connections.clear()
         self._running = False
 
