@@ -289,7 +289,6 @@ class Database:
     ):
         """Update rows with new values.
 
-        Args:
         :param table: The table name to update.
             This should only come from a trusted source.
         :param row: A dictionary of new values to update.
@@ -386,7 +385,7 @@ class Database:
             along with a list of values for each placeholder.
 
         """
-        op = '=' if use_assignment else ' IS '
+        op = ' = ' if use_assignment else ' IS '
         keys, values = [], []
         for k, v in row.items():
             keys.append(k)

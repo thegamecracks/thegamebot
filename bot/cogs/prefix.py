@@ -128,7 +128,6 @@ For prefixes ending with a space or multi-word prefixes, you must specify it wit
             await self.update_prefix(ctx.guild.id, prefix)
             await ctx.send(f'Successfully changed prefix to: "{clean_prefix}"')
 
-
     @change_prefix.error
     async def change_prefix_error(self, ctx, error):
         error = getattr(error, 'original', error)
