@@ -6,7 +6,7 @@ import itertools
 import re
 from typing import Iterable, Optional
 
-import disnake
+import discord
 
 
 CHANNEL_MENTION_REGEX = re.compile(r'<#\d+>')
@@ -15,8 +15,8 @@ CHANNEL_MENTION_REGEX = re.compile(r'<#\d+>')
 def rawify_content(s: str) -> str:
     return CHANNEL_MENTION_REGEX.sub(
         r'\\\g<0>',
-        disnake.utils.escape_mentions(
-            disnake.utils.escape_markdown(
+        discord.utils.escape_mentions(
+            discord.utils.escape_markdown(
                 s
             )
         )

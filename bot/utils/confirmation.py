@@ -2,12 +2,12 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import disnake
+import discord
 
 from bot import errors
 
 
-class ConfirmationButton(disnake.ui.Button['ConfirmationView']):
+class ConfirmationButton(discord.ui.Button['ConfirmationView']):
     def __init__(self, value: bool, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.value = value
@@ -19,13 +19,13 @@ class ConfirmationButton(disnake.ui.Button['ConfirmationView']):
         raise errors.SkipInteractionResponse('deferred confirmation response')
 
     @classmethod
-    def create_from(cls, button: disnake.ui.Button, value: bool):
+    def create_from(cls, button: discord.ui.Button, value: bool):
         obj = cls.from_component(button)
         obj.value = value
         return obj
 
 
-class ConfirmationView(disnake.ui.View):
+class ConfirmationView(discord.ui.View):
     """A view for choosing between yes and no.
 
     To use this, construct an instance of this class and then
@@ -58,8 +58,8 @@ class ConfirmationView(disnake.ui.View):
 
     def __init__(
         self,
-        author: disnake.User | disnake.Member,
-        yes: disnake.ui.Button = None, no: disnake.ui.Button = None,
+        author: discord.User | discord.Member,
+        yes: discord.ui.Button = None, no: discord.ui.Button = None,
         *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -67,8 +67,8 @@ class ConfirmationView(disnake.ui.View):
         self.author = author
 
         self.value: bool | None = None
-        self.message: disnake.Message | None = None
-        self._last_interaction: disnake.MessageInteraction | None = None
+        self.message: discord.Message | None = None
+        self._last_interaction: discord.Interaction | None = None
 
         yes = yes or self.make_yes_button()
         no = no or self.make_no_button()
@@ -76,14 +76,14 @@ class ConfirmationView(disnake.ui.View):
         self.add_item(ConfirmationButton.create_from(no, False))
 
     async def interaction_check(self, interaction):
-        return interaction.author == self.author
+        return interaction.user == self.author
 
     async def on_error(self, error, item, interaction):
         if not isinstance(error, errors.SkipInteractionResponse):
             await super().on_error(error, item, interaction)
 
     async def start(
-        self, channel: disnake.abc.Messageable,
+        self, channel: discord.abc.Messageable,
         *, color: int, title: str
     ):
         """Generates an embed and sends a message to the given channel.
@@ -93,7 +93,7 @@ class ConfirmationView(disnake.ui.View):
         :param title: The title of the embed.
 
         """
-        embed = disnake.Embed(
+        embed = discord.Embed(
             title=title,
             color=color
         ).set_author(
@@ -110,7 +110,7 @@ class ConfirmationView(disnake.ui.View):
 
     async def update(
         self, title: str = None, *, color: int = None,
-        embed: disnake.Embed = None
+        embed: discord.Embed = None
     ):
         """Disables all the view's components and updates the embed.
 
@@ -134,7 +134,7 @@ class ConfirmationView(disnake.ui.View):
         for button in self.children:
             button.disabled = True
 
-        interaction: disnake.MessageInteraction = self._last_interaction
+        interaction: discord.Interaction = self._last_interaction
         if interaction is None:
             return await self.message.edit(embed=embed, view=self)
 
@@ -143,19 +143,19 @@ class ConfirmationView(disnake.ui.View):
                 await interaction.edit_original_message(embed=embed, view=self)
             else:
                 await interaction.response.edit_message(embed=embed, view=self)
-        except disnake.HTTPException:
+        except discord.HTTPException:
             await self.message.edit(embed=embed, view=self)
 
     @staticmethod
     def make_yes_button():
-        return disnake.ui.Button(
-            style=disnake.ButtonStyle.green,
+        return discord.ui.Button(
+            style=discord.ButtonStyle.green,
             emoji='\N{HEAVY CHECK MARK}'
         )
 
     @staticmethod
     def make_no_button():
-        return disnake.ui.Button(
-            style=disnake.ButtonStyle.red,
+        return discord.ui.Button(
+            style=discord.ButtonStyle.red,
             emoji='\N{HEAVY MULTIPLICATION X}'
         )

@@ -5,8 +5,8 @@
 import re
 import sqlite3
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from main import TheGameBot
 
@@ -66,7 +66,7 @@ class Prefix(commands.Cog):
         self.cache[guild_id] = prefix
 
     @commands.Cog.listener('on_message')
-    async def show_prefix_on_message(self, message: disnake.Message):
+    async def show_prefix_on_message(self, message: discord.Message):
         # Ignore messages that are from bot or didn't mention the bot
         if (message.author == self.bot.user
                 or self.bot.user not in message.mentions):
@@ -136,5 +136,5 @@ For prefixes ending with a space or multi-word prefixes, you must specify it wit
             ctx.handled = True
 
 
-def setup(bot):
-    bot.add_cog(Prefix(bot))
+async def setup(bot: TheGameBot):
+    await bot.add_cog(Prefix(bot))

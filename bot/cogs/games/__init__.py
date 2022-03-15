@@ -5,8 +5,10 @@
 import datetime
 from typing import Optional
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
+
+from main import TheGameBot
 
 
 def min_sec(seconds: float) -> str:
@@ -17,9 +19,9 @@ def min_sec(seconds: float) -> str:
 
 
 class EditViewMixin:
-    message: disnake.Message
+    message: discord.Message
 
-    async def edit(self, interaction: Optional[disnake.MessageInteraction], *args, **kwargs):
+    async def edit(self, interaction: Optional[discord.Interaction], *args, **kwargs):
         """Edit the original message with a potential interaction."""
         if interaction is None:
             await self.message.edit(*args, **kwargs)
@@ -29,12 +31,12 @@ class EditViewMixin:
             await interaction.response.edit_message(*args, **kwargs)
 
 
-class TimeoutView(disnake.ui.View):
+class TimeoutView(discord.ui.View):
     start_time: datetime.datetime
 
     @property
     def elapsed(self) -> datetime.timedelta:
-        return disnake.utils.utcnow() - self.start_time
+        return discord.utils.utcnow() - self.start_time
 
     @property
     def elapsed_str(self) -> str:
@@ -43,11 +45,11 @@ class TimeoutView(disnake.ui.View):
     @property
     def timeout_timestamp(self) -> str:
         ends = datetime.datetime.now() + datetime.timedelta(seconds=self.timeout)  # type: ignore
-        return disnake.utils.format_dt(ends, style='R')
+        return discord.utils.format_dt(ends, style='R')
 
     @property
     def timeout_done(self) -> str:
-        timestamp = disnake.utils.format_dt(datetime.datetime.now(), style='R')
+        timestamp = discord.utils.format_dt(datetime.datetime.now(), style='R')
         return f'(ended {timestamp} from inactivity)'
 
     @property
@@ -61,7 +63,7 @@ class Games(commands.Cog):
         self.bot = bot
 
 
-def setup(bot):
+async def setup(bot: TheGameBot):
     from . import (
         hangman,
         memory,
@@ -77,9 +79,9 @@ def setup(bot):
     )
 
     base = Games(bot)
-    bot.add_cog(base)
+    await bot.add_cog(base)
     for cls in cogs:
         cog = cls(bot, base)
-        bot.add_cog(cog)
+        await bot.add_cog(cog)
         for c in cog.get_commands():
             c.injected_cog = 'Games'

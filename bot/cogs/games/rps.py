@@ -7,15 +7,15 @@ import asyncio
 import datetime
 from typing import Callable, Iterable, Optional, Union, Coroutine, Any
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from . import Games
 
-UM = Union[disnake.User, disnake.Member]
+UM = Union[discord.User, discord.Member]
 
 
-class RPSButton(disnake.ui.Button["BaseRPSView"]):
+class RPSButton(discord.ui.Button["BaseRPSView"]):
     def __init__(self, value, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.value = value
@@ -28,13 +28,13 @@ class RPSButton(disnake.ui.Button["BaseRPSView"]):
     def beats(self, other):
         return self.__gt__(other)
 
-    async def callback(self, interaction: disnake.MessageInteraction):
+    async def callback(self, interaction: discord.Interaction):
         await self.view.step(self, interaction)
 
 
-class BaseRPSView(disnake.ui.View, abc.ABC):
+class BaseRPSView(discord.ui.View, abc.ABC):
     children: list[RPSButton]
-    message: disnake.Message
+    message: discord.Message
 
     def __init__(self, buttons: Iterable[RPSButton], *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -44,12 +44,12 @@ class BaseRPSView(disnake.ui.View, abc.ABC):
     @property
     def timeout_timestamp(self) -> str:
         ends = datetime.datetime.now() + datetime.timedelta(seconds=self.timeout)
-        return disnake.utils.format_dt(ends, style='R')
+        return discord.utils.format_dt(ends, style='R')
 
     async def on_timeout(self):
         for button in self.children:
             button.disabled = True
-        timestamp = disnake.utils.format_dt(datetime.datetime.now(), style='R')
+        timestamp = discord.utils.format_dt(datetime.datetime.now(), style='R')
         await self.message.edit(
             content=f'(ended {timestamp} from inactivity)',
             view=self
@@ -60,14 +60,14 @@ class BaseRPSView(disnake.ui.View, abc.ABC):
         """Returns the winners of the game."""
 
     @abc.abstractmethod
-    def get_embed(self, winners: Optional[list[UM]]) -> disnake.Embed:
+    def get_embed(self, winners: Optional[list[UM]]) -> discord.Embed:
         """Returns the embed used for displaying the game's state."""
 
     @abc.abstractmethod
-    async def step(self, button: RPSButton, interaction: disnake.MessageInteraction):
+    async def step(self, button: RPSButton, interaction: discord.Interaction):
         """Triggered after a move has been submitted."""
 
-    async def update(self, interaction: disnake.MessageInteraction, **kwargs):
+    async def update(self, interaction: discord.Interaction, **kwargs):
         """Edit the game message with the current view."""
         finished = all(b.disabled for b in self.children)
         content = None if finished else f'(ends {self.timeout_timestamp})'
@@ -79,7 +79,7 @@ class BaseRPSView(disnake.ui.View, abc.ABC):
             else:
                 await interaction.response.edit_message(
                     content=content, view=self, **kwargs)
-        except disnake.HTTPException:
+        except discord.HTTPException:
             pass
         else:
             if finished:
@@ -87,7 +87,7 @@ class BaseRPSView(disnake.ui.View, abc.ABC):
 
     async def start(
         self,
-        send_meth: Callable[..., Coroutine[Any, Any, disnake.Message]],
+        send_meth: Callable[..., Coroutine[Any, Any, discord.Message]],
         *, wait=True
     ):
         """Start the game."""
@@ -127,7 +127,7 @@ class RPSDuelView(BaseRPSView):
         """Indicates the number of players that have not selected a move."""
         return 2 - self.n_ready
 
-    async def interaction_check(self, interaction: disnake.MessageInteraction):
+    async def interaction_check(self, interaction: discord.Interaction):
         if interaction.user.bot:
             return False
         # Check if they made a move already
@@ -154,8 +154,8 @@ class RPSDuelView(BaseRPSView):
             return [b]
         return []
 
-    def get_base_embed(self) -> disnake.Embed:
-        return disnake.Embed()
+    def get_base_embed(self) -> discord.Embed:
+        return discord.Embed()
 
     def list_moves(self, *, reveal: bool) -> list[str]:
         move_list = []
@@ -168,7 +168,7 @@ class RPSDuelView(BaseRPSView):
             move_list.append(f'{move} {player.mention}')
         return move_list
 
-    def get_embed(self, winners: Optional[list[UM]]) -> disnake.Embed:
+    def get_embed(self, winners: Optional[list[UM]]) -> discord.Embed:
         description = []
 
         if winners:
@@ -215,9 +215,9 @@ def _create_buttons(items: Iterable[tuple[int, dict[str, object]]]) -> tuple[RPS
 
 class _RPS(commands.Cog):
     STANDARD = (
-        (2, {'emoji': '\N{ROCK}', 'style': disnake.ButtonStyle.primary}),
-        (1, {'emoji': '\N{NEWSPAPER}', 'style': disnake.ButtonStyle.primary}),
-        (0, {'emoji': '\N{BLACK SCISSORS}', 'style': disnake.ButtonStyle.primary})
+        (2, {'emoji': '\N{ROCK}', 'style': discord.ButtonStyle.primary}),
+        (1, {'emoji': '\N{NEWSPAPER}', 'style': discord.ButtonStyle.primary}),
+        (0, {'emoji': '\N{BLACK SCISSORS}', 'style': discord.ButtonStyle.primary})
     )
 
     def __init__(self, bot, base: Games):
@@ -226,7 +226,7 @@ class _RPS(commands.Cog):
 
     @commands.command()
     @commands.cooldown(2, 15, commands.BucketType.member)
-    async def rps(self, ctx, user: disnake.User = None):
+    async def rps(self, ctx, user: discord.User = None):
         """Start a game of rock, paper, scissors.
 
 user: The user to duel (optional)."""

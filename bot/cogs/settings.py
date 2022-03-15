@@ -10,9 +10,12 @@ import shutil
 from typing import Any
 import uuid
 
-from disnake.ext import commands
+from discord.ext import commands
+
+from main import TheGameBot
 
 SETTINGS_TYPE = dict[str, dict[str, Any]]
+
 
 def create_parser():
     return configparser.ConfigParser(default_section='general')
@@ -299,5 +302,5 @@ The message will be given in DMs."""
         await ctx.author.send(pprint.pformat(self._cache))
 
 
-def setup(bot):
-    bot.add_cog(Settings(bot))
+async def setup(bot: TheGameBot):
+    await bot.add_cog(Settings(bot))

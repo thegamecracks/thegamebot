@@ -9,8 +9,8 @@ import random
 import re
 from typing import Generator, Optional, Union, Literal
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from bot import errors
 from . import EditViewMixin, Games, TimeoutView
@@ -283,14 +283,14 @@ class MSGame:
         return int((y_size * x_size + 1) // ((y_size * x_size) ** 0.5))
 
 
-class MSItem(disnake.ui.Item):
+class MSItem(discord.ui.Item):
     def update(self): ...
 
 
-class CoordinateSelect(disnake.ui.Select['MSView'], MSItem):
+class CoordinateSelect(discord.ui.Select['MSView'], MSItem):
     """A select menu for inputting a given coordinate on the board."""
 
-    async def callback(self, interaction: disnake.MessageInteraction):
+    async def callback(self, interaction: discord.Interaction):
         def parse_coordinate() -> tuple[Optional[int], int]:
             # Examples: "A", "F4" (X-axis is one char and always given)
             v = self.values[0]
@@ -322,13 +322,13 @@ class CoordinateSelect(disnake.ui.Select['MSView'], MSItem):
         """Determine the axis that the user should input
         and update the available options.
         """
-        def make_option(label: str, cell: Optional[MSCell]) -> disnake.SelectOption:
+        def make_option(label: str, cell: Optional[MSCell]) -> discord.SelectOption:
             kwargs = {}
             if cell is not None and cell & MSCell.FLAG:
                 kwargs['emoji'] = '\N{TRIANGULAR FLAG ON POST}'
-            return disnake.SelectOption(label=label, **kwargs)
+            return discord.SelectOption(label=label, **kwargs)
 
-        def get_x_options() -> list[disnake.SelectOption]:
+        def get_x_options() -> list[discord.SelectOption]:
             x_coords = range(*view.viewport[1])
             min_y, max_y = view.viewport[0]
             choices = []
@@ -357,7 +357,7 @@ class CoordinateSelect(disnake.ui.Select['MSView'], MSItem):
 
             return choices
 
-        def get_y_options() -> list[disnake.SelectOption]:
+        def get_y_options() -> list[discord.SelectOption]:
             # pre-req: x_coord is not None
             min_y, max_y = view.viewport[0]
             x_name = MSGame.X_COORDS[view.x_coord]
@@ -371,7 +371,7 @@ class CoordinateSelect(disnake.ui.Select['MSView'], MSItem):
                     choices.append(make_option(label, cell))
             return choices
 
-        def get_full_options() -> list[disnake.SelectOption]:
+        def get_full_options() -> list[discord.SelectOption]:
             choices = []
             for x in range(*view.viewport[1]):
                 for y in range(*view.viewport[0]):
@@ -421,7 +421,7 @@ class CoordinateSelect(disnake.ui.Select['MSView'], MSItem):
 
         if prepend_cancel:
             options.insert(
-                0, disnake.SelectOption(
+                0, discord.SelectOption(
                     emoji='\N{LARGE RED CIRCLE}',
                     label='Cancel'
                 )
@@ -432,13 +432,13 @@ class CoordinateSelect(disnake.ui.Select['MSView'], MSItem):
 
 
 # NOTE: add middle click option? \N{THREE BUTTON MOUSE}
-class ClickToggle(disnake.ui.Button['MSView'], MSItem):
+class ClickToggle(discord.ui.Button['MSView'], MSItem):
     """Toggle between opening and flagging cells."""
 
     def __init__(self):
-        super().__init__(style=disnake.ButtonStyle.primary)
+        super().__init__(style=discord.ButtonStyle.primary)
 
-    async def callback(self, interaction: disnake.MessageInteraction):
+    async def callback(self, interaction: discord.Interaction):
         self.view.flagging = not self.view.flagging
         await self.view.update(interaction)
 
@@ -449,16 +449,16 @@ class ClickToggle(disnake.ui.Button['MSView'], MSItem):
             self.emoji = '\N{FOOT}'
 
 
-class MassRevealButton(disnake.ui.Button['MSView'], MSItem):
+class MassRevealButton(discord.ui.Button['MSView'], MSItem):
     """Reveal the neighbors of all cells where the number
     of neighboring mines match the number of neighboring flags
     (i.e. middle-click on steroids).
     """
 
     def __init__(self):
-        super().__init__(emoji='\N{BROOM}', style=disnake.ButtonStyle.danger)
+        super().__init__(emoji='\N{BROOM}', style=discord.ButtonStyle.danger)
 
-    async def callback(self, interaction: disnake.MessageInteraction):
+    async def callback(self, interaction: discord.Interaction):
         valid = tuple(self.yield_valid_cells_pos())
 
         # If there is a mine, only click that cell
@@ -502,12 +502,12 @@ class MassRevealButton(disnake.ui.Button['MSView'], MSItem):
 
 class MSView(TimeoutView, EditViewMixin):
     children: list[MSItem]
-    message: disnake.Message
+    message: discord.Message
 
     def __init__(self, player_ids: Optional[tuple[int]], *args, timeout, **kwargs):
         super().__init__(timeout=timeout)
         self.player_ids = player_ids
-        self.start_time: datetime.datetime = disnake.utils.utcnow()
+        self.start_time: datetime.datetime = discord.utils.utcnow()
 
         self.game = MSGame(*args, **kwargs)
         self.viewport: tuple[tuple[int, int], tuple[int, int]] \
@@ -519,7 +519,7 @@ class MSView(TimeoutView, EditViewMixin):
         self.add_item(ClickToggle())
         self.add_item(MassRevealButton())
 
-    async def interaction_check(self, interaction: disnake.MessageInteraction) -> bool:
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.bot:
             return False
         return self.player_ids is None or interaction.user.id in self.player_ids
@@ -533,7 +533,7 @@ class MSView(TimeoutView, EditViewMixin):
         """
         kwargs = {'view': None}
 
-        color = disnake.Embed.Empty
+        color = None
         if status == MSStatus.FAIL:
             kwargs['content'] = f'\N{COLLISION SYMBOL} Exploded in {self.elapsed_str}'
             color = 0xBB1A34
@@ -563,7 +563,7 @@ class MSView(TimeoutView, EditViewMixin):
                     )
                 )
             )
-            kwargs['embed'] = disnake.Embed(
+            kwargs['embed'] = discord.Embed(
                 color=color,
                 description='\n'.join(description)
             )
@@ -575,9 +575,9 @@ class MSView(TimeoutView, EditViewMixin):
             child.update()
         kwargs = self.get_message_kwargs(status=self.game.get_status())
         self.message = await ctx.send(**kwargs)
-        self.start_time = disnake.utils.utcnow()
+        self.start_time = discord.utils.utcnow()
 
-    async def update(self, interaction: Optional[disnake.MessageInteraction] = None):
+    async def update(self, interaction: Optional[discord.Interaction] = None):
         no_interaction = interaction is None
 
         # Buttons should update before rendering as they may change view state
@@ -589,7 +589,7 @@ class MSView(TimeoutView, EditViewMixin):
 
         try:
             await self.edit(interaction, **kwargs)
-        except disnake.HTTPException:
+        except discord.HTTPException:
             pass
         else:
             if status in MSStatus.end_states() or no_interaction:
@@ -619,7 +619,7 @@ class BoardSizeConverter(commands.Converter[tuple[int, int]]):
 
 
 class MSCommandFlags(commands.FlagConverter):
-    players: tuple[Union[Literal['everyone'], disnake.User]] = ()
+    players: tuple[Union[Literal['everyone'], discord.User]] = ()
     size: BoardSizeConverter = (10, 15)
 
 

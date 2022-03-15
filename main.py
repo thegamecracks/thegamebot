@@ -9,8 +9,8 @@ import pathlib
 import sqlite3
 import sys
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 from dotenv import load_dotenv
 import inflect
 
@@ -51,9 +51,13 @@ class TheGameBot(commands.Bot):
         self.db = database.Database(self.dbpool, self.DATABASE_MAIN_FILE)
         self.inflector = inflect.engine()
 
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            *args,
+            command_prefix='xkcd',  # not actually needed
+            **kwargs
+        )
 
-    def db_setup(self):
+    def setup_db(self):
         """Initialize the database if it does not exist."""
         if pathlib.Path(self.DATABASE_MAIN_FILE).exists():
             return
@@ -119,20 +123,6 @@ class TheGameBot(commands.Bot):
             raise errors.SettingsNotFound()
         return cog
 
-    async def start(self, *args, **kwargs):
-        self.db_setup()
-        print('Initialized database')
-
-        n_extensions = len(EXT_LIST)
-        for i, name in enumerate(EXT_LIST, start=1):
-            state = f'Loading extension {i}/{n_extensions}\r'
-            print(state, end='', flush=True)
-            self.load_extension(name)
-        print('Loaded all extensions      ')
-
-        async with self.dbpool:
-            await super().start(*args, **kwargs)
-
 
 async def main():
     load_dotenv(override=True)
@@ -151,13 +141,14 @@ async def main():
         logger.error(s)
         return print(s)
 
-    intents = disnake.Intents(
+    intents = discord.Intents(
         bans=False,
         emojis_and_stickers=True,
         guilds=True,
         integrations=False,
         invites=False,
         members=args.members,
+        message_content=True,
         messages=True,
         presences=args.presences,
         reactions=True,
@@ -172,7 +163,18 @@ async def main():
         strip_after_prefix=True
     )
 
-    await bot.start(token)
+    bot.setup_db()
+    print('Initialized database')
+
+    n_extensions = len(EXT_LIST)
+    for i, name in enumerate(EXT_LIST, start=1):
+        state = f'Loading extension {i}/{n_extensions}\r'
+        print(state, end='', flush=True)
+        await bot.load_extension(name)
+    print('Loaded all extensions      ')
+
+    async with bot, bot.dbpool:
+        await bot.start(token)
 
 
 if __name__ == '__main__':

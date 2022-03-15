@@ -26,21 +26,21 @@ import datetime
 import random
 from typing import Optional
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from bot import errors
 from . import EditViewMixin, Games, TimeoutView
 
 
-class MemoryButton(disnake.ui.Button["MemoryView"]):
+class MemoryButton(discord.ui.Button["MemoryView"]):
     def __init__(self, x: int, y: int, emoji: str):
-        super().__init__(style=disnake.ButtonStyle.success, label='\u200b')
+        super().__init__(style=discord.ButtonStyle.success, label='\u200b')
         self.x = x
         self.y = y
         self.stored = emoji
 
-    async def callback(self, interaction: disnake.MessageInteraction):
+    async def callback(self, interaction: discord.Interaction):
         self.view.queue.put_nowait((self, interaction))
         raise errors.SkipInteractionResponse('Skip deferral')
 
@@ -63,18 +63,18 @@ class MemoryView(TimeoutView, EditViewMixin):
     )
 
     children: list[MemoryButton]
-    message: disnake.Message
+    message: discord.Message
 
     def __init__(self, player_id: Optional[int], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.player_id = player_id
-        self.start_time: datetime.datetime = disnake.utils.utcnow()
+        self.start_time: datetime.datetime = discord.utils.utcnow()
 
         self.current: Optional[MemoryButton] = None
         # Indicates which emoji the user is currently matching
 
         self.queue: asyncio.Queue[
-            tuple[MemoryButton, disnake.MessageInteraction]
+            tuple[MemoryButton, discord.Interaction]
         ] = asyncio.Queue(3)
         self.worker: Optional[asyncio.Task] = None
 
@@ -101,7 +101,7 @@ class MemoryView(TimeoutView, EditViewMixin):
             view=self
         )
 
-    async def interaction_check(self, interaction: disnake.MessageInteraction) -> bool:
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.bot:
             return False
         return self.player_id is None or interaction.user.id == self.player_id
@@ -115,7 +115,7 @@ class MemoryView(TimeoutView, EditViewMixin):
 
         try:
             await self.edit(interaction, content=content, view=self)
-        except disnake.HTTPException:
+        except discord.HTTPException:
             pass
         else:
             if finished:
@@ -158,7 +158,7 @@ class MemoryView(TimeoutView, EditViewMixin):
             f'(ends {self.timeout_timestamp})',
             view=self
         )
-        self.start_time = disnake.utils.utcnow()
+        self.start_time = discord.utils.utcnow()
         if wait:
             await self.memory_worker()
         else:

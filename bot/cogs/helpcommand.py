@@ -8,10 +8,11 @@ import functools
 import math
 from typing import Any, Protocol, TypeVar
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from bot import utils
+from main import TheGameBot
 
 T = TypeVar('T')
 
@@ -26,7 +27,7 @@ HELP_OBJECT = (
 
 # NOTE: help objects are strongly referenced,
 # preventing cleanup of reloaded cogs/commands
-class HelpView(disnake.ui.View):
+class HelpView(discord.ui.View):
     COGS_PER_PAGE = 5
     COMMANDS_PER_PAGE = 9
     TIMEOUT_MAX_EMBED_SIZE = 400
@@ -36,21 +37,21 @@ class HelpView(disnake.ui.View):
         source: "PageSource",
         help_command: "HelpCommand",
         user_id: int,
-        last_help: dict[str, Any] | HELP_OBJECT = disnake.utils.MISSING,
+        last_help: dict[str, Any] | HELP_OBJECT = discord.utils.MISSING,
         start_page: int = 0
     ):
         super().__init__(timeout=60)
         self.source: "PageSource" = source
         self.help_command = help_command
         self.user_id = user_id
-        if last_help is disnake.utils.MISSING:
+        if last_help is discord.utils.MISSING:
             last_help = self._get_last_help()
         self.last_help = last_help
 
-        self.message: disnake.Message | None = None
+        self.message: discord.Message | None = None
         self.current_page = -1
-        self.embed = disnake.Embed()
-        self.options: list[disnake.SelectOption] = []
+        self.embed = discord.Embed()
+        self.options: list[discord.SelectOption] = []
         self.option_objects: list[HELP_OBJECT] = []
 
         self.can_paginate = True
@@ -96,7 +97,7 @@ class HelpView(disnake.ui.View):
         return CommandPageSource(obj)
 
     @functools.cached_property
-    def _pagination_buttons(self) -> tuple[disnake.ui.Button]:
+    def _pagination_buttons(self) -> tuple[discord.ui.Button]:
         return self.first_page, self.prev_page, self.next_page, self.last_page  # type: ignore
 
     def _get_last_help(self) -> HELP_OBJECT:
@@ -108,7 +109,7 @@ class HelpView(disnake.ui.View):
     def _get_message_kwargs(self) -> dict[str, Any]:
         return {'embed': self.embed, 'view': self}
 
-    def _maybe_remove_item(self, item: disnake.ui.Item):
+    def _maybe_remove_item(self, item: discord.ui.Item):
         if item in self.children:
             self.remove_item(item)
 
@@ -159,7 +160,7 @@ class HelpView(disnake.ui.View):
         else:
             await self.message.edit(view=None)
 
-    async def respond(self, interaction: disnake.MessageInteraction):
+    async def respond(self, interaction: discord.Interaction):
         await interaction.response.edit_message(**self._get_message_kwargs())
 
     def refresh_components(self):
@@ -186,8 +187,8 @@ class HelpView(disnake.ui.View):
             self.options, self.option_objects = self.source.get_page_options(self, page)
             self.refresh_components()
 
-    async def start(self, channel: disnake.abc.Messageable | disnake.MessageInteraction):
-        if isinstance(channel, disnake.MessageInteraction):
+    async def start(self, channel: discord.abc.Messageable | discord.Interaction):
+        if isinstance(channel, discord.Interaction):
             # Continuing from a previous view
             await self.respond(channel)
             self.message = channel.message
@@ -204,7 +205,7 @@ class HelpView(disnake.ui.View):
             'start_page': self.current_page
         }
 
-    @disnake.ui.select(options=[], placeholder='Navigate...', row=0)
+    @discord.ui.select(options=[], placeholder='Navigate...', row=0)
     async def navigate(self, select, interaction):
         index = int(select.values[0])
         obj = self.option_objects[index]
@@ -218,37 +219,37 @@ class HelpView(disnake.ui.View):
         self.stop()
         await view.start(interaction)
 
-    @disnake.ui.button(
+    @discord.ui.button(
         emoji='\N{BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}',
-        style=disnake.ButtonStyle.blurple, row=1)
+        style=discord.ButtonStyle.blurple, row=1)
     async def first_page(self, button, interaction):
         self.show_page(0)
         await self.respond(interaction)
 
-    @disnake.ui.button(
+    @discord.ui.button(
         emoji='\N{BLACK LEFT-POINTING TRIANGLE}',
-        style=disnake.ButtonStyle.blurple, row=1)
+        style=discord.ButtonStyle.blurple, row=1)
     async def prev_page(self, button, interaction):
         self.show_page(self.current_page - 1)
         await self.respond(interaction)
 
-    @disnake.ui.button(
+    @discord.ui.button(
         emoji='\N{BLACK RIGHT-POINTING TRIANGLE}',
-        style=disnake.ButtonStyle.blurple, row=1)
+        style=discord.ButtonStyle.blurple, row=1)
     async def next_page(self, button, interaction):
         self.show_page(self.current_page + 1)
         await self.respond(interaction)
 
-    @disnake.ui.button(
+    @discord.ui.button(
         emoji='\N{BLACK RIGHT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}',
-        style=disnake.ButtonStyle.blurple, row=1)
+        style=discord.ButtonStyle.blurple, row=1)
     async def last_page(self, button, interaction):
         self.show_page(self.source.max_pages - 1)
         await self.respond(interaction)
 
-    @disnake.ui.button(
+    @discord.ui.button(
         emoji='\N{LEFTWARDS ARROW WITH HOOK}',
-        style=disnake.ButtonStyle.blurple, row=2)
+        style=discord.ButtonStyle.blurple, row=2)
     async def go_back(self, button, interaction):
         self.stop()
 
@@ -265,9 +266,9 @@ class HelpView(disnake.ui.View):
             )
         await view.start(interaction)
 
-    @disnake.ui.button(
+    @discord.ui.button(
         emoji='\N{THUMBS UP SIGN}',
-        style=disnake.ButtonStyle.success, row=2)
+        style=discord.ButtonStyle.success, row=2)
     async def stop_help(self, button, interaction):
         self.stop()
         await interaction.message.delete()
@@ -281,13 +282,13 @@ class PageSourceProto(Protocol[T]):
 
     def get_page_options(
         self, menu: HelpView, page: list[T]
-    ) -> tuple[list[disnake.SelectOption], list[HELP_OBJECT]]: ...
+    ) -> tuple[list[discord.SelectOption], list[HELP_OBJECT]]: ...
 
-    def format_page(self, menu: HelpView, page: list[T]) -> disnake.Embed: ...
+    def format_page(self, menu: HelpView, page: list[T]) -> discord.Embed: ...
 
 
 class PageSource(PageSourceProto[T]):
-    """A stripped down version of disnake.ext.menus.PageSource
+    """A stripped down version of discord.ext.menus.PageSource
     for displaying one or more pages in the help view.
     """
 
@@ -327,7 +328,7 @@ class BotPageSource(PageSource[tuple[commands.Cog | None, list[commands.Command]
     ):
         options, objects = [], []
         for i, (cog, _) in enumerate(page):
-            options.append(disnake.SelectOption(
+            options.append(discord.SelectOption(
                 label=menu.help_command.get_cog_name(cog),
                 description=utils.truncate_message(
                     cog.description, 100, max_lines=1,
@@ -352,7 +353,7 @@ class BotPageSource(PageSource[tuple[commands.Cog | None, list[commands.Command]
             description.append(f'__**{help_command.get_cog_name(cog)}**__')
             description.append(utils.truncate_message(command_names, 70, placeholder='...'))
 
-        embed = disnake.Embed(
+        embed = discord.Embed(
             title=ctx.me.display_name,
             color=ctx.bot.get_bot_color(),
             description='\n'.join(description)
@@ -367,7 +368,7 @@ class CommandListPageSource(PageSource[commands.Command]):
     def get_page_options(self, menu, page: list[commands.Command]):
         options, objects = [], []
         for i, cmd in enumerate(page):
-            options.append(disnake.SelectOption(
+            options.append(discord.SelectOption(
                 label=cmd.qualified_name,
                 description=utils.truncate_simple(cmd.short_doc, 100, placeholder='...'),
                 value=str(i)
@@ -379,12 +380,12 @@ class CommandListPageSource(PageSource[commands.Command]):
     def format_page(self, menu, page: list[commands.Command]):
         ctx = menu.help_command.context
 
-        embed = disnake.Embed(
+        embed = discord.Embed(
             color=ctx.bot.get_bot_color()
         )
 
         per_field = math.ceil(self.per_page / 3)
-        groups = disnake.utils.as_chunks(page, per_field)
+        groups = discord.utils.as_chunks(page, per_field)
         for group in groups:
             embed.add_field(
                 name='\u200b',
@@ -449,7 +450,7 @@ class CommandPageSource(PageSource[commands.Command]):
         ctx = help_command.context
         command = page[0]
 
-        embed = disnake.Embed(
+        embed = discord.Embed(
             title=command.qualified_name,
             color=ctx.bot.get_bot_color(),
             description='`{signature}`\n{documentation}'.format(
@@ -468,6 +469,8 @@ class CommandPageSource(PageSource[commands.Command]):
 
 
 class HelpCommand(commands.HelpCommand):
+    context: commands.Context[TheGameBot]
+
     def __init__(self):
         super().__init__(
             command_attrs={
@@ -581,12 +584,12 @@ class HelpCommand(commands.HelpCommand):
         return await self.send_bot_help(command)
 
 
-def setup(bot):
+async def setup(bot: TheGameBot):
     global _original_help_command
     _original_help_command = bot.help_command
 
     bot.help_command = HelpCommand()
 
 
-def teardown(bot):
-    bot.help_command = help_command = _original_help_command
+async def teardown(bot: TheGameBot):
+    bot.help_command = _original_help_command

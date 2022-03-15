@@ -4,8 +4,10 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import time
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
+
+from main import TheGameBot
 
 
 class EventHandlers(commands.Cog):
@@ -69,5 +71,5 @@ class EventHandlers(commands.Cog):
         print(s)
 
 
-def setup(bot):
-    bot.add_cog(EventHandlers(bot))
+async def setup(bot: TheGameBot):
+    await bot.add_cog(EventHandlers(bot))

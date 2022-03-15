@@ -2,7 +2,6 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import bisect
 import datetime
 import functools
 import itertools
@@ -11,8 +10,8 @@ import sqlite3
 from typing import Sequence, Iterable, cast, AsyncGenerator, Collection
 
 import asqlite
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from bot.utils import ConfirmationView
 from bot import converters, errors, utils
@@ -38,10 +37,10 @@ class IndexConverter(commands.Converter[list[int]]):
             end = int(m['end'] or start)
 
             if start < 1:
-                raise errors.IndexOutOfBoundsError(
+                raise commands.BadArgument(
                     'Your starting index cannot be below 1.')
             elif end < start:
-                raise errors.IndexOutOfBoundsError(
+                raise commands.BadArgument(
                     'Your end index cannot be lower than your starting index.')
 
             for i in range(start - 1, end):
@@ -53,16 +52,25 @@ class IndexConverter(commands.Converter[list[int]]):
         return sorted(indices)
 
 
+async def getch_member(guild: discord.Guild, member_id: int) -> discord.Member | None:
+    member = guild.get_member(member_id)
+    if member is None:
+        try:
+            return await guild.fetch_member(member_id)
+        except discord.HTTPException:
+            return None
+
+
 class Location:
     """
     Attributes:
-        guild (Optional[disnake.Guild]):
+        guild (Optional[discord.Guild]):
             The guild this location is referencing, or None if global.
         outside (bool): Indicates if this location is not where the author
             is currently invoking the command, i.e. guild != ctx.guild.
     """
 
-    def __init__(self, guild: disnake.Guild = None, *, outside=False):
+    def __init__(self, guild: discord.Guild = None, *, outside=False):
         self.guild = guild
         self.outside = outside
 
@@ -115,7 +123,7 @@ class Location:
             return cls(ctx.guild)
 
         guild = await commands.GuildConverter().convert(ctx, argument)
-        if await guild.getch_member(ctx.author.id):
+        if await getch_member(guild, ctx.author.id):
             return cls(guild, outside=True)
         return cls()
 
@@ -131,7 +139,7 @@ def escape_codeblocks(content: str) -> str:
     # and append the remainder of that at the very end
     for m in converters.CodeBlock.REGEX.finditer(content):
         parts.append(content[last_index:m.start()])
-        parts.append(disnake.utils.escape_markdown(m.expand(r'```\g<code>```')))
+        parts.append(discord.utils.escape_markdown(m.expand(r'```\g<code>```')))
         last_index = m.end()
 
     parts.append(content[last_index:])
@@ -176,7 +184,7 @@ async def yield_notes(
                 yield row
 
 
-class NoteView(disnake.ui.View):
+class NoteView(discord.ui.View):
     """Provides extra buttons when viewing a single note.
 
     Args:
@@ -184,7 +192,7 @@ class NoteView(disnake.ui.View):
         kwargs: All columns of the note.
 
     """
-    message: disnake.Message | None = None
+    message: discord.Message | None = None
 
     def __init__(self, *, index: int, **kwargs):
         super().__init__(timeout=30)
@@ -201,8 +209,8 @@ class NoteView(disnake.ui.View):
     async def on_timeout(self):
         await self.message.edit(view=None)
 
-    @disnake.ui.button(label='View raw')
-    async def view_raw(self, button: disnake.ui.Button, interaction: disnake.Interaction):
+    @discord.ui.button(label='View raw')
+    async def view_raw(self, button: discord.ui.Button, interaction: discord.Interaction):
         await interaction.response.send_message(self.escaped_content, ephemeral=True)
 
 
@@ -248,7 +256,7 @@ class NoteManagement(commands.Cog):
             )
 
     def send_invalid_indices(
-        self, channel: disnake.abc.Messageable,
+        self, channel: discord.abc.Messageable,
         out_of_bounds: list[str], location: Location, total: int
     ):
         inflector = self.bot.inflector
@@ -267,7 +275,6 @@ class NoteManagement(commands.Cog):
         invoke_without_command=True
     )
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def notes(
         self, ctx: commands.Context, location: Location | None,
         *, index: IndexConverter = None
@@ -306,7 +313,7 @@ If nothing is provided, all notes are shown."""
         # TODO: pagination of notes
         if len(note_list) == 1:
             i, note = index[0], note_list[0]
-            embed = disnake.Embed(
+            embed = discord.Embed(
                 description=note['content'],
                 color=color,
                 timestamp=note['time_of_entry']
@@ -314,7 +321,7 @@ If nothing is provided, all notes are shown."""
                 name=f"{ctx.author.display_name}'s {location.note} #{i + 1}",
                 icon_url=ctx.author.display_avatar.url
             )
-            view = NoteView(index=i, **note)
+            view = NoteView(index=i, **note)  # type: ignore
             view.message = await ctx.send(embed=embed, view=view)
             return
 
@@ -328,7 +335,7 @@ If nothing is provided, all notes are shown."""
             extra = '...' if extra else ''
             lines.append(f'{i + 1}. {first_line}{extra}')
 
-        embed = disnake.Embed(
+        embed = discord.Embed(
             color=color,
             description='\n'.join(lines)
         ).set_author(
@@ -340,7 +347,6 @@ If nothing is provided, all notes are shown."""
 
     @notes.command(name='add')
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def notes_add(
         self, ctx: commands.Context,
         location: Location | None,
@@ -379,7 +385,6 @@ notes add server ... (add a server note)"""
     # FIXME: command only runs once and can't be used again?
     @notes.command(name='edit')
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def notes_edit(
         self, ctx: commands.Context, location: Location | None, index: int,
         *, content
@@ -416,7 +421,6 @@ To see the indices for your notes, use the "notes" command."""
 
     @notes.command(name='remove', aliases=('delete',))
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.channel, wait=True)
     async def notes_remove(
         self, ctx: commands.Context, location: Location | None,
         *, index: IndexConverter
@@ -482,5 +486,5 @@ To see the indices for your notes, use the "notes" command."""
 
 
 
-def setup(bot):
-    bot.add_cog(NoteManagement(bot))
+async def setup(bot: TheGameBot):
+    await bot.add_cog(NoteManagement(bot))

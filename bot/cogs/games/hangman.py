@@ -9,8 +9,8 @@ import re
 import string
 from typing import Optional
 
-import disnake
-from disnake.ext import commands
+import discord
+from discord.ext import commands
 
 from . import Games
 
@@ -125,22 +125,23 @@ class HangmanGame:
         return self.STAGES[i]
 
 
-class KeyboardSelect(disnake.ui.Select['HangmanView']):
+class KeyboardSelect(discord.ui.Select['HangmanView']):
     def __init__(self, chars: list[str], **kwargs):
         super().__init__(
-            options=[disnake.SelectOption(label=c) for c in chars],
+            options=[discord.SelectOption(label=c) for c in chars],
             placeholder=f'{chars[0]}-{chars[-1]}' if len(chars) > 1 else chars[0],
             **kwargs
         )
 
-    async def callback(self, interaction: disnake.MessageInteraction):
+    async def callback(self, interaction: discord.Interaction):
         await self.view.update(interaction, self.values[0])
 
 
+# noinspection PyArgumentList
 CharFlag = enum.Flag('CharFlag', 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z')
 
 
-class HangmanView(disnake.ui.View):
+class HangmanView(discord.ui.View):
     CHAR_SET = frozenset(string.ascii_lowercase)
 
     def __init__(
@@ -156,6 +157,7 @@ class HangmanView(disnake.ui.View):
 
     @staticmethod
     def decode_guesses(guesses: str) -> set[str]:
+        # noinspection PyUnresolvedReferences
         members, uncovered = enum._decompose(CharFlag, int(guesses))
         return {m._name_.lower() for m in members}
 
@@ -191,7 +193,7 @@ class HangmanView(disnake.ui.View):
             g=self.encode_guesses()
         )
 
-    def get_embed(self) -> tuple[disnake.Embed, Optional[bool]]:
+    def get_embed(self) -> tuple[discord.Embed, Optional[bool]]:
         guesses = ''
         wrong_guesses = self.game.wrong_guesses
         if wrong_guesses:
@@ -209,9 +211,9 @@ class HangmanView(disnake.ui.View):
                 remaining, 'es' * (remaining != 1)
             )
 
-        embed = disnake.Embed(
+        embed = discord.Embed(
             description='{w}{g}{f} ```\n{p}```'.format(
-                w=disnake.utils.escape_markdown(
+                w=discord.utils.escape_markdown(
                     self.game.render_word(sep=' \u200b' * 3)
                 ),
                 g=guesses,
@@ -236,12 +238,12 @@ class HangmanView(disnake.ui.View):
                     )
                 )
 
-    async def interaction_check(self, interaction: disnake.MessageInteraction) -> bool:
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.bot:
             return False
         return interaction.user.id == self.player_id
 
-    async def update(self, interaction: disnake.MessageInteraction, guess: str):
+    async def update(self, interaction: discord.Interaction, guess: str):
         self.game.guess(guess)
 
         embed, status = self.get_embed()
@@ -251,7 +253,7 @@ class HangmanView(disnake.ui.View):
         else:
             await interaction.response.edit_message(embed=embed, view=None)
 
-    async def send_initial_message(self, channel: disnake.abc.Messageable):
+    async def send_initial_message(self, channel: discord.abc.Messageable):
         embed, status = self.get_embed()
         await channel.send(f'<@{self.player_id}>', embed=embed, view=self)
 
@@ -268,7 +270,7 @@ class _Hangman(commands.Cog):
 
 
     @commands.Cog.listener()
-    async def on_message_interaction(self, interaction: disnake.MessageInteraction):
+    async def on_message_interaction(self, interaction: discord.Interaction):
         """Handle an interaction for a hangman game.
 
         This bypasses the existing message tracking to implement its own
@@ -277,7 +279,7 @@ class _Hangman(commands.Cog):
 
         """
         # NOTE: referenced from ConnectionState.parse_interaction_create
-        custom_id = interaction.data.custom_id
+        custom_id = interaction.data['custom_id']
         m = self.CUSTOM_ID_REGEX.match(custom_id)
         if m is None:
             return
@@ -286,7 +288,7 @@ class _Hangman(commands.Cog):
         view = HangmanView.from_match(m)
         item = view.children[int(m.group('keyboard'))]
         # NOTE: referenced from ViewStore.dispatch
-        item.refresh_state(interaction)
+        item._refresh_state(interaction.data)
         view._dispatch_item(item, interaction)
         view.stop()
 

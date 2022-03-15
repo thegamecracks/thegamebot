@@ -2,7 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import disnake
+import discord
 
 from .confirmation import *
 from .formatting import *
@@ -22,8 +22,8 @@ class MockMessage:
         """
     def __init__(
         self, author,
-        *, channel: disnake.TextChannel = None,
-        guild: disnake.Guild = None
+        *, channel: discord.TextChannel = None,
+        guild: discord.Guild = None
     ):
         self.author = author
         self.channel = channel

@@ -9,8 +9,6 @@ license = "MPLv2.0"
 python = "^3.10"
 autopep8 = "^1.6.0"
 dateparser = "^1.1.0"
-disnake = "2.4.0"
-disnake-jishaku = "2.6.5"
 emoji = "^1.6.3"
 humanize = "^3.14.0"
 inflect = "^5.4.0"
@@ -25,6 +23,8 @@ python-dotenv = "^0.19.2"
 qrcode = "^7.3.1"
 asqlite = {git = "https://github.com/Rapptz/asqlite", rev = "ffc55a5b3d1b5e9c440c01620148be7fa6493ef5"}
 abattlemetrics = {git = "https://github.com/thegamecracks/abattlemetrics", rev = "de7d75fbf306ee61279ac1503a24766cd23ceaaf"}
+"discord.py" = {git = "https://github.com/Rapptz/discord.py"}
+jishaku = {git = "https://github.com/Gorialis/jishaku"}
 
 [tool.poetry.dev-dependencies]
 

@@ -181,42 +181,28 @@ fasttext = ["fasttext"]
 langdetect = ["langdetect"]
 
 [[package]]
-name = "disnake"
-version = "2.4.0"
+name = "discord.py"
+version = "2.0.0a3898+gbeafaa8a"
 description = "A Python wrapper for the Discord API"
 category = "main"
 optional = false
 python-versions = ">=3.8.0"
+develop = false
 
 [package.dependencies]
-aiohttp = ">=3.7.0,<3.9.0"
+aiohttp = ">=3.6.0,<4"
 
 [package.extras]
-discord = ["discord-disnake"]
-docs = ["sphinx (>=4.4.0,<4.5.0)", "sphinxcontrib-trio (==1.1.2)", "sphinx-hoverxref (>=1.0.0,<1.1.0)", "sphinx-autobuild (==2021.3.14)"]
-speed = ["orjson (>=3.5.4)", "aiodns (>=1.1)", "brotli", "cchardet"]
-voice = ["PyNaCl (>=1.3.0,<1.5)"]
+docs = ["sphinx (==4.4.0)", "sphinxcontrib-trio (==1.1.2)", "sphinxcontrib-websupport", "typing-extensions"]
+speed = ["orjson (>=3.5.4)"]
+test = ["coverage", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
+voice = ["PyNaCl (>=1.3.0,<1.6)"]
 
-[[package]]
-name = "disnake-jishaku"
-version = "2.6.5"
-description = "A disnake extension including useful tools for bot development and debugging."
-category = "main"
-optional = false
-python-versions = ">=3.8.0"
-
-[package.dependencies]
-braceexpand = ">=0.1.7"
-click = ">=8.0.1"
-disnake = ">=2.1.5"
-import_expression = ">=1.0.0,<2.0.0"
-
-[package.extras]
-docs = ["sphinx (>=3.5.4)", "sphinxcontrib-asyncio"]
-procinfo = ["psutil"]
-publish = ["jinja2"]
-test = ["click", "coverage", "flake8", "isort", "pytest", "pytest-cov", "pytest-mock"]
-voice = ["disnake[voice] (>=2.1.5)", "youtube-dl"]
+[package.source]
+type = "git"
+url = "https://github.com/Rapptz/discord.py"
+reference = "master"
+resolved_reference = "beafaa8a8b8006357c2a1ca6802ed80e000f4cda"
 
 [[package]]
 name = "dnspython"
@@ -318,6 +304,34 @@ python-versions = ">=3.7"
 [package.extras]
 docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "jaraco.tidelift (>=1.4)"]
 testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pygments", "pytest-black (>=0.3.7)", "pytest-mypy"]
+
+[[package]]
+name = "jishaku"
+version = "2.3.2a382+g27284df.master"
+description = "A discord.py extension including useful tools for bot development and debugging."
+category = "main"
+optional = false
+python-versions = ">=3.8.0"
+develop = false
+
+[package.dependencies]
+braceexpand = ">=0.1.7"
+click = ">=8.0.1"
+import-expression = ">=1.0.0,<2.0.0"
+
+[package.extras]
+discordpy = ["discord.py (>=1.7.3)"]
+docs = ["sphinx (>=3.5.4)", "sphinxcontrib-asyncio"]
+procinfo = ["psutil"]
+publish = ["jinja2"]
+test = ["click", "coverage", "flake8", "isort", "pylint", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock"]
+voice = ["youtube-dl"]
+
+[package.source]
+type = "git"
+url = "https://github.com/Gorialis/jishaku"
+reference = "master"
+resolved_reference = "27284df50b19acdf729feac8162dd3cf104133b4"
 
 [[package]]
 name = "kiwisolver"
@@ -590,7 +604,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "93fdf506ba78fd30665302d2b10e94db2c568e155268e84194a0a9e87522c254"
+content-hash = "132692fc74a7e0e677e94efd61cc59265c4bad4e2d69e71375e492a943a1ff1b"
 
 [metadata.files]
 abattlemetrics = []
@@ -717,13 +731,7 @@ dateparser = [
     {file = "dateparser-1.1.0-py2.py3-none-any.whl", hash = "sha256:fec344db1f73d005182e214c0ff27313c748bbe0c1638ce9d48a809ddfdab2a0"},
     {file = "dateparser-1.1.0.tar.gz", hash = "sha256:faa2b97f51f3b5ff1ba2f17be90de2b733fb6191f89b4058787473e8202f3044"},
 ]
-disnake = [
-    {file = "disnake-2.4.0-py3-none-any.whl", hash = "sha256:390250a55ed8bbcc8c5753a72fb8fff2376a30295476edfebd0d2301855fb919"},
-    {file = "disnake-2.4.0.tar.gz", hash = "sha256:d7a9c83d5cbfcec42441dae1d96744f82c2a22403934db5d8862a8279ca4989c"},
-]
-disnake-jishaku = [
-    {file = "disnake-jishaku-2.6.5.tar.gz", hash = "sha256:8845d5be9a4c918b457bec11c5aa45627d21bd7d6c5e03ea48e0106774715ae6"},
-]
+"discord.py" = []
 dnspython = [
     {file = "dnspython-2.2.0-py3-none-any.whl", hash = "sha256:081649da27ced5e75709a1ee542136eaba9842a0fe4c03da4fb0a3d3ed1f3c44"},
     {file = "dnspython-2.2.0.tar.gz", hash = "sha256:e79351e032d0b606b98d38a4b0e6e2275b31a5b85c873e587cc11b73aca026d6"},
@@ -812,6 +820,7 @@ inflect = [
     {file = "inflect-5.4.0-py3-none-any.whl", hash = "sha256:2eb3f9a481e12849370d5a74acc546cc128d79df6e483928aa78b5bb18244ef6"},
     {file = "inflect-5.4.0.tar.gz", hash = "sha256:b58d58c4e73ffca9b25e075c1c4fc9cadecbb5c99d7cd9f3cdedda73ece83c1c"},
 ]
+jishaku = []
 kiwisolver = [
     {file = "kiwisolver-1.3.2-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:1d819553730d3c2724582124aee8a03c846ec4362ded1034c16fb3ef309264e6"},
     {file = "kiwisolver-1.3.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:8d93a1095f83e908fc253f2fb569c2711414c0bfd451cab580466465b235b470"},

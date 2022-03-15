@@ -5,7 +5,7 @@
 import re
 from typing import Optional
 
-from disnake.ext import commands
+from discord.ext import commands
 
 
 class CodeBlock:
