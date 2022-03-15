@@ -11,6 +11,33 @@ from typing import AsyncGenerator, Tuple
 import asqlite
 
 
+class AsyncRLock(asyncio.Lock):
+    """An asynchronous reentrant lock."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._locking_task: asyncio.Task | None = None
+        self._hold_count = 0
+
+    async def acquire(self) -> bool:
+        current_task = asyncio.current_task()
+
+        if current_task != self._locking_task:
+            await super().acquire()
+            self._locking_task = current_task
+
+        self._hold_count += 1
+        return True
+
+    def release(self):
+        if self._hold_count > 0:
+            self._hold_count -= 1
+            if self._hold_count == 0:
+                super().release()
+                self._locking_task = None
+        else:
+            super().release()  # allow asyncio.Lock to raise RuntimeError
+
+
 class ConnectorProtocol:
     conn: asqlite.Connection | asqlite._ContextManagerMixin
     lock: asyncio.Lock
@@ -104,7 +131,7 @@ class ConnectionPool:
                         | sqlite3.PARSE_COLNAMES
                     )
                 ),
-                asyncio.Lock()
+                AsyncRLock()
             )
             self._connections[path] = connector
 
@@ -160,9 +187,15 @@ class Database:
             ...     async with database.connect() as conn:
             ...         await conn.execute(...)
 
+        Caution: when using a writing connection, avoid the use of
+        other writing methods in this class or nested writing connections
+        except when they are called within the same :class:`asyncio.Task`.
+        Attempting to wait on another task to acquire the lock while the
+        current task has the lock acquired will result in a deadlock.
+
         :param writing:
-            If writing, the underlying connector's lock must be acquired
-            before the connection can be used. This prevents attempts to
+            If writing, the underlying connector lock is acquired before
+            allowing access to the connection. This prevents attempts to
             concurrently write to the database which may result in mixing
             of transactions.
         :return:
