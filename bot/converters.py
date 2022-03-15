@@ -10,7 +10,7 @@ from discord.ext import commands
 
 class CodeBlock:
     REGEX = re.compile(
-        r'```(?:(?P<language>\w*)(?:\n))?\s*(?P<code>.*?)\s*```',
+        r'```(?:(?P<language>\w*)\n)?\s*(?P<code>.*?)\s*```',
         re.IGNORECASE | re.DOTALL
     )
 
