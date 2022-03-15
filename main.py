@@ -22,6 +22,7 @@ EXT_LIST = [
         'eh',
         'games',
         'helpcommand',
+        'notes',
         'prefix',
         'test'
     )
