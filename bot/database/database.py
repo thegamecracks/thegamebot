@@ -191,7 +191,7 @@ class Database:
         """
         keys, placeholders, values = self.placeholder_insert(row)
         async with self.connect(writing=True) as conn:
-            async with conn.cursor(transaction=True) as c:
+            async with conn.cursor() as c:
                 insert = 'INSERT' + ' OR IGNORE' * ignore
                 await c.execute(
                     f'{insert} INTO {table} ({keys}) VALUES ({placeholders})',
@@ -217,7 +217,7 @@ class Database:
         keys, values = self.escape_row(where, ' AND ')
         rows = None
         async with self.connect(writing=True) as conn:
-            async with conn.cursor(transaction=True) as c:
+            async with conn.cursor() as c:
                 if pop:
                     await c.execute(f'SELECT * FROM {table} WHERE {keys}', *values)
                     rows = await c.fetchall()
@@ -303,7 +303,7 @@ class Database:
         rows = None
 
         async with self.connect(writing=True) as conn:
-            async with conn.cursor(transaction=True) as c:
+            async with conn.cursor() as c:
                 if pop:
                     await c.execute(
                         f'SELECT * FROM {table} WHERE {where_keys}',
