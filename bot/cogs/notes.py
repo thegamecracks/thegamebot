@@ -435,8 +435,6 @@ To see the indices for your notes, use the "notes" command."""
         )
 
         if await view.wait_for_confirmation():
-            await view.update(f'Deleting {note_str}...', color=view.YES)
-
             async with ctx.bot.db.connect(writing=True) as conn:
                 note_ids = [
                     (row['note_id'],)
@@ -451,7 +449,7 @@ To see the indices for your notes, use the "notes" command."""
                     note_ids
                 )
 
-            await view.update(f'{note_str} successfully deleted!')
+            await view.update(f'{note_str} successfully deleted!', color=view.YES)
         else:
             await view.update('Cancelled note deletion.', color=view.NO)
 
