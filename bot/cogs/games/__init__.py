@@ -59,7 +59,7 @@ class TimeoutView(discord.ui.View):
 
 class Games(commands.Cog):
     """A set of games and commands related to games."""
-    def __init__(self, bot):
+    def __init__(self, bot: TheGameBot):
         self.bot = bot
 
 

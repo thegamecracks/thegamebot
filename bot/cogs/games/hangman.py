@@ -12,6 +12,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
+from main import Context
 from . import Games
 
 
@@ -292,13 +293,9 @@ class _Hangman(commands.Cog):
         view._dispatch_item(item, interaction)
         view.stop()
 
-
-
-
-
     @commands.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
-    async def hangman(self, ctx):
+    async def hangman(self, ctx: Context):
         """Starts a game of hangman.
 The only allowed player is you (for now)."""
         view = HangmanView(ctx.author.id)

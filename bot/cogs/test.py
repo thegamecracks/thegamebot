@@ -5,7 +5,7 @@
 import discord
 from discord.ext import commands
 
-from main import TheGameBot
+from main import Context, TheGameBot
 
 
 class Test(commands.Cog):
@@ -13,8 +13,8 @@ class Test(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    async def test(self, ctx: commands.Context):
-        settings = self.bot.get_settings()
+    async def test(self, ctx: Context):
+        settings = ctx.bot.get_settings()
         color: int = settings.get('general', 'color')
 
         await ctx.send(embed=discord.Embed(

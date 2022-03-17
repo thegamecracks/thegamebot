@@ -131,6 +131,10 @@ class TheGameBot(commands.Bot):
         return cog
 
 
+class Context(commands.Context[TheGameBot]):
+    """A subclass of :class:`commands.Context` typed with the bot class."""
+
+
 async def main():
     load_dotenv(override=True)
 

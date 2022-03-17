@@ -13,6 +13,7 @@ import discord
 from discord.ext import commands
 
 from bot import errors
+from main import Context
 from . import EditViewMixin, Games, TimeoutView
 
 Coordinate = tuple[int, int]
@@ -630,7 +631,7 @@ class _Minesweeper(commands.Cog):
 
     @commands.command(aliases=('ms',))
     @commands.max_concurrency(1, commands.BucketType.member)
-    async def minesweeper(self, ctx, *, flags: MSCommandFlags):
+    async def minesweeper(self, ctx: Context, *, flags: MSCommandFlags):
         """Starts a game of minesweeper.
 
 players: A list of members that can play the game or "everyone".

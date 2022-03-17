@@ -10,6 +10,7 @@ from typing import Callable, Iterable, Optional, Union, Coroutine, Any
 import discord
 from discord.ext import commands
 
+from main import Context
 from . import Games
 
 UM = Union[discord.User, discord.Member]
@@ -226,7 +227,7 @@ class _RPS(commands.Cog):
 
     @commands.command()
     @commands.cooldown(2, 15, commands.BucketType.member)
-    async def rps(self, ctx, user: discord.User = None):
+    async def rps(self, ctx: Context, user: discord.User = None):
         """Start a game of rock, paper, scissors.
 
 user: The user to duel (optional)."""

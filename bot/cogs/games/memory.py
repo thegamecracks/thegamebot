@@ -30,6 +30,7 @@ import discord
 from discord.ext import commands
 
 from bot import errors
+from main import Context
 from . import EditViewMixin, Games, TimeoutView
 
 
@@ -153,7 +154,7 @@ class MemoryView(TimeoutView, EditViewMixin):
                 self.current = None
                 await self.update(interaction)
 
-    async def start(self, ctx, *, wait=True) -> Optional[asyncio.Task]:
+    async def start(self, ctx: Context, *, wait=True) -> Optional[asyncio.Task]:
         self.message = await ctx.send(
             f'(ends {self.timeout_timestamp})',
             view=self
@@ -180,7 +181,7 @@ class _Memory(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
-    async def memory(self, ctx, *, flags: MemoryFlags):
+    async def memory(self, ctx: Context, *, flags: MemoryFlags):
         """Starts a memory game.
 Times out after: 180s"""
         view = MemoryView(

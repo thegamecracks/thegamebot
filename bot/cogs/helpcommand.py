@@ -12,7 +12,7 @@ import discord
 from discord.ext import commands
 
 from bot import utils
-from main import TheGameBot
+from main import Context, TheGameBot
 
 T = TypeVar('T')
 
@@ -469,7 +469,7 @@ class CommandPageSource(PageSource[commands.Command]):
 
 
 class HelpCommand(commands.HelpCommand):
-    context: commands.Context[TheGameBot]
+    context: Context
 
     def __init__(self):
         super().__init__(

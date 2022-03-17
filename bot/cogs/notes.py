@@ -15,7 +15,7 @@ from discord.ext import commands
 
 from bot.utils import ConfirmationView
 from bot import converters, errors, utils
-from main import TheGameBot
+from main import Context, TheGameBot
 
 
 class IndexConverter(commands.Converter[list[int]]):
@@ -244,7 +244,7 @@ class NoteManagement(commands.Cog):
     )
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes(
-        self, ctx: commands.Context, location: Location | None,
+        self, ctx: Context, location: Location | None,
         *, index: IndexConverter = None
     ):
         """Show your global or server notes.
@@ -257,7 +257,7 @@ If nothing is provided, all notes are shown."""
         location = cast(Location, location or Location(ctx.guild))
         index: Sequence[int] | None
 
-        async with self.bot.db.connect() as conn:
+        async with ctx.bot.db.connect() as conn:
             total = await query_note_count(conn, ctx.author.id, location.id)
 
             if total == 0:
@@ -276,7 +276,7 @@ If nothing is provided, all notes are shown."""
                 )
             ]
 
-        color = ctx.author.color.value or self.bot.get_bot_color()
+        color = ctx.author.color.value or ctx.bot.get_bot_color()
 
         # TODO: pagination of notes
         if len(note_list) == 1:
@@ -316,7 +316,7 @@ If nothing is provided, all notes are shown."""
     @notes.command(name='add')
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes_add(
-        self, ctx: commands.Context,
+        self, ctx: Context,
         location: Location | None,
         *, content
     ):
@@ -328,11 +328,11 @@ notes add global ... (add a global note)
 notes add server ... (add a server note)"""
         location = cast(Location, location or Location(ctx.guild))
 
-        async with self.bot.db.connect() as conn:
+        async with ctx.bot.db.connect() as conn:
             total = await query_note_count(conn, ctx.author.id, location.id)
 
         if total < self.MAX_NOTES_PER_LOCATION:
-            async with self.bot.db.connect(writing=True) as conn:
+            async with ctx.bot.db.connect(writing=True) as conn:
                 await conn.execute(
                     'INSERT OR IGNORE INTO user (user_id) VALUES (?)',
                     ctx.author.id
@@ -361,7 +361,7 @@ notes add server ... (add a server note)"""
     @notes.command(name='edit')
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes_edit(
-        self, ctx: commands.Context, location: Location | None, index: int,
+        self, ctx: Context, location: Location | None, index: int,
         *, content
     ):
         """Edit one of your notes.
@@ -374,7 +374,7 @@ notes edit server 3  (edit note 3 for your current server)
 To see the indices for your notes, use the "notes" command."""
         location = cast(Location, location or Location(ctx.guild))
 
-        async with self.bot.db.connect(writing=True) as conn:
+        async with ctx.bot.db.connect(writing=True) as conn:
             total = await query_note_count(conn, ctx.author.id, location.id)
 
             if total == 0:
@@ -400,7 +400,7 @@ To see the indices for your notes, use the "notes" command."""
     @notes.command(name='remove', aliases=('delete',))
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes_remove(
-        self, ctx: commands.Context, location: Location | None,
+        self, ctx: Context, location: Location | None,
         *, index: IndexConverter
     ):
         """Remove one or more notes.
@@ -414,7 +414,7 @@ To see the indices for your notes, use the "notes" command."""
         location = cast(Location, location or Location(ctx.guild))
         index: list[int]
 
-        async with self.bot.db.connect() as conn:
+        async with ctx.bot.db.connect() as conn:
             total = await query_note_count(conn, ctx.author.id, location.id)
 
             if total == 0:
@@ -430,14 +430,14 @@ To see the indices for your notes, use the "notes" command."""
         view = ConfirmationView(ctx.author)
         await view.start(
             ctx,
-            color=ctx.author.color.value or self.bot.get_bot_color(),
+            color=ctx.author.color.value or ctx.bot.get_bot_color(),
             title=f'Are you sure you want to delete {note_str}?'
         )
 
         if await view.wait_for_confirmation():
             await view.update(f'Deleting {note_str}...', color=view.YES)
 
-            async with self.bot.db.connect(writing=True) as conn:
+            async with ctx.bot.db.connect(writing=True) as conn:
                 note_ids = [
                     (row['note_id'],)
                     async for row in yield_notes(
@@ -454,14 +454,6 @@ To see the indices for your notes, use the "notes" command."""
             await view.update(f'{note_str} successfully deleted!')
         else:
             await view.update('Cancelled note deletion.', color=view.NO)
-
-
-
-
-
-
-
-
 
 
 async def setup(bot: TheGameBot):

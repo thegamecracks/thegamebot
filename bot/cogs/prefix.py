@@ -8,7 +8,7 @@ import sqlite3
 import discord
 from discord.ext import commands
 
-from main import TheGameBot
+from main import Context, TheGameBot
 
 
 class Prefix(commands.Cog):
@@ -107,7 +107,7 @@ class Prefix(commands.Cog):
     )
     @commands.guild_only()
     @commands.cooldown(2, 30, commands.BucketType.guild)
-    async def change_prefix(self, ctx, prefix):
+    async def change_prefix(self, ctx: Context, prefix: str):
         """Change the bot's prefix.
 
 For prefixes ending with a space or multi-word prefixes, you must specify it with double quotes:

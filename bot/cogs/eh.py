@@ -21,7 +21,7 @@ class EventHandlers(commands.Cog):
         'on_resumed',
     )
 
-    def __init__(self, bot):
+    def __init__(self, bot: TheGameBot):
         self.bot = bot
 
         self._old_events = {}
