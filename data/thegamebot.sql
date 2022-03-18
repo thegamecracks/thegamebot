@@ -151,7 +151,7 @@ CREATE TABLE user (
 );
 
 
-CREATE INDEX ix_notes_users ON note (
+CREATE INDEX ix_note_user ON note (
     user_id,
     guild_id
 );
