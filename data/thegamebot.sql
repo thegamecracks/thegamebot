@@ -89,35 +89,9 @@ CREATE TABLE Reminders (
 );
 
 
-CREATE TABLE TagAliases (
-    guild_id   INTEGER      NOT NULL,
-    alias      VARCHAR (50) NOT NULL,
-    name       VARCHAR (50) NOT NULL,
-    user_id    INTEGER,
-    created_at TIMESTAMP    NOT NULL,
-    PRIMARY KEY (
-        guild_id,
-        alias
-    ),
-    FOREIGN KEY (
-        guild_id
-    )
-    REFERENCES guild (guild_id) ON DELETE CASCADE,
-    FOREIGN KEY (
-        guild_id,
-        name
-    )
-    REFERENCES Tags ON DELETE CASCADE,
-    FOREIGN KEY (
-        user_id
-    )
-    REFERENCES user (user_id) ON DELETE SET NULL
-);
-
-
-CREATE TABLE Tags (
+CREATE TABLE tag (
     guild_id   INTEGER        NOT NULL,
-    name       VARCHAR (50)   NOT NULL,
+    tag_name   VARCHAR (50)   NOT NULL,
     content    VARCHAR (2000) NOT NULL,
     user_id    INTEGER,
     uses       INTEGER        NOT NULL
@@ -126,12 +100,39 @@ CREATE TABLE Tags (
     edited_at  TIMESTAMP,
     PRIMARY KEY (
         guild_id,
-        name
+        tag_name
     ),
     FOREIGN KEY (
         guild_id
     )
     REFERENCES guild (guild_id) ON DELETE CASCADE,
+    FOREIGN KEY (
+        user_id
+    )
+    REFERENCES user (user_id) ON DELETE SET NULL
+);
+
+
+CREATE TABLE tag_alias (
+    guild_id   INTEGER      NOT NULL,
+    alias_name VARCHAR (50) NOT NULL,
+    tag_name   VARCHAR (50) NOT NULL,
+    user_id    INTEGER,
+    created_at TIMESTAMP    NOT NULL,
+    PRIMARY KEY (
+        guild_id,
+        alias_name
+    ),
+    FOREIGN KEY (
+        guild_id
+    )
+    REFERENCES guild (guild_id) ON DELETE CASCADE,
+    FOREIGN KEY (
+        guild_id,
+        tag_name
+    )
+    REFERENCES tag (guild_id,
+    tag_name) ON DELETE CASCADE,
     FOREIGN KEY (
         user_id
     )
@@ -172,24 +173,24 @@ CREATE INDEX ix_reminders_users ON Reminders (
 );
 
 
-CREATE INDEX ix_tags_guilds ON Tags (
-    guild_id
-);
-
-
-CREATE INDEX ix_tags_name_to_aliases ON TagAliases (
+CREATE INDEX ix_tag_alias_name ON tag_alias (
     guild_id,
-    name
+    tag_name
 );
 
 
-CREATE INDEX ix_tags_user_to_aliases ON TagAliases (
+CREATE INDEX ix_tag_alias_user ON tag_alias (
     guild_id,
     user_id
 );
 
 
-CREATE INDEX ix_tags_users ON Tags (
+CREATE INDEX ix_tag_guild ON tag (
+    guild_id
+);
+
+
+CREATE INDEX ix_tag_user ON tag (
     user_id,
     guild_id
 );
@@ -197,7 +198,7 @@ CREATE INDEX ix_tags_users ON Tags (
 
 CREATE TRIGGER no_tag_alias_if_name
          AFTER INSERT
-            ON TagAliases
+            ON tag_alias
           WHEN EXISTS (
     SELECT *
       FROM Tags
@@ -210,7 +211,7 @@ END;
 
 CREATE TRIGGER no_tag_name_if_alias
          AFTER INSERT
-            ON Tags
+            ON tag
           WHEN EXISTS (
     SELECT *
       FROM TagAliases
