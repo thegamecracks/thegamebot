@@ -76,7 +76,10 @@ class CommandListPageSource(
             paging.PageOption(
                 label=cmd.qualified_name,
                 description=utils.truncate_simple(cmd.short_doc, 100, placeholder='...'),
-                source=CommandPageSource(cmd)
+                source=(
+                    GroupPageSource(cmd, page_size=HelpView.COMMANDS_PER_PAGE)
+                    if isinstance(cmd, commands.Group) else CommandPageSource(cmd)
+                )
             )
             for i, cmd in enumerate(page)
         ]
@@ -138,7 +141,12 @@ class CogPageSource(CommandListPageSource):
 class GroupPageSource(CommandListPageSource):
     """Displays a command group along with its subcommands."""
     def __init__(self, group: commands.Group, *args, **kwargs):
-        super().__init__(list(group.commands), *args, **kwargs)
+        super().__init__(
+            list(group.commands),
+            *args,
+            title=group.qualified_name,
+            **kwargs
+        )
         self.command = group
 
     def format_page(self, view, page: list[commands.Command]):
@@ -356,19 +364,32 @@ class HelpCommand(commands.HelpCommand):
 
     async def send_bot_help(self, obj: HELP_OBJECT):
         """Sends help when no arguments are given."""
-        if isinstance(obj, dict):
-            source = BotPageSource(obj, page_size=HelpView.COGS_PER_PAGE)
-        elif isinstance(obj, (commands.Cog, type(None))):
-            cmds = self.get_bot_mapping()[obj]
+        async def get_cog_source(cog: commands.Cog | None):
+            cmds = mapping[cog]
             cmds = await self.filter_commands(cmds, sort=True)
-            source = CogPageSource(obj, cmds, page_size=HelpView.COMMANDS_PER_PAGE)
-        elif isinstance(obj, commands.Group):
-            source = GroupPageSource(obj, page_size=HelpView.COMMANDS_PER_PAGE)
-        else:
-            source = CommandPageSource(obj)
+            return CogPageSource(obj, cmds, page_size=HelpView.COMMANDS_PER_PAGE)
+
+        def get_group_source(group: commands.Group):
+            return GroupPageSource(group, page_size=HelpView.COMMANDS_PER_PAGE)
+
+        mapping = obj if isinstance(obj, dict) else self.get_bot_mapping()
+        sources = [BotPageSource(mapping, page_size=HelpView.COGS_PER_PAGE)]
+
+        if isinstance(obj, (commands.Cog, type(None))):
+            sources.append(await get_cog_source(obj))
+        elif isinstance(obj, commands.Command):
+            sources.append(await get_cog_source(obj.cog))
+
+            for parent in reversed(obj.parents):
+                sources.append(get_group_source(parent))
+
+            if isinstance(obj, commands.Group):
+                sources.append(get_group_source(obj))
+            else:
+                sources.append(CommandPageSource(obj))
 
         view = HelpView(
-            sources=source,
+            sources=sources,
             help_command=self,
             allowed_users={self.context.author.id}
         )
