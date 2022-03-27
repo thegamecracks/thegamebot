@@ -30,7 +30,7 @@ class RPSButton(discord.ui.Button["BaseRPSView"]):
         return self.__gt__(other)
 
     async def callback(self, interaction: discord.Interaction):
-        await self.view.step(self, interaction)
+        await self.view.step(interaction, self)
 
 
 class BaseRPSView(discord.ui.View, abc.ABC):
@@ -65,7 +65,7 @@ class BaseRPSView(discord.ui.View, abc.ABC):
         """Returns the embed used for displaying the game's state."""
 
     @abc.abstractmethod
-    async def step(self, button: RPSButton, interaction: discord.Interaction):
+    async def step(self, interaction: discord.Interaction, button: RPSButton):
         """Triggered after a move has been submitted."""
 
     async def update(self, interaction: discord.Interaction, **kwargs):

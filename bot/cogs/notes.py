@@ -210,7 +210,7 @@ class NoteView(discord.ui.View):
         await self.message.edit(view=None)
 
     @discord.ui.button(label='View raw')
-    async def view_raw(self, button: discord.ui.Button, interaction: discord.Interaction):
+    async def view_raw(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(self.escaped_content, ephemeral=True)
 
 
