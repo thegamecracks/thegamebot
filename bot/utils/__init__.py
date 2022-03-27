@@ -6,6 +6,7 @@ import discord
 
 from .confirmation import *
 from .formatting import *
+from . import paging
 
 
 class MockMessage:
