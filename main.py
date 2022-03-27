@@ -25,6 +25,7 @@ EXT_LIST = [
         'helpcommand',
         'notes',
         'prefix',
+        'tags',
         'test'
     )
 ]
