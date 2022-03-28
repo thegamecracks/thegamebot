@@ -229,7 +229,7 @@ class PaginatorView(discord.ui.View):
         return True
 
     def _get_message_kwargs(self) -> dict[str, Any]:
-        kwargs = {**self.page}
+        kwargs = {'view': None, **self.page}
         max_pages = self.current_source.max_pages
         can_interact = self.can_navigate or self.can_paginate or self.can_go_back
         if max_pages > 0 and can_interact:
