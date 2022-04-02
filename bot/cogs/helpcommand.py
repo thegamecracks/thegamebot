@@ -8,7 +8,6 @@ import math
 
 import discord
 from discord.ext import commands
-from discord.ext.commands.help import _context
 
 from bot import utils
 from bot.utils import paging
@@ -35,15 +34,13 @@ class CommandPageSource(paging.PageSource[commands.Command, None, "HelpView"]):
 
     def format_page(self, view: "HelpView", command: commands.Command):
         help_command = view.help_command
-        ctx = view.context
+        ctx = help_command.context
 
         embed = discord.Embed(
             title=command.qualified_name,
             color=ctx.bot.get_bot_color(),
             description='`{signature}`\n{documentation}'.format(
-                signature=help_command.get_command_signature(
-                    command, context=view.context
-                ),
+                signature=help_command.get_command_signature(command),
                 documentation=help_command.get_command_doc(command)
             )
         )
@@ -87,7 +84,7 @@ class CommandListPageSource(
         return options
 
     def format_page(self, view: "HelpView", page: list[commands.Command]):
-        ctx = view.context
+        ctx = view.help_command.context
 
         embed = discord.Embed(
             color=ctx.bot.get_bot_color(),
@@ -153,9 +150,7 @@ class GroupPageSource(CommandListPageSource):
         help_command = view.help_command
         if self.description is None:
             self.description = '`{signature}`\n{documentation}'.format(
-                signature=help_command.get_command_signature(
-                    self.command, context=view.context
-                ),
+                signature=help_command.get_command_signature(self.command),
                 documentation=help_command.get_command_doc(self.command)
             )
 
@@ -196,7 +191,7 @@ class BotPageSource(
 
     def format_page(self, view: "HelpView", page: BOT_MAPPING_LIST):
         help_command = view.help_command
-        ctx = view.context
+        ctx = help_command.context
 
         description = []
         for cog, cmds in page:
@@ -223,13 +218,7 @@ class BotPageSource(
 # NOTE: help objects are strongly referenced,
 # preventing cleanup of reloaded cogs/commands
 class HelpView(paging.PaginatorView):
-    """A paginator for presenting cogs, commands, and command groups.
-
-    Note that any page sources needing the initial context
-    should use `view.context` rather than `view.help_command.context`
-    as the latter is unavailable in button callbacks.
-
-    """
+    """A paginator for presenting cogs, commands, and command groups."""
     COGS_PER_PAGE = 5
     COMMANDS_PER_PAGE = 9
     TIMEOUT_MAX_EMBED_SIZE = 400
@@ -240,7 +229,6 @@ class HelpView(paging.PaginatorView):
         **kwargs
     ):
         self.help_command = help_command
-        self.context = help_command.context
         super().__init__(*args, timeout=60, **kwargs)
 
     async def interaction_check(self, interaction):
@@ -272,14 +260,6 @@ class HelpCommand(commands.HelpCommand):
                     1, per=commands.BucketType.user, wait=False)
             }
         )
-
-    def get_command_signature(self, command, *, context: Context = None):
-        # HelpCommand's implementation requires context which
-        # (as of d.py fafc5b1) can't be accessed from HelpView.
-        # As a workaround it can be parameterized and then stored in HelpView
-        if context is not None:
-            _context.set(context)
-        return super().get_command_signature(command)
 
     def get_bot_mapping(self) -> collections.OrderedDict[
         commands.Cog | None, list[commands.Command]
