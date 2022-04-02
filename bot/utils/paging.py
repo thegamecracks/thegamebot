@@ -169,6 +169,7 @@ class PaginatorView(discord.ui.View):
         self.message: discord.Message | None = None
         self.page: PageParams = {}
         self.options: list[discord.SelectOption] = []
+        self.option_sources: dict[str, PageSource] = {}
 
     @property
     def current_source(self):
@@ -212,10 +213,13 @@ class PaginatorView(discord.ui.View):
             raise TypeError('format_page() must return a dict, str, or Embed')
         self.page = cast(dict, params)
 
-        options = await maybe_coro(self.current_source.get_page_options, self, page)
+        options: list[PageOption] = await maybe_coro(self.current_source.get_page_options, self, page)
+        option_sources = {}
         for i, option in enumerate(options):
             option.value = str(i)
+            option_sources[option.value] = option.source
         self.options = options
+        self.option_sources = option_sources
 
         self._refresh_components()
 
@@ -286,11 +290,8 @@ class PaginatorView(discord.ui.View):
 
     @discord.ui.select(options=[], placeholder='Navigate...', row=0)
     async def navigate(self, interaction, select: discord.ui.Select):
-        option = cast(
-            PageOption,
-            discord.utils.get(self.navigate.options, value=select.values[0])
-        )
-        self.sources.append(option.source)
+        source = self.option_sources[select.values[0]]
+        self.sources.append(source)
         await self.show_page(self.current_index)
         await self._respond(interaction)
 
