@@ -4,11 +4,16 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import argparse
 import asyncio
+import collections
+import datetime
 import logging
 import os
 import pathlib
 import sqlite3
 import sys
+import time
+import typing
+import zoneinfo
 
 import discord
 from discord.ext import commands
@@ -23,10 +28,12 @@ EXT_LIST = [
         'eh',
         'games',
         'helpcommand',
+        'info',
         'notes',
         'prefix',
         'tags',
-        'test'
+        'test',
+        'uptime'
     )
 ]
 EXT_LIST.append('jishaku')
@@ -38,6 +45,11 @@ handler = logging.FileHandler(
 handler.setFormatter(logging.Formatter(
     '%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
+
+
+class UserWithTimezone(typing.TypedDict):
+    user_id: int
+    timezone: str
 
 
 class TheGameBot(commands.Bot):
@@ -58,6 +70,15 @@ class TheGameBot(commands.Bot):
         self.dbpool = database.ConnectionPool()
         self.db = database.Database(self.dbpool, self.DATABASE_MAIN_FILE)
         self.inflector = inflect.engine()
+
+        self.info_bootup_time = 0
+        self.info_processed_commands = collections.defaultdict(int)
+        self.uptime_downtimes = collections.deque()
+        self.uptime_last_connect = datetime.datetime.now().astimezone()
+        self.uptime_last_connect_adjusted = self.uptime_last_connect
+        self.uptime_last_disconnect = self.uptime_last_connect
+        self.uptime_total_downtime = datetime.timedelta()
+        self.uptime_is_online = False
 
         super().__init__(
             *args,
@@ -90,6 +111,17 @@ class TheGameBot(commands.Bot):
             return 0
 
         return settings.get('general', 'color', 0)
+
+    def get_user_color(self, user: discord.User | discord.Member):
+        """Obtains the color of the given user.
+
+        If the provided user is a discord.User, returns
+        the bot's color instead of the default black.
+
+        """
+        if isinstance(user, discord.User):
+            return self.get_bot_color()
+        return user.color.value
 
     def get_default_prefix(self) -> str | None:
         """A shorthand for getting the default prefix from settings.
@@ -131,9 +163,56 @@ class TheGameBot(commands.Bot):
             raise errors.SettingsNotFound()
         return cog
 
+    async def localize_datetime(
+        self, user: int | UserWithTimezone, dt: datetime.datetime
+    ):
+        """Localize a datetime to the user's region from the database,
+        if they have one assigned.
+
+        The datetime can be either naive or aware. If a naive datetime
+        is given, it is interpreted in local time.
+
+        If the user does not have a timezone set, the result is a UTC datetime.
+
+        :param user:
+            Either the ID of the user or their database entry.
+            Technically the database entry could be any dictionary
+            with a "user_id" and "timezone" key.
+        :param dt: The datetime to localize.
+        :returns: The localized datetime (always aware).
+
+        """
+        if isinstance(user, int):
+            where = {'user_id': user}
+            await self.db.add_row('user', where, ignore=True)
+            user = await self.db.get_one('user', 'user_id', 'timezone', where=where)
+        else:
+            where = {'user_id': user['user_id']}
+
+        timezone: datetime.tzinfo = datetime.timezone.utc
+        if user['timezone'] is not None:
+            try:
+                timezone = zoneinfo.ZoneInfo(user['timezone'])
+            except zoneinfo.ZoneInfoNotFoundError:
+                await self.db.update_rows('user', {'timezone': None}, where=where)
+                raise
+
+        if dt.tzinfo is None:
+            dt = dt.astimezone()
+
+        dt = dt.astimezone(timezone)
+
+        return dt
+
 
 class Context(commands.Context[TheGameBot]):
     """A subclass of :class:`commands.Context` typed with the bot class."""
+
+
+async def set_bootup_time(bot, start_time):
+    """Calculate the bootup time of the bot."""
+    await bot.wait_until_ready()
+    bot.info_bootup_time = time.perf_counter() - start_time
 
 
 async def main():
@@ -174,6 +253,8 @@ async def main():
         case_insensitive=True,
         strip_after_prefix=True
     )
+
+    asyncio.create_task(set_bootup_time(bot, time.perf_counter()))
 
     bot.setup_db()
     print('Initialized database')
