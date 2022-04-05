@@ -10,10 +10,5 @@ class SkipInteractionResponse(Exception):
     should not be deferred."""
 
 
-class ErrorHandlerResponse(commands.CommandError):
-    """An exception with a message that the error handler should
-    always send to the user."""
-
-
 class SettingsNotFound(Exception):
     """The Settings cog could not be loaded."""

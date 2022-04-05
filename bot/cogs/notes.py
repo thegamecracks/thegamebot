@@ -47,7 +47,7 @@ class IndexConverter(commands.Converter[list[int]]):
                 indices.add(i)
 
         if not indices:
-            raise errors.ErrorHandlerResponse('No indices were specified.')
+            raise commands.BadArgument('No indices were specified.')
 
         return sorted(indices)
 

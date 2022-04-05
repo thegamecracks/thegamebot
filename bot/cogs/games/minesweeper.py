@@ -610,11 +610,11 @@ class BoardSizeConverter(commands.Converter[tuple[int, int]]):
 
         if x > 24:
             # 25 select options - 1 for Y-axis cancel button
-            raise errors.ErrorHandlerResponse(
+            raise commands.BadArgument(
                 'The board can only be up to 24 cells wide!')
         elif y > 10:
             # Constrain lines to keep message compact
-            raise errors.ErrorHandlerResponse(
+            raise commands.BadArgument(
                 'The board can only be up to 10 cells tall!')
         return y, x
 

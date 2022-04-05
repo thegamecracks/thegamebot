@@ -25,7 +25,7 @@ class TagContentConverter(commands.Converter):
         raw_arg = utils.rawify_content(arg)
         diff = len(raw_arg) - self.TAG_MAX_CONTENT_LENGTH
         if diff > 0:
-            raise errors.ErrorHandlerResponse(
+            raise commands.BadArgument(
                 f'`{param}` parameter is {diff:,} characters too long.')
 
         return arg
@@ -41,14 +41,14 @@ class TagNameConverter(commands.Converter):
         # Check length
         diff = len(arg) - self.TAG_MAX_NAME_LENGTH
         if diff > 0:
-            raise errors.ErrorHandlerResponse(
+            raise commands.BadArgument(
                 f'Tag parameter `{param}` is {diff:,} characters too long.')
 
         # Check for command name collision
         first_word, *_ = arg.split(None, 1)
         command = cast(commands.Group, ctx.bot.get_command('tag'))
         if first_word in command.all_commands:
-            raise errors.ErrorHandlerResponse(
+            raise commands.BadArgument(
                 f'`{param}` parameter cannot start '
                 'with a reserved command name.'
             )
