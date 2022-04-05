@@ -91,9 +91,9 @@ class CommandConverter(commands.Converter):
         c: Optional[commands.Command] = ctx.bot.get_command(argument)
         try:
             if c is None or c.hidden:
-                raise commands.BadArgument(f'Could not convert "{argument}" into a command.')
+                raise commands.BadArgument(f'Could not find the given command.')
             elif not await self.can_run(ctx, c):
-                raise commands.BadArgument(f'You cannot use "{argument}".')
+                raise commands.BadArgument(f'You cannot use "{c.qualified_name}".')
         except commands.CheckFailure as e:
             raise commands.BadArgument(str(e)) from e
         return c

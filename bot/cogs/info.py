@@ -316,12 +316,6 @@ This only counts channels that both you and the bot can see."""
 
         await ctx.send(embed=embed)
 
-    @command_info.error
-    async def command_info_error(self, ctx: Context, error: commands.CommandError):
-        if isinstance(error, commands.BadArgument):
-            await ctx.send("That command doesn't exist.")
-            ctx.handled = True
-
     def get_invite_link(self, perms: Optional[discord.Permissions] = None):
         if perms is None:
             perms = discord.Permissions(
@@ -624,15 +618,6 @@ The exact format of each style depends on your locale settings."""
             normal=text,
             escaped=re.sub(r'[<:>]', r'\\\g<0>', text)
         ))
-
-    @format_timestamp.error
-    async def format_timestamp_error(self, ctx, error):
-        handled = isinstance(error, commands.BadArgument)
-        if handled:
-            await ctx.send(error)
-        else:  # TODO: delete me once error handling returns
-            raise error
-        ctx.handled = handled
 
     @commands.command()
     @commands.cooldown(2, 20, commands.BucketType.user)
