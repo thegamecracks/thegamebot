@@ -39,6 +39,7 @@ EXT_LIST = [
 EXT_LIST.append('jishaku')
 
 logger = logging.getLogger('discord')
+logger.handlers.clear()  # fixes duplicate logs from stream handler
 logger.setLevel(logging.INFO)
 
 file_handler = logging.FileHandler(
@@ -55,7 +56,6 @@ stream_handler.setFormatter(
     logging.Formatter('%(levelname)s in %(name)s: %(message)s')
 )
 logger.addHandler(stream_handler)
-# FIXME: logs get duplicated in console for some reason
 
 
 class UserWithTimezone(typing.TypedDict):
