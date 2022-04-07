@@ -26,22 +26,35 @@ class IndexConverter(commands.Converter[list[int]]):
         1, 9, 4  # [0, 4, 8]; indices are sorted
         1-3      # [0, 1, 2]
 
+    Parameters
+    ----------
+    max_digits: int
+        The max number of digits an index can have.
+
     """
     FORMAT_REGEX = re.compile(r'(?P<start>\d+)(?:-(?P<end>\d+))?')
-    
+
+    def __init__(self, *, max_digits: int = 3):
+        self.max_length = max_digits
+
     async def convert(self, ctx, argument) -> list[int]:
         indices = set()
 
         for m in self.FORMAT_REGEX.finditer(argument):
+            # ignore unreasonably high indices
+            if len(m['start']) > self.max_length or len(m['end']) > self.max_length:
+                continue
+
             start = int(m['start'])
             end = int(m['end'] or start)
 
             if start < 1:
-                raise commands.BadArgument(
-                    'Your starting index cannot be below 1.')
+                raise commands.BadArgument('Your starting index cannot be 0.')
             elif end < start:
                 raise commands.BadArgument(
-                    'Your end index cannot be lower than your starting index.')
+                    f'The end index cannot be lower '
+                    f'than the start index (`{start}-{end}`).'
+                )
 
             for i in range(start - 1, end):
                 indices.add(i)
