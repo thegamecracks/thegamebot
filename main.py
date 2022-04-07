@@ -30,6 +30,7 @@ EXT_LIST = [
         'helpcommand',
         'info',
         'notes',
+        'owner',
         'prefix',
         'tags',
         'test',
@@ -77,7 +78,8 @@ class TheGameBot(commands.Bot):
     DATABASE_MAIN_FILE = 'data/thegamebot.db'
     DATABASE_MAIN_SCHEMA = 'data/thegamebot.sql'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, file_on_restart=False, **kwargs):
+        self.file_on_restart = file_on_restart
         self.dbpool = database.ConnectionPool()
         self.db = database.Database(self.dbpool, self.DATABASE_MAIN_FILE)
         self.inflector = inflect.engine()
@@ -215,6 +217,16 @@ class TheGameBot(commands.Bot):
 
         return dt
 
+    async def restart(self):
+        if self.file_on_restart:
+            open('RESTART', 'w').close()
+        return await self.close()
+
+    async def shutdown(self):
+        if not self.file_on_restart:
+            open('SHUTDOWN', 'w').close()
+        return await self.close()
+
 
 class Context(commands.Context[TheGameBot]):
     """A subclass of :class:`commands.Context` typed with the bot class."""
@@ -230,10 +242,18 @@ async def main():
     load_dotenv(override=True)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-M', '--members', action='store_true',
-                        help='Enable privileged members intent.')
-    parser.add_argument('-P', '--presences', action='store_true',
-                        help='Enable privileged presences intent.')
+    parser.add_argument(
+        '-M', '--members', action='store_true',
+        help='Enable privileged members intent.'
+    )
+    parser.add_argument(
+        '-P', '--presences', action='store_true',
+        help='Enable privileged presences intent.'
+    )
+    parser.add_argument(
+        '--file-on-shutdown', action='store_true',
+        help='Generate a SHUTDOWN file instead of a RESTART file.'
+    )
 
     args = parser.parse_args()
 
@@ -260,6 +280,7 @@ async def main():
     )
 
     bot = TheGameBot(
+        file_on_restart=not args.file_on_shutdown,
         intents=intents,
         case_insensitive=True,
         strip_after_prefix=True
