@@ -182,7 +182,7 @@ langdetect = ["langdetect"]
 
 [[package]]
 name = "discord.py"
-version = "2.0.0a4032+g298bd749"
+version = "2.0.0a4069+g30cc00c9"
 description = "A Python wrapper for the Discord API"
 category = "main"
 optional = false
@@ -202,7 +202,7 @@ voice = ["PyNaCl (>=1.3.0,<1.6)"]
 type = "git"
 url = "https://github.com/Rapptz/discord.py"
 reference = "master"
-resolved_reference = "298bd7492c09431eb10129f4d6a0245a8643b75f"
+resolved_reference = "30cc00c9a4a92c5afa08cceedfe46c296cff0a7d"
 
 [[package]]
 name = "dnspython"
