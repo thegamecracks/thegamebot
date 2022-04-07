@@ -34,6 +34,7 @@ EXT_LIST = [
         'prefix',
         'tags',
         'test',
+        'timezones',
         'uptime'
     )
 ]
@@ -185,7 +186,9 @@ class TheGameBot(commands.Bot):
         The datetime can be either naive or aware. If a naive datetime
         is given, it is interpreted in local time.
 
-        If the user does not have a timezone set, the result is a UTC datetime.
+        If the user does not have a timezone set, the result is a datetime
+        localized with `datetime.timezone.utc` instead of a
+        :class:`zoneinfo.ZoneInfo`.
 
         :param user:
             Either the ID of the user or their database entry.

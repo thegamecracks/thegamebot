@@ -25,6 +25,7 @@ asqlite = {git = "https://github.com/Rapptz/asqlite", rev = "ffc55a5b3d1b5e9c440
 abattlemetrics = {git = "https://github.com/thegamecracks/abattlemetrics", rev = "de7d75fbf306ee61279ac1503a24766cd23ceaaf"}
 "discord.py" = {git = "https://github.com/Rapptz/discord.py"}
 jishaku = {git = "https://github.com/Gorialis/jishaku"}
+rapidfuzz = "^2.0.7"
 
 [tool.poetry.dev-dependencies]
 
