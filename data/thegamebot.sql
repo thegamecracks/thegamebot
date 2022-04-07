@@ -141,13 +141,9 @@ CREATE TABLE tag_alias (
 
 
 CREATE TABLE user (
-    user_id         INTEGER NOT NULL
-                            PRIMARY KEY,
-    timezone        TEXT,
-    timezone_public BOOLEAN NOT NULL
-                            DEFAULT (false),
-    timezone_watch  BOOLEAN NOT NULL
-                            DEFAULT (true) 
+    user_id  INTEGER NOT NULL
+                     PRIMARY KEY,
+    timezone TEXT
 );
 
 
