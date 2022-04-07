@@ -4,10 +4,13 @@
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from dataclasses import dataclass
 import datetime
+import logging
 
 from discord.ext import commands, tasks
 
 from main import TheGameBot
+
+logger = logging.getLogger('discord')
 
 
 @dataclass(frozen=True)
@@ -101,9 +104,9 @@ class Uptime(commands.Cog):
                 self.bot.uptime_total_downtime = datetime.timedelta()
 
                 if force_update:
-                    print('Uptime: forced uptime reset')
+                    logger.info('Uptime: forced uptime reset')
                 else:
-                    print(
+                    logger.info(
                         'Uptime: Resetting uptime after downtime of '
                         '{} seconds (>{} seconds)'.format(
                             diff.total_seconds(),
@@ -116,8 +119,10 @@ class Uptime(commands.Cog):
                     self.bot.uptime_last_connect
                     + self.bot.uptime_total_downtime
                 )
-                print('Uptime:', 'Recorded downtime of',
-                      diff.total_seconds(), 'seconds')
+                logger.info(
+                    'Uptime: Recorded downtime of %.2f seconds',
+                    diff.total_seconds()
+                )
 
             self.bot.uptime_is_online = True
 
@@ -125,7 +130,7 @@ class Uptime(commands.Cog):
         now = datetime.datetime.now().astimezone()
         if now - self.last_running_check > datetime.timedelta(minutes=2):
             # Missed a check; assume downtime lasted for the entire duration
-            print('Uptime: Running check was delayed by over 2 minutes')
+            logger.info('Uptime: Running check was delayed by over 2 minutes')
             self.bot.uptime_last_disconnect = self.last_running_check
             self.bot.uptime_is_online = False
             self.update_last_connect()
