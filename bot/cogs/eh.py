@@ -419,7 +419,7 @@ class EventHandlers(commands.Cog):
             )
             await send(ctx, content)
         elif isinstance(error, commands.GuildNotFound):
-            content = '{} I could not find the message "{}".'.format(
+            content = '{} I could not find the guild "{}".'.format(
                 ctx.author.mention, self.truncate(error.argument)
             )
             await send(ctx, content)
