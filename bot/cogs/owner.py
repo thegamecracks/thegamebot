@@ -3,6 +3,7 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import logging
+from typing import Collection
 
 import discord
 from discord.ext import commands
@@ -18,6 +19,67 @@ class SyncFlags(commands.FlagConverter):
     guilds: list[discord.Guild] = commands.flag(default=lambda ctx: [])
 
 
+async def _sync_body(
+    ctx: Context, *,
+    copy_global: bool = False,
+    everything: bool = False,
+    guilds: Collection[discord.Guild] = None
+):
+    inflector = ctx.bot.inflector
+
+    if everything:
+        sync_global = True
+        guilds = ctx.bot.guilds
+    elif guilds is not None:
+        sync_global = False
+    else:
+        sync_global = True
+        guilds = ()
+
+    # Format an appropriate message to send before syncing
+    items = []
+    command_types = list(discord.AppCommandType)
+
+    if sync_global:
+        n_commands = sum(
+            len(ctx.bot.tree.get_commands(type=t))
+            for t in command_types
+        )
+        text = inflector.inflect(
+            "{0} plural('global command', {0})".format(n_commands)
+        )
+        items.append(text)
+
+    if guilds:
+        if copy_global:
+            for guild in guilds:
+                ctx.bot.tree.copy_global_to(guild=guild)
+
+        n_commands = sum(
+            len(ctx.bot.tree.get_commands(guild=guild, type=t))
+            for guild in guilds
+            for t in command_types
+        )
+
+        text = inflector.inflect(
+            "{0} {type} plural('command', {0}) in "
+            "{1} plural('guild', {1})".format(
+                n_commands, len(guilds),
+                type='global+guild' if copy_global else 'guild'
+            )
+        )
+        items.append(text)
+
+    message = await ctx.send('Synchronizing {}...'.format(inflector.join(items)))
+
+    if sync_global:
+        await ctx.bot.tree.sync()
+    for guild in guilds:
+        await ctx.bot.tree.sync(guild=guild)
+
+    await message.edit(content='Finished application command synchronization!')
+
+
 class Owner(commands.Cog):
     def __init__(self, bot: TheGameBot):
         self.bot = bot
@@ -25,60 +87,41 @@ class Owner(commands.Cog):
     async def cog_check(self, ctx: Context):
         return await ctx.bot.is_owner(ctx.author)
 
-    @commands.command()
-    async def sync(self, ctx: Context, *, flags: SyncFlags):
-        """Synchronizes application commands.
+    @commands.group(invoke_without_command=True)
+    async def sync(self, ctx: Context):
+        """The base command for synchronizing application commands."""
 
-Available flags:
-    everything: if yes, both global and guild commands are synchronized.
-    guilds: a list of guild IDs to synchronize instead of global commands."""
-        inflector = ctx.bot.inflector
-        sync_guilds = []
-        sync_global = True
+    @sync.command(name='everything')
+    async def sync_everything(self, ctx: Context):
+        """Synchronize both global and guild application commands."""
+        await _sync_body(ctx, everything=True)
 
-        # Interpret flags
-        if flags.everything and flags.guilds:
-            return await ctx.send('You should only specify one flag at a time.')
-        elif flags.everything:
-            sync_guilds = ctx.bot.guilds
-        elif flags.guilds:
-            sync_guilds = flags.guilds
-            sync_global = False
+    @sync.group(name='global', invoke_without_command=True)
+    async def sync_global(self, ctx: Context):
+        """Synchronize global application commands."""
+        await _sync_body(ctx)
 
-        # Format an appropriate message to send before syncing
-        items = []
-        command_types = list(discord.AppCommandType)
-        if sync_global:
-            n_global_commands = sum(
-                len(ctx.bot.tree.get_commands(type=t))
-                for t in command_types
-            )
-            text = inflector.inflect(
-                "{0} plural('global command', {0})".format(n_global_commands)
-            )
-            items.append(text)
-        if sync_guilds:
-            n_guild_commands = sum(
-                len(ctx.bot.tree.get_commands(guild=guild, type=t))
-                for guild in sync_guilds
-                for t in command_types
-            )
-            text = inflector.inflect(
-                "{0} plural('guild command', {0}) in "
-                "{1} plural('guild', {1})".format(
-                    n_guild_commands, len(sync_guilds)
-                )
-            )
-            items.append(text)
+    @sync_global.group(name='to', invoke_without_command=True)
+    async def sync_global_to(
+        self, ctx: Context, guild: discord.Guild = commands.CurrentGuild
+    ):
+        """Override and synchronize global commands to a test guild."""
+        await _sync_body(ctx, guilds=(guild,), copy_global=True)
 
-        message = await ctx.send('Synchronizing {}...'.format(inflector.join(items)))
+    @sync_global_to.command(name='reload', aliases=('load', 'refresh'))
+    async def sync_global_to_reload(
+        self, ctx: Context, guild: discord.Guild = commands.CurrentGuild
+    ):
+        """Override only the internal command tree for a test guild.
+Useful for reloaded cogs."""
+        ctx.bot.tree.copy_global_to(guild=guild)
+        loc = 'this guild' if guild == ctx.guild else 'the given guild'
+        await ctx.send(f'Finished overriding the internal commands for {loc}!')
 
-        if sync_global:
-            await ctx.bot.tree.sync()
-        for guild in sync_guilds:
-            await ctx.bot.tree.sync(guild=guild)
-
-        await message.edit(content='Finished application command synchronization!')
+    @sync.command(name='guilds')
+    async def sync_guilds(self, ctx: Context, *guilds: discord.Guild):
+        """Synchronize application commands in one or more guilds."""
+        await _sync_body(ctx, guilds=guilds)
 
     @commands.command()
     async def restart(self, ctx: Context):
