@@ -227,6 +227,12 @@ async def send(
         pass
 
 
+def generic_bad_argument(error: commands.BadArgument):
+    """Determines if a BadArgument came from a non-converter typehint."""
+    # Derived from `_actual_conversion()` in converters.py
+    return error.args[0].startswith('Converting to')
+
+
 class EventHandlers(commands.Cog):
     """Event handlers for the bot."""
     qualified_name = 'Event Handlers'
@@ -499,7 +505,7 @@ class EventHandlers(commands.Cog):
                 ctx.author.mention, error.param.name, values
             )
             await send(ctx, content)
-        elif isinstance(error, commands.BadArgument):
+        elif isinstance(error, commands.BadArgument) and not generic_bad_argument(error):
             content = ' '.join([ctx.author.mention, str(error)])
             await send(ctx, content)
         # Other parsing errors
