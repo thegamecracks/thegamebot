@@ -270,14 +270,18 @@ class EventHandlers(commands.Cog):
 
     # Events
     async def on_connect(self):
-        print(time.strftime(
+        s = time.strftime(
             'Connection: Connected to Discord, %c',
-            time.localtime()))
+            time.localtime()
+        )
+        print(s)
 
     async def on_disconnect(self):
-        print(time.strftime(
+        s = time.strftime(
             'Connection: Lost connection to Discord, %c',
-            time.localtime()))
+            time.localtime()
+        )
+        print(s)
 
     async def on_ready(self):
         s = time.strftime(
