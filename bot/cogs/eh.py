@@ -218,6 +218,8 @@ async def send(
     try:
         if isinstance(ctx, commands.Context):
             await ctx.send(*args, **kwargs)
+        elif ctx.response.is_done() and not ctx.is_expired():
+            await ctx.followup.send(*args, ephemeral=ephemeral, **kwargs)
         else:
             await ctx.response.send_message(*args, ephemeral=ephemeral, **kwargs)
     except discord.HTTPException:
