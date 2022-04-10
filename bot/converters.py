@@ -30,18 +30,18 @@ class CodeBlock:
         return None if match is None else cls(**match.groupdict())
 
     @classmethod
-    async def convert(cls, ctx, arg, required=False):
+    async def convert(cls, ctx: Context, arg, required=False):
         """Converts a code block with an optional language name
         and strips whitespace from the following block.
 
-        If `required`, commands.UserInputError is raised when the argument
-        is not a code block.
+        If `required`, the :class:`commands.BadArgument` exception
+        will be raised when the argument is not a code block.
 
         """
         match = cls.REGEX.match(arg)
         if match is None:
             if required:
-                raise commands.UserInputError('Argument must be a code block.')
+                raise commands.BadArgument('Argument must be a code block.')
             return cls(language=None, code=arg)
         return cls(**match.groupdict())
 

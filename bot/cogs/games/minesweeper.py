@@ -604,7 +604,7 @@ class BoardSizeConverter(commands.Converter[tuple[int, int]]):
     async def convert(self, ctx, argument):
         m = self.REGEX.fullmatch(argument)
         if m is None:
-            raise commands.UserInputError('Could not interpret your board size.')
+            raise commands.BadArgument('Could not interpret your board size.')
 
         x, y = (int(n) for n in m.groups())
 
