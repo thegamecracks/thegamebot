@@ -10,7 +10,7 @@ import discord
 from discord.ext import commands
 
 from bot.utils import ConfirmationView, paging
-from bot import errors, utils
+from bot import utils
 from main import Context, TheGameBot
 from .querier import TagQuerier
 

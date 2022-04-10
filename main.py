@@ -25,6 +25,7 @@ from bot import database, errors
 EXT_LIST = [
     'bot.cogs.' + c for c in (
         'settings',  # dependency
+        'dbevents',
         'eh',
         'games',
         'helpcommand',
@@ -85,6 +86,7 @@ class TheGameBot(commands.Bot):
         self.db = database.Database(self.dbpool, self.DATABASE_MAIN_FILE)
         self.inflector = inflect.engine()
 
+        self.dbevents_cleaned_up = False
         self.info_bootup_time = 0
         self.info_processed_commands = collections.defaultdict(int)
         self.uptime_downtimes = collections.deque()
@@ -294,14 +296,14 @@ async def main():
     bot.setup_db()
     print('Initialized database')
 
-    n_extensions = len(EXT_LIST)
-    for i, name in enumerate(EXT_LIST, start=1):
-        state = f'Loading extension {i}/{n_extensions}\r'
-        print(state, end='', flush=True)
-        await bot.load_extension(name)
-    print('Loaded all extensions      ')
-
     async with bot, bot.dbpool:
+        n_extensions = len(EXT_LIST)
+        for i, name in enumerate(EXT_LIST, start=1):
+            state = f'Loading extension {i}/{n_extensions}\r'
+            print(state, end='', flush=True)
+            await bot.load_extension(name)
+        print('Loaded all extensions      ')
+
         await bot.start(token)
 
 
