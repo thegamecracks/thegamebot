@@ -9,7 +9,6 @@ import zoneinfo
 
 import discord
 from discord import app_commands
-from discord.ext import commands
 import rapidfuzz
 
 from main import TheGameBot
@@ -40,7 +39,7 @@ class TimezoneTransformer(app_commands.Transformer):
         try:
             return zoneinfo.ZoneInfo(value)
         except zoneinfo.ZoneInfoNotFoundError:
-            raise commands.BadArgument(
+            raise app_commands.AppCommandError(
                 'Could not find a time zone with that name. '
                 'See this [Time Zone Map](https://kevinnovak.github.io/Time-Zone-Picker/) '
                 'for a list of valid time zones.'

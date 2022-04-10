@@ -256,10 +256,15 @@ class EventHandlers(commands.Cog):
             if old is not None:
                 self._old_events[name] = old
 
+        self._old_events['on_slash_error'] = self.bot.tree.on_error
+        self.bot.tree.error(self.on_slash_error)
+
     def teardown_events(self):
         """Restore the bot's original event handlers."""
         for name, coro in self._old_events.items():
             setattr(self.bot, name, coro)
+
+        self.bot.tree.error(self._old_events['on_slash_error'])
 
     # Events
     async def on_connect(self):
@@ -592,6 +597,85 @@ class EventHandlers(commands.Cog):
             commands.MaxConcurrencyReached,
             commands.UserInputError
         )):
+            logger.debug(simple_message)
+
+    async def on_slash_error(
+        self, interaction: discord.Interaction,
+        command: app_commands.Command | app_commands.ContextMenu | None,
+        error: app_commands.AppCommandError
+    ):
+        if getattr(error, 'handled', False):
+            # a local error handler has managed this
+            return
+
+        error_code = generate_error_code()
+        include_traceback = False
+
+        # Check errors
+        if isinstance(error, app_commands.NoPrivateMessage):
+            content = 'This command must be used in a server.'
+            await send(interaction, content)
+        elif isinstance(error, app_commands.MissingRole):
+            content = 'You are missing the {} role needed to run this command.'.format(
+                resolve_role(interaction, error.missing_role)
+            )
+            await send(interaction, content)
+        elif isinstance(error, app_commands.MissingAnyRole):
+            roles = [resolve_role(interaction, role) for role in error.missing_roles]
+            content = 'You are missing {} needed to run this command.'.format(
+                'one of the roles {}' if len(roles) > 1 else 'the {} role'
+            ).format(
+                self.bot.inflector.join(roles, conj='or')
+            )
+            await send(interaction, content)
+        elif isinstance(error, (app_commands.MissingPermissions, app_commands.BotMissingPermissions)):
+            content = '{} missing the {} {} needed to run this command.'.format(
+                'You are' if isinstance(error, app_commands.MissingPermissions) else 'I am',
+                self.bot.inflector.join(humanize_permissions(error.missing_permissions)),
+                self.bot.inflector.plural('permission', len(error.missing_permissions))
+            )
+            await send(interaction, content)
+        elif isinstance(error, app_commands.CommandOnCooldown):
+            content = get_ratelimit_description(interaction, error)
+            await send(interaction, content)
+        # Other errors
+        elif isinstance(error, app_commands.CommandNotFound):
+            # Unlike on_command_error this one usually means
+            # we forgot to sync, so we should know about it
+            content = (
+                'This command is currently unrecognized by the bot; '
+                'an alert has been issued to the developer to fix this problem.'
+            )
+            logger.warning(
+                'Application command %r (%s) not found',
+                error.name,
+                error.type.name  # type: ignore # this enum does have a name attribute
+            )
+            await send(interaction, content)
+        elif isinstance(error, app_commands.CommandInvokeError):
+            handled = await self.handle_command_invoke_error(interaction, error, error_code)
+            if not handled:
+                include_traceback = True
+        elif isinstance(error, app_commands.TransformerError):
+            handled = await self.handle_conversion_error(interaction, error, error_code)
+            if not handled:
+                include_traceback = True
+        elif isinstance(error, app_commands.AppCommandError):
+            # Our transformers use this exception to distinguish from
+            # unexpected bugs wrapped by TransformerError
+            await send(interaction, str(error))
+        elif not isinstance(error, app_commands.CheckFailure):
+            include_traceback = True
+
+        simple_message = 'Application command error {} ({}:{})\n  {}: {}'.format(
+            error_code,
+            f'{interaction.guild}:{interaction.channel}'
+            if interaction.guild else '<DM>',
+            interaction.user, type(error).__name__, error
+        )
+        if include_traceback:
+            logger.exception(simple_message, exc_info=error)
+        elif not isinstance(error, (app_commands.CheckFailure, app_commands.CommandOnCooldown)):
             logger.debug(simple_message)
 
 
