@@ -126,6 +126,11 @@ class Timezone(app_commands.Group):
                 'You do not have any timezone currently set.',
                 ephemeral=True
             )
+        elif timezone == last_timezone:
+            return await interaction.response.send_message(
+                'You have already set that as your current timezone.',
+                ephemeral=True
+            )
 
         await interaction.response.defer(ephemeral=True)
         await set_user_timezone(self.bot, interaction.user.id, timezone)
