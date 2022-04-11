@@ -5,7 +5,6 @@
 import datetime
 import functools
 import itertools
-import re
 import sqlite3
 from typing import Sequence, Iterable, cast, AsyncGenerator, Collection
 
@@ -14,55 +13,8 @@ import discord
 from discord.ext import commands
 
 from bot.utils import ConfirmationView
-from bot import converters, errors, utils
+from bot import converters, utils
 from main import Context, TheGameBot
-
-
-class IndexConverter(commands.Converter[list[int]]):
-    """Convert an argument to a list of indices or a range.
-
-    Formats supported:
-        1        # [0]
-        1, 9, 4  # [0, 4, 8]; indices are sorted
-        1-3      # [0, 1, 2]
-
-    Parameters
-    ----------
-    max_digits: int
-        The max number of digits an index can have.
-
-    """
-    FORMAT_REGEX = re.compile(r'(?P<start>\d+)(?:-(?P<end>\d+))?')
-
-    def __init__(self, *, max_digits: int = 3):
-        self.max_length = max_digits
-
-    async def convert(self, ctx, argument) -> list[int]:
-        indices = set()
-
-        for m in self.FORMAT_REGEX.finditer(argument):
-            # ignore unreasonably high indices
-            if len(m['start']) > self.max_length or len(m['end']) > self.max_length:
-                continue
-
-            start = int(m['start'])
-            end = int(m['end'] or start)
-
-            if start < 1:
-                raise commands.BadArgument('Your starting index cannot be 0.')
-            elif end < start:
-                raise commands.BadArgument(
-                    f'The end index cannot be lower '
-                    f'than the start index (`{start}-{end}`).'
-                )
-
-            for i in range(start - 1, end):
-                indices.add(i)
-
-        if not indices:
-            raise commands.BadArgument('No indices were specified.')
-
-        return sorted(indices)
 
 
 async def getch_member(guild: discord.Guild, member_id: int) -> discord.Member | None:
@@ -72,6 +24,10 @@ async def getch_member(guild: discord.Guild, member_id: int) -> discord.Member |
             return await guild.fetch_member(member_id)
         except discord.HTTPException:
             return None
+
+
+def index_converter(**kwargs):
+    return commands.parameter(converter=converters.IndexConverter, **kwargs)
 
 
 class Location:
@@ -258,7 +214,7 @@ class NoteManagement(commands.Cog):
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes(
         self, ctx: Context, location: Location | None,
-        *, index: IndexConverter = None
+        *, index: list[int] = index_converter(default=None)
     ):
         """Show your global or server notes.
 
@@ -414,7 +370,7 @@ To see the indices for your notes, use the "notes" command."""
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def notes_remove(
         self, ctx: Context, location: Location | None,
-        *, index: IndexConverter
+        *, index: list[int] = index_converter()
     ):
         """Remove one or more notes.
 
