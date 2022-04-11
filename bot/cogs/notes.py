@@ -31,15 +31,16 @@ def index_converter(**kwargs):
 
 
 class Location:
-    """
-    Attributes:
-        guild (Optional[discord.Guild]):
-            The guild this location is referencing, or None if global.
-        outside (bool): Indicates if this location is not where the author
-            is currently invoking the command, i.e. guild != ctx.guild.
-    """
+    """Represents a location where one or more notes are being acquired from."""
 
     def __init__(self, guild: discord.Guild = None, *, outside=False):
+        """
+        :param guild:
+            The guild this location is referencing, or None if global.
+        :param outside:
+            Indicates if this location is not where the author is currently
+            invoking the command, i.e. guild != ctx.guild.
+        """
         self.guild = guild
         self.outside = outside
 
