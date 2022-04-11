@@ -74,7 +74,7 @@ CREATE TABLE note (
 );
 
 
-CREATE TABLE Reminders (
+CREATE TABLE reminder (
     reminder_id INTEGER   PRIMARY KEY AUTOINCREMENT
                           NOT NULL,
     user_id     INTEGER   NOT NULL
@@ -153,18 +153,18 @@ CREATE INDEX ix_note_user ON note (
 );
 
 
-CREATE INDEX ix_reminders_channels ON Reminders (
+CREATE INDEX ix_reminder_channels ON reminder (
     channel_id
 );
 
 
-CREATE INDEX ix_reminders_user_channel ON Reminders (
+CREATE INDEX ix_reminder_user_channel ON reminder (
     user_id,
     channel_id
 );
 
 
-CREATE INDEX ix_reminders_users ON Reminders (
+CREATE INDEX ix_reminder_users ON reminder (
     user_id
 );
 
