@@ -150,7 +150,7 @@ class IndexConverter(commands.Converter[list[int]]):
 
         for m in self.FORMAT_REGEX.finditer(argument):
             # ignore unreasonably high indices
-            if len(m['start']) > self.max_length or len(m['end']) > self.max_length:
+            if len(m['start']) > self.max_length or m['end'] and len(m['end']) > self.max_length:
                 continue
 
             start = int(m['start'])
