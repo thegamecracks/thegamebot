@@ -33,6 +33,7 @@ EXT_LIST = [
         'notes',
         'owner',
         'prefix',
+        'reminders',
         'tags',
         'test',
         'timezones',
