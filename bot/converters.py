@@ -56,7 +56,7 @@ class CommandConverter(commands.Converter):
 
     """
     def __init__(self, run_checks=True):
-        self.run_checks = True
+        self.run_checks = run_checks
 
     async def can_run(self, ctx: Context, command: commands.Command, *, call_once=False):
         """A variant of Command.can_run() that doesn't check if
