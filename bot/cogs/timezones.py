@@ -46,6 +46,9 @@ class TimezoneTransformer(app_commands.Transformer):
             )
 
 
+ZoneInfoTransform = app_commands.Transform[zoneinfo.ZoneInfo, TimezoneTransformer]
+
+
 async def get_timezone(bot: TheGameBot, user):
     dt = await bot.localize_datetime(user, BASE_DATETIME)
     return dt.tzinfo if dt.tzinfo != datetime.timezone.utc else None
@@ -84,7 +87,7 @@ class Timezone(app_commands.Group):
     )
     async def show(
         self, interaction: discord.Interaction,
-        timezone: app_commands.Transform[zoneinfo.ZoneInfo, TimezoneTransformer] = None
+        timezone: ZoneInfoTransform = None
     ):
         """Check the current time in a timezone."""
         defaulted = timezone is None
@@ -98,11 +101,10 @@ class Timezone(app_commands.Group):
                 )
 
         now = datetime.datetime.now(timezone)
-        content = 'The current time in {ref} timezone `{tz}` is:\n{dt}'
+        content = 'The current time for `{tz}` is:\n{dt}'
 
         await interaction.response.send_message(
             content.format(
-                ref='your' if defaulted else 'the',
                 tz=str(timezone),
                 dt=now.strftime('%A, %B %d %Y %H:%M:%S (%z)')
             ),
@@ -116,7 +118,7 @@ class Timezone(app_commands.Group):
     )
     async def set(
         self, interaction: discord.Interaction,
-        timezone: app_commands.Transform[zoneinfo.ZoneInfo, TimezoneTransformer] = None
+        timezone: ZoneInfoTransform = None
     ):
         """Update your timezone preference. Certain commands can benefit from this, e.g. inputting dates."""
         last_timezone = await get_timezone(self.bot, interaction.user.id)
