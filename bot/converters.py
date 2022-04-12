@@ -5,13 +5,14 @@
 import asyncio
 import datetime
 import re
-from typing import Optional
+from typing import Optional, cast
 
 import dateparser
 import discord
+from discord import app_commands
 from discord.ext import commands
 
-from main import Context
+from main import Context, TheGameBot
 
 
 class CodeBlock:
@@ -110,7 +111,7 @@ class DatetimeConverter(commands.Converter):
         self.settings = settings or self.DEFAULT_SETTINGS
         self.stored_tz = stored_tz
 
-    async def convert(self, ctx: Context, arg: str) -> datetime.datetime:
+    async def parse_datetime(self, bot: TheGameBot, user_id: int, arg: str):
         dt = await asyncio.to_thread(dateparser.parse, arg, settings=self.settings)
 
         if dt is None:
@@ -119,11 +120,122 @@ class DatetimeConverter(commands.Converter):
             if self.stored_tz:
                 # Since the datetime was user inputted, if it's naive
                 # it's probably in their timezone so don't assume it's UTC
-                dt = await ctx.bot.localize_datetime(ctx.author.id, dt)
+                dt = await bot.localize_datetime(user_id, dt)
             else:
                 dt = dt.replace(tzinfo=datetime.timezone.utc)
 
         return dt
+
+    async def convert(self, ctx: Context, arg: str) -> datetime.datetime:
+        return await self.parse_datetime(ctx.bot, ctx.author.id, arg)
+
+
+class DatetimeTransformer(app_commands.Transformer):
+    AUTOCOMPLETE_CURRENT_TIME = True
+
+    @classmethod
+    async def parse_datetime(
+        cls, bot: TheGameBot, user_id: int, value: str,
+        *args, **kwargs
+    ):
+        return await DatetimeConverter(
+            *args, **kwargs
+        ).parse_datetime(bot, user_id, value)
+
+    @classmethod
+    async def autocomplete(
+        cls, interaction: discord.Interaction, value: str
+    ) -> list[app_commands.Choice[str]]:
+        bot = cast(TheGameBot, interaction.client)
+        choices = []
+
+        if cls.AUTOCOMPLETE_CURRENT_TIME:
+            now = discord.utils.utcnow().replace(microsecond=0).isoformat()
+            choices.append(app_commands.Choice(
+                name='Current time', value=now
+            ))
+
+        try:
+            dt = await cls.parse_datetime(bot, interaction.user.id, value)
+        except commands.BadArgument:
+            return choices
+
+        choices.append(app_commands.Choice(
+            name=dt.strftime(f'%A, {dt.day} %B %Y, %H:%M (%Z)'), value=value
+        ))
+
+        return choices
+
+    @classmethod
+    async def transform(cls, interaction: discord.Interaction, value: str):
+        bot = cast(TheGameBot, interaction.client)
+        try:
+            return await cls.parse_datetime(bot, interaction.user.id, value)
+        except commands.BadArgument as e:
+            raise app_commands.AppCommandError(*e.args) from None
+
+
+DatetimeTransform = app_commands.Transform[datetime.datetime, DatetimeTransformer]
+
+
+class FutureDatetimeTransformer(DatetimeTransformer):
+    AUTOCOMPLETE_CURRENT_TIME = False
+    AUTOCOMPLETE_DEFAULTS = [
+        'in 1 minute',
+        'in 10 minutes',
+        'in 30 minutes',
+        'in 1 hour'
+    ]
+
+    DEFAULT_SETTINGS: dict = {
+        'PREFER_DATES_FROM': 'future',
+        'RETURN_AS_TIMEZONE_AWARE': True,
+        'TIMEZONE': 'UTC',
+    }
+
+    @classmethod
+    async def parse_datetime(
+        cls, bot: TheGameBot, user_id: int, value: str,
+        *args, **kwargs
+    ):
+        # Skip microsecond for simpler timedelta
+        now = discord.utils.utcnow().replace(microsecond=0)
+
+        # A timezone is needed so we first check the string for one.
+        # If no TZ is provided then the user's timezone is used.
+        tz: datetime.tzinfo
+        value, tz = dateparser.timezone_parser.pop_tz_offset_from_string(value)
+        if not tz:
+            dt = await bot.localize_datetime(user_id, now)
+            tz = dt.tzinfo
+
+        # Parse the user's string relative to the timezone
+        settings = cls.DEFAULT_SETTINGS.copy()
+        tz_now = now.astimezone(tz)
+        settings['RELATIVE_BASE'] = tz_now
+        settings['TIMEZONE'] = tz_now.tzname()
+
+        return await super().parse_datetime(
+            bot, user_id, value,
+            *args, settings=settings, **kwargs
+        )
+
+    @classmethod
+    async def autocomplete(cls, interaction: discord.Interaction, value: str):
+        original = await super().autocomplete(interaction, value)
+
+        choices = [
+            app_commands.Choice(name=choice.capitalize(), value=choice)
+            for choice in cls.AUTOCOMPLETE_DEFAULTS
+        ]
+        choices.extend(original)
+
+        return choices
+
+
+FutureDatetimeTransform = app_commands.Transform[
+    datetime.datetime, FutureDatetimeTransformer
+]
 
 
 class IndexConverter(commands.Converter[list[int]]):

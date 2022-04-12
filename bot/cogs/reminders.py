@@ -6,87 +6,85 @@ import asyncio
 import datetime
 import functools
 import logging
-import re
-from typing import Literal, TypedDict, cast
+from typing import TypedDict, cast, Literal
 
 import asqlite
-import dateparser
 from dateutil.relativedelta import relativedelta
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 from bot import converters, utils
-from main import Context, TheGameBot
+from main import TheGameBot
 
 logger = logging.getLogger('discord')
 
 
-class Reminder:
-    DATEPARSER_SETTINGS: dict = {
-        'PREFER_DATES_FROM': 'future',
-        'RETURN_AS_TIMEZONE_AWARE': True,
-        'TIMEZONE': 'UTC',
-    }
-
-    FAIL_TEXT = (
-        "Could not understand your time/reminder. Check this "
-        "command's help page for the supported syntax."
-    )
-
-    MINIMUM_REMINDER_TIME = 30
-
-    TO_PATTERN = re.compile(r'to', re.IGNORECASE)
-
-    def __init__(self, due: datetime.datetime, content: str):
-        self.due = due
-        self.content = content
-
+class ReminderContentTransformer(app_commands.Transformer):
+    """Ensures the content is within the maximum length allowed."""
     @classmethod
-    def split_time_and_reminder(cls, argument: str):
-        return cls.TO_PATTERN.split(argument, maxsplit=1)
+    async def transform(cls, interaction: discord.Interaction, value: str):
+        max_length = Reminders.MAXIMUM_REMINDER_CONTENT
+        over_size = len(value) - max_length
 
-    @classmethod
-    async def convert(cls, ctx: Context, argument: str):
-        # Skip microsecond for simpler timedelta
-        now = discord.utils.utcnow().replace(microsecond=0)
-
-        parts = cls.split_time_and_reminder(argument)
-        if len(parts) != 2:
-            raise commands.BadArgument(cls.FAIL_TEXT)
-
-        due_str, content = parts
-        content = content.lstrip()
-
-        # Check string for timezone, then look in database, and fallback to UTC
-        tz: datetime.tzinfo
-        due_str, tz = dateparser.timezone_parser.pop_tz_offset_from_string(due_str)
-        if not tz:
-            dt = await ctx.bot.localize_datetime(ctx.author.id, now)
-            tz = dt.tzinfo
-
-        # Make times relative to the timezone
-        settings = cls.DATEPARSER_SETTINGS.copy()
-        tz_now = now.astimezone(tz)
-        settings['RELATIVE_BASE'] = tz_now
-        settings['TIMEZONE'] = tz_now.tzname()
-
-        async with ctx.typing():
-            converter = converters.DatetimeConverter(settings=settings)
-            due = await converter.convert(ctx, due_str)
-
-        td = due - now
-        seconds_until = td.total_seconds()
-        if seconds_until < 0:
-            raise commands.BadArgument('You cannot create a reminder for the past.')
-        elif seconds_until < cls.MINIMUM_REMINDER_TIME:
-            raise commands.BadArgument(
-                'You must set a reminder lasting for at '
-                f'least {cls.MINIMUM_REMINDER_TIME} seconds.'
+        if over_size > 0:
+            raise app_commands.AppCommandError(
+                f'The content cannot exceed {max_length} characters in length. '
+                f'(+{over_size})'
             )
-        elif not content:
-            raise commands.BadArgument('You must have a message with your reminder.')
 
-        return cls(due, content)
+        return value
+
+
+class ReminderIndexTransformer(app_commands.Transformer):
+    """Verifies the index given for a reminder."""
+    @classmethod
+    def type(cls):
+        return discord.AppCommandOptionType.integer
+
+    @classmethod
+    def min_value(cls):
+        return 1
+
+    @classmethod
+    async def get_max_value(cls, bot: TheGameBot, user_id: int):
+        async with bot.db.connect() as conn:
+            return await query_reminder_count(conn, user_id)
+
+    @classmethod
+    async def autocomplete(cls, interaction: discord.Interaction, value: int):
+        bot = cast(TheGameBot, interaction.client)
+        max_value = await cls.get_max_value(bot, interaction.user.id)
+
+        choices = [
+            app_commands.Choice(name=str(n), value=n)
+            for n in range(1, min(max_value, 25) + 1)
+            # Maximum number of choices allowed is 25
+        ]
+
+        if not choices:
+            choices.append(app_commands.Choice(
+                name='You have no reminders to choose from.',
+                value=1
+            ))
+
+        return choices
+
+    @classmethod
+    async def transform(cls, interaction: discord.Interaction, value: int):
+        bot = cast(TheGameBot, interaction.client)
+        max_value = await cls.get_max_value(bot, interaction.user.id)
+
+        if max_value == 0:
+            raise app_commands.AppCommandError(
+                'You have no reminders to choose from.'
+            )
+        elif not 1 <= value <= max_value:
+            raise app_commands.AppCommandError(
+                f'You must choose a reminder between 1 and {max_value}.'
+            )
+
+        return value - 1
 
 
 class PartialReminderEntry(TypedDict):
@@ -100,6 +98,24 @@ class ReminderEntry(PartialReminderEntry):
     reminder_id: int
 
 
+def has_pending_reminder():
+    """An application command check to ensure the user has one reminder."""
+    async def predicate(interaction: discord.Interaction):
+        client = cast(TheGameBot, interaction.client)
+
+        async with client.db.connect() as conn:
+            count = await query_reminder_count(conn, interaction.user.id)
+
+            if not count:
+                raise app_commands.AppCommandError(
+                    'You currently have no pending reminders.'
+                )
+
+        return True
+
+    return app_commands.check(predicate)
+
+
 async def query_reminder_count(conn: asqlite.Connection, user_id: int) -> int:
     # NOTE: because guild_id can be None, the query has
     # to use "IS" to correctly match nulls
@@ -109,17 +125,18 @@ async def query_reminder_count(conn: asqlite.Connection, user_id: int) -> int:
         return row['length']
 
 
-class Reminders(commands.Cog):
-    """Commands for setting up reminders."""
-    qualified_name = 'Reminders'
+class Reminders(commands.Cog, app_commands.Group):
+    """Manage your reminders sent out by thegamebot."""
 
     MAXIMUM_REMINDERS = 10
     MAXIMUM_REMINDER_CONTENT = 250
+    MINIMUM_REMINDER_TIME = 30
 
     NEAR_DUE = datetime.timedelta(minutes=11)
     # NOTE: should be just a bit longer than task loop
 
     def __init__(self, bot: TheGameBot):
+        super().__init__(name='reminder')
         self.bot = bot
         self.reminder_tasks = {}  # reminder_id: Task
         self.send_reminders.start()
@@ -144,235 +161,200 @@ class Reminders(commands.Cog):
 
         return self.check_reminder(entry)
 
-    @commands.group(aliases=('reminder',), invoke_without_command=True)
-    @commands.cooldown(2, 6, commands.BucketType.user)
-    async def reminders(self, ctx: Context, index: int = None):
-        """See a list of your reminders.
+    @app_commands.command(name='list')
+    @has_pending_reminder()
+    async def _list(self, interaction: discord.Interaction):
+        """View a list of your currently active reminders."""
+        lines = []
+        async with self.bot.db.connect() as conn:
+            query = 'SELECT * FROM reminder WHERE user_id = ?'
+            async with conn.execute(query, interaction.user.id) as c:
+                i = 1
+                while row := await c.fetchone():
+                    due = row['due'].replace(tzinfo=datetime.timezone.utc)
+                    lines.append('{}. <#{}> {}: {}'.format(
+                        i, row['channel_id'],
+                        discord.utils.format_dt(due, 'R'),
+                        utils.truncate_message(row['content'], 40, max_lines=1)
+                    ))
+                    i += 1
 
-index: If provided, shows more details about the given reminder."""
-        async with ctx.bot.db.connect() as conn:
-            count = await query_reminder_count(conn, ctx.author.id)
+        embed = discord.Embed(
+            color=self.bot.get_user_color(interaction.user),
+            description='\n'.join(lines)
+        ).set_author(
+            name=interaction.user.display_name,
+            icon_url=interaction.user.display_avatar.url
+        )
 
-            if count == 0:
-                return await ctx.send("You don't have any reminders.")
-            elif index is None:
-                # Show a list of existing reminders
-                query = 'SELECT * FROM reminder WHERE user_id = ?'
-                async with conn.execute(query, ctx.author.id) as c:
-                    lines = []
-                    i = 1
-                    while row := await c.fetchone():
-                        due = row['due'].replace(tzinfo=datetime.timezone.utc)
-                        lines.append('{}. <#{}> {}: {}'.format(
-                            i, row['channel_id'],
-                            discord.utils.format_dt(due, 'R'),
-                            utils.truncate_message(row['content'], 40, max_lines=1)
-                        ))
-                        i += 1
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-                embed = discord.Embed(
-                    color=ctx.bot.get_user_color(ctx.author),
-                    description='\n'.join(lines)
-                ).set_author(
-                    name=ctx.author.display_name,
-                    icon_url=ctx.author.display_avatar.url
-                )
-
-                return await ctx.send(embed=embed)
-            elif not 1 <= index <= count:
-                return await ctx.send('That index does not exist.')
-
-            # NOTE: maybe refactor this to support same syntax as notes
+    @app_commands.command()
+    @app_commands.describe(
+        index='The index of the reminder you want to show.'
+    )
+    async def show(
+        self, interaction: discord.Interaction,
+        index: app_commands.Transform[int, ReminderIndexTransformer]
+    ):
+        """Show the content and due date of a specific reminder."""
+        async with self.bot.db.connect() as conn:
             query = 'SELECT * FROM reminder WHERE user_id = ? LIMIT 1 OFFSET ?'
-            async with conn.execute(query, ctx.author.id, index - 1) as c:
+            async with conn.execute(query, interaction.user.id, index) as c:
                 row = await c.fetchone()
 
-            due = row['due'].replace(tzinfo=datetime.timezone.utc)
-            embed = discord.Embed(
-                title=f'Reminder #{index:,d}',
-                description=row['content'],
-                color=ctx.bot.get_user_color(ctx.author)
-            ).add_field(
-                name='Sends to',
-                value='<#{}>'.format(row['channel_id'])
-            ).add_field(
-                name='Due in',
-                value='{}\n({})'.format(
-                    utils.timedelta_string(
-                        relativedelta(due, discord.utils.utcnow()),
-                        inflector=ctx.bot.inflector
-                    ),
-                    discord.utils.format_dt(due, style='F')
-                )
-            )
-            await ctx.send(embed=embed)
-
-    @reminders.command(name='remove', aliases=('delete',))
-    @commands.cooldown(2, 6, commands.BucketType.user)
-    async def reminders_remove(
-        self, ctx: Context, *,
-        indices: list[int] | Literal['all'] = commands.parameter(
-            converter=converters.IndexConverter | Literal['all']
-        )
-    ):
-        """Remove one or multiple reminders.
-
-Examples:
-    <prefix>reminder remove 1
-    <prefix>reminder remove 1-4
-    <prefix>reminder remove 1 3 5-7
-    <prefix>reminder remove all"""
-        async with ctx.bot.db.connect() as conn:
-            count = await query_reminder_count(conn, ctx.author.id)
-
-        if count == 0:
-            return await ctx.send('You already have no reminders.')
-        elif indices == 'all':
-            await ctx.bot.db.delete_rows('reminder', where={'user_id': ctx.author.id})
-        else:
-            indices = [n for n in indices if 1 <= n <= count]
-            rows = await ctx.bot.db.get_rows(
-                'reminder', 'reminder_id', where={'user_id': ctx.author.id}
-            )
-            to_delete = [(rows[i]['reminder_id'],) for i in indices]
-            count = len(to_delete)
-
-            async with ctx.bot.db.connect(writing=True) as conn:
-                query = 'DELETE FROM reminder WHERE reminder_id = ?'
-                await conn.executemany(query, to_delete)
-
-        await ctx.send(
-            '{} {} successfully deleted!'.format(
-                count, ctx.bot.inflector.plural('reminder', count)
-            )
-        )
-
-    @reminders.command(name='add')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def reminders_add(self, ctx: Context, *, time_and_reminder: Reminder):
-        """Create a reminder in the given or current channel.
-
-Usage:
-    remind at 10pm EST to <x>
-    remind in 30 sec/min/h/days to <x>
-    remind #bot-commands on wednesday to <x>
-Note that the time and your reminder message have to be separated with "to".
-If you have not explicitly included a timezone in the command, but you have
-provided the bot your timezone before with "/timezone set", that timezone will
-be used instead of UTC.
-
-User mentions will otherwise be escaped except in DMs."""
-        me_perms = ctx.channel.permissions_for(ctx.me)
-        if not me_perms.send_messages:
-            return await ctx.message.add_reaction('\N{FACE WITHOUT MOUTH}')
-
-        # Check maximum reminders
-        async with ctx.bot.db.connect() as conn:
-            count = await query_reminder_count(conn, ctx.author.id)
-
-        if count >= self.MAXIMUM_REMINDERS:
-            return await ctx.send(
-                'You have reached the maximum limit of '
-                f'{self.MAXIMUM_REMINDERS} reminders.'
-            )
-
-        due, content = time_and_reminder.due, time_and_reminder.content
-
-        max_content_size = self.MAXIMUM_REMINDER_CONTENT
-        content = await commands.clean_content().convert(ctx, content)
-
-        diff = len(content) - max_content_size
-        if diff > 0:
-            return await ctx.send(
-                'Please provide a message under {:,d} {} (-{:,d}).'.format(
-                    max_content_size,
-                    ctx.bot.inflector.plural('character', max_content_size),
-                    diff
-                )
-            )
-
-        await self.add_reminder({
-            'user_id': ctx.author.id,
-            'channel_id': ctx.channel.id,
-            'due': due,
-            'content': content
-        })
-
-        await ctx.send(
-            'Added your {} reminder for {} in this channel!'.format(
-                ctx.bot.inflector.ordinal(count + 1),
+        due = row['due'].replace(tzinfo=datetime.timezone.utc)
+        embed = discord.Embed(
+            title=f'Reminder #{index:,d}',
+            description=row['content'],
+            color=self.bot.get_user_color(interaction.user)
+        ).add_field(
+            name='Sends to',
+            value='<#{}>'.format(row['channel_id'])
+        ).add_field(
+            name='Due in',
+            value='{}\n({})'.format(
+                utils.timedelta_string(
+                    relativedelta(due, discord.utils.utcnow()),
+                    inflector=self.bot.inflector
+                ),
                 discord.utils.format_dt(due, style='F')
             )
         )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
-    @reminders.group(name='clear', aliases=('wipe',), invoke_without_command=True)
-    @commands.cooldown(1, 10, commands.BucketType.channel)
-    async def reminders_clear(self, ctx: Context, channel: discord.TextChannel = None):
-        """Clear all your reminders in the given channel."""
-        channel = channel or ctx.channel
-
-        entries = await ctx.bot.db.delete_rows(
-            'reminder', {'user_id': ctx.author.id, 'channel_id': channel.id},
-            pop=True
-        )
-
-        count = len(entries)
-        channel_reference = 'this channel' if channel == ctx.channel else channel.mention
-
-        if count == 0:
-            return await ctx.send(f'You have no reminders in {channel_reference}!')
-
-        await ctx.send(
-            'Cleared your {} {} in {}!'.format(
-                count,
-                ctx.bot.inflector.plural('reminder', count),
-                channel_reference
-            )
-        )
-
-
-    @reminders_clear.command(name='everyone')
-    @commands.cooldown(2, 6, commands.BucketType.user)
-    @commands.guild_only()
-    async def reminders_clear_everyone(self, ctx: Context, channel: discord.TextChannel = None):
-        """Clear everyone's reminders in the given channel.
-
-This requires the Manage Messages permission in the given channel."""
-        channel = channel or ctx.channel
-
-        if not channel.permissions_for(ctx.author).manage_messages:
-            return await ctx.send(
-                'You must have the Manage Messages permission '
-                "to clear everyone's reminders!"
-            )
-
-        entries = await ctx.bot.db.delete_rows(
-            'reminder', {'channel_id': channel.id}, pop=True
-        )
-
-        count = len(entries)
-        channel_reference = 'this channel' if channel == ctx.channel else channel.mention
-
-        if count == 0:
-            return await ctx.send(f'There are no reminders in {channel_reference}!')
-
-        await ctx.send(
-            'Cleared {} {} in {}!'.format(
-                count,
-                ctx.bot.inflector.plural('reminder', count),
-                channel_reference
-            )
-        )
-
-    @commands.command(
-        name='remind', aliases=('remindme',),
-        brief='Shorthand for reminder add.',
-        help=reminders_add.callback.__doc__
+    @app_commands.command()
+    @app_commands.describe(
+        index='The index of the reminder you want to remove.'
     )
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def remind(self, ctx: Context, *, time_and_reminder: Reminder):
-        await self.reminders_add(ctx, time_and_reminder=time_and_reminder)
+    async def remove(
+        self, interaction: discord.Interaction,
+        index: app_commands.Transform[int, ReminderIndexTransformer]
+    ):
+        """Remove one of your pending reminders."""
+        async with self.bot.db.connect() as conn:
+            query = 'SELECT reminder_id FROM reminder WHERE user_id = ? LIMIT 1 OFFSET ?'
+            async with conn.execute(query, interaction.user.id, index) as c:
+                reminder_id: int = (await c.fetchone())['reminder_id']
+
+        await self.bot.db.delete_rows(
+            'reminder', where={'reminder_id': reminder_id}
+        )
+
+        content = 'Successfully deleted your {} reminder!'.format(
+            self.bot.inflector.ordinal(index)
+        )
+
+        await interaction.response.send_message(content, ephemeral=True)
+
+    @app_commands.command()
+    @app_commands.checks.bot_has_permissions(send_messages=True)
+    @app_commands.describe(
+        when='The time at which this reminder should be sent.',
+        content='The message to send with your reminder.'
+    )
+    async def add(
+        self, interaction: discord.Interaction,
+        when: converters.FutureDatetimeTransform,
+        content: app_commands.Transform[str, ReminderContentTransformer]
+    ):
+        """Create a reminder in the current channel."""
+        async with self.bot.db.connect() as conn:
+            count = await query_reminder_count(conn, interaction.user.id)
+
+        if count >= self.MAXIMUM_REMINDERS:
+            return await interaction.response.send_message(
+                'You have reached the maximum limit of '
+                f'{self.MAXIMUM_REMINDERS} reminders.',
+                ephemeral=True
+            )
+
+        td = when - discord.utils.utcnow()
+        if td.total_seconds() < 0:
+            return await interaction.response.send_message(
+                'You cannot create a reminder for the past.',
+                ephemeral=True
+            )
+        elif td.total_seconds() < self.MINIMUM_REMINDER_TIME:
+            return await interaction.response.send_message(
+                'You must set a reminder lasting for at '
+                f'least {self.MINIMUM_REMINDER_TIME} seconds.',
+                ephemeral=True
+            )
+
+        await self.add_reminder({
+            'user_id': interaction.user.id,
+            'channel_id': cast(int, interaction.channel_id),
+            'due': when,
+            'content': content
+        })
+
+        await interaction.response.send_message(
+            'Added your {} reminder for {} in this channel!'.format(
+                self.bot.inflector.ordinal(count + 1),
+                discord.utils.format_dt(when, style='F')
+            ),
+            ephemeral=True
+        )
+
+    @app_commands.command()
+    @app_commands.describe(
+        mode='Moderators can set this to global to remove reminders from other members.',
+        channel='The channel to clear reminders from. Defaults to the current channel.'
+    )
+    async def clear(
+        self, interaction: discord.Interaction,
+        channel: discord.TextChannel = None,
+        mode: Literal['personal', 'global'] = 'personal'
+    ):
+        """Clear your reminders in the given channel."""
+        channel = channel or interaction.channel
+        channel_reference = 'this channel'
+        if channel != interaction.channel:
+            channel_reference = channel.mention
+
+        user_only = mode == 'personal'
+        if not user_only and not interaction.permissions.manage_messages:
+            await interaction.response.send_message(
+                'You must have the Manage Messages permission to clear '
+                'reminders from other members!',
+                ephemeral=True
+            )
+
+        # Determine the SQL queries to use
+        if user_only:
+            where_conditions = 'WHERE user_id = ? AND channel_id = ?'
+            params = (interaction.user.id, channel.id)
+        else:
+            where_conditions = 'WHERE channel_id = ?'
+            params = (channel.id,)
+
+        # Check that there are any reminders in the channel to delete
+        async with self.bot.db.connect() as conn:
+            query = f'SELECT COUNT(*) FROM reminder {where_conditions}'
+            async with conn.execute(query, params) as c:
+                count: int = (await c.fetchone())[0]
+
+        if count == 0:
+            subject = 'You have' if user_only else 'There are'
+            return await interaction.response.send_message(
+                f'{subject} no reminders to delete in {channel_reference}!',
+                ephemeral=True
+            )
+
+        # Actually delete the reminders
+        async with self.bot.db.connect(writing=True) as conn:
+            query = f'DELETE FROM reminder {where_conditions}'
+            await conn.execute(query, params)
+
+        content = 'Successfully cleared{your} {n} {reminders} from {ref}!'.format(
+            your=' your' * user_only,
+            n=count,
+            reminders=self.bot.inflector.plural('reminder', count),
+            ref=channel_reference
+        )
+
+        await interaction.response.send_message(content, ephemeral=True)
 
     def check_reminder(self, entry: ReminderEntry, *, now=None):
         """Starts an :class:`asyncio.Task` to handle sending a reminder

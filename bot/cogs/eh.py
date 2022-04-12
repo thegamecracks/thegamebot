@@ -673,7 +673,7 @@ class EventHandlers(commands.Cog):
             if not handled:
                 include_traceback = True
         elif isinstance(error, app_commands.AppCommandError):
-            # Our transformers use this exception to distinguish from
+            # Our transformers/checks use this exception to distinguish from
             # unexpected bugs wrapped by TransformerError
             await send(interaction, str(error))
         elif not isinstance(error, app_commands.CheckFailure):
