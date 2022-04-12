@@ -208,7 +208,7 @@ index: If provided, shows more details about the given reminder."""
             await ctx.send(embed=embed)
 
     @reminders.command(name='remove', aliases=('delete',))
-    @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.cooldown(2, 6, commands.BucketType.user)
     async def reminders_remove(
         self, ctx: Context, *,
         indices: list[int] | Literal['all'] = commands.parameter(
@@ -247,8 +247,8 @@ Examples:
             )
         )
 
-
     @reminders.command(name='add')
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def reminders_add(self, ctx: Context, *, time_and_reminder: Reminder):
         """Create a reminder in the given or current channel.
 
@@ -333,6 +333,7 @@ User mentions will otherwise be escaped except in DMs."""
 
 
     @reminders_clear.command(name='everyone')
+    @commands.cooldown(2, 6, commands.BucketType.user)
     @commands.guild_only()
     async def reminders_clear_everyone(self, ctx: Context, channel: discord.TextChannel = None):
         """Clear everyone's reminders in the given channel.
@@ -364,12 +365,12 @@ This requires the Manage Messages permission in the given channel."""
             )
         )
 
-
     @commands.command(
         name='remind', aliases=('remindme',),
         brief='Shorthand for reminder add.',
         help=reminders_add.callback.__doc__
     )
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def remind(self, ctx: Context, *, time_and_reminder: Reminder):
         await self.reminders_add(ctx, time_and_reminder=time_and_reminder)
 
