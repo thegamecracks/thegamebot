@@ -116,12 +116,11 @@ def truncate_message(
         >>> truncate_message('Hello world!', 4, placeholder='[...]')
         ''
 
-    Args:
     :param message: The message to truncate.
     :param max_size: The max length the message can be.
     :param max_lines: The max number of lines the message can have.
     :param placeholder: The placeholder to append if the message gets truncated.
-    :return:
+    :returns: The shortened message.
 
     """
     def get_trailing_whitespace(s):
