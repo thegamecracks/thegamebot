@@ -101,24 +101,17 @@ class CommandConverter(commands.Converter):
 
 class DatetimeConverter(commands.Converter):
     """Parse a datetime."""
-    PREFER_DATES_FROM = {
-        None: 'current_period',
-        True: 'future',
-        False: 'past'
+    DEFAULT_SETTINGS = {
+        'PREFER_DATES_FROM': 'current_period'
+        # 'current_period', 'future', 'past'
     }
 
-    def __init__(self, *, prefer_future=None, stored_tz=True):
-        self.prefer_future = prefer_future
+    def __init__(self, *, settings: dict = None, stored_tz=True):
+        self.settings = settings or self.DEFAULT_SETTINGS
         self.stored_tz = stored_tz
 
     async def convert(self, ctx: Context, arg: str) -> datetime.datetime:
-        dt = await asyncio.to_thread(
-            dateparser.parse,
-            arg,
-            settings={
-                'PREFER_DATES_FROM': self.PREFER_DATES_FROM[self.prefer_future]
-            }
-        )
+        dt = await asyncio.to_thread(dateparser.parse, arg, settings=self.settings)
 
         if dt is None:
             raise commands.BadArgument('Could not parse your date.')
