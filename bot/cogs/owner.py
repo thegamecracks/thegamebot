@@ -60,19 +60,20 @@ async def _sync_body(
             "{0} {type} plural('command', {0}) in "
             "{1} plural('guild', {1})".format(
                 n_commands, len(guilds),
-                type='global+guild' if copy_global else 'guild'
+                type='global and guild' if copy_global else 'guild'
             )
         )
         items.append(text)
 
-    message = await ctx.send('Synchronizing {}...'.format(inflector.join(items)))
+    item_text = inflector.join(items)
+    message = await ctx.send(f'Synchronizing {item_text}...')
 
     if sync_global:
         await ctx.bot.tree.sync()
     for guild in guilds:
         await ctx.bot.tree.sync(guild=guild)
 
-    await message.edit(content='Finished application command synchronization!')
+    await message.edit(content=f'Finished synchronizing {item_text}!')
 
 
 class Owner(commands.Cog):
