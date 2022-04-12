@@ -46,3 +46,13 @@ class MockMessage:
         self.author = author
         self.channel = channel
         self.guild = guild
+
+
+async def getch_member(guild: discord.Guild, member_id: int):
+    member = guild.get_member(member_id)
+    if member is None:
+        try:
+            return await guild.fetch_member(member_id)
+        except discord.HTTPException:
+            pass
+    return member

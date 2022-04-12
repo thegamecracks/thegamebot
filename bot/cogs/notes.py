@@ -17,15 +17,6 @@ from bot import converters, utils
 from main import Context, TheGameBot
 
 
-async def getch_member(guild: discord.Guild, member_id: int) -> discord.Member | None:
-    member = guild.get_member(member_id)
-    if member is None:
-        try:
-            return await guild.fetch_member(member_id)
-        except discord.HTTPException:
-            return None
-
-
 def index_converter(**kwargs):
     return commands.parameter(converter=converters.IndexConverter, **kwargs)
 
@@ -93,7 +84,7 @@ class Location:
             return cls(ctx.guild)
 
         guild = await commands.GuildConverter().convert(ctx, argument)
-        if await getch_member(guild, ctx.author.id):
+        if await utils.getch_member(guild, ctx.author.id):
             return cls(guild, outside=True)
         return cls()
 

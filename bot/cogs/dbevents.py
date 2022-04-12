@@ -9,21 +9,10 @@ from typing import Any
 import discord
 from discord.ext import commands
 
+from bot import utils
 from main import TheGameBot
 
 logger = logging.getLogger('discord')
-
-
-async def getch_member(guild: discord.Guild, user_id: int):
-    member = guild.get_member(user_id)
-
-    if member is None:
-        try:
-            member = await guild.fetch_member(user_id)
-        except discord.HTTPException:
-            pass
-
-    return member
 
 
 class DatabaseEvents(commands.Cog):
@@ -96,7 +85,7 @@ class DatabaseEvents(commands.Cog):
                 # NOTE: this shouldn't happen after checking guild table
                 continue
 
-            member = await getch_member(guild, user_id)
+            member = await utils.getch_member(guild, user_id)
             if member is None:
                 authors_to_remove.append((guild_id, user_id))
 
