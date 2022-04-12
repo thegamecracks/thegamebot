@@ -38,13 +38,9 @@ async def _sync_body(
 
     # Format an appropriate message to send before syncing
     items = []
-    command_types = list(discord.AppCommandType)
 
     if sync_global:
-        n_commands = sum(
-            len(ctx.bot.tree.get_commands(type=t))
-            for t in command_types
-        )
+        n_commands = len(ctx.bot.tree.get_commands())
         text = inflector.inflect(
             "{0} plural('global command', {0})".format(n_commands)
         )
@@ -56,9 +52,8 @@ async def _sync_body(
                 ctx.bot.tree.copy_global_to(guild=guild)
 
         n_commands = sum(
-            len(ctx.bot.tree.get_commands(guild=guild, type=t))
+            len(ctx.bot.tree.get_commands(guild=guild))
             for guild in guilds
-            for t in command_types
         )
 
         text = inflector.inflect(
