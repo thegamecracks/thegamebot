@@ -205,7 +205,7 @@ class Reminders(commands.Cog, app_commands.Group):
 
         due = row['due'].replace(tzinfo=datetime.timezone.utc)
         embed = discord.Embed(
-            title=f'Reminder #{index:,d}',
+            title=f'Reminder #{index + 1:,d}',
             description=row['content'],
             color=self.bot.get_user_color(interaction.user)
         ).add_field(
@@ -242,7 +242,7 @@ class Reminders(commands.Cog, app_commands.Group):
         )
 
         content = 'Successfully deleted your {} reminder!'.format(
-            self.bot.inflector.ordinal(index)
+            self.bot.inflector.ordinal(index + 1)
         )
 
         await interaction.response.send_message(content, ephemeral=True)
