@@ -215,7 +215,7 @@ class Reminders(commands.Cog, app_commands.Group):
             name='Due in',
             value='{}\n({})'.format(
                 utils.timedelta_string(
-                    relativedelta(due, discord.utils.utcnow()),
+                    relativedelta(due, interaction.created_at),
                     inflector=self.bot.inflector
                 ),
                 discord.utils.format_dt(due, style='F')
@@ -269,7 +269,7 @@ class Reminders(commands.Cog, app_commands.Group):
                 ephemeral=True
             )
 
-        td = when - discord.utils.utcnow()
+        td = when - interaction.created_at
         if td.total_seconds() < 0:
             return await interaction.response.send_message(
                 'You cannot create a reminder for the past.',

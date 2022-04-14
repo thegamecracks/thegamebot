@@ -135,7 +135,8 @@ class DatetimeTransformer(app_commands.Transformer):
 
     @classmethod
     async def parse_datetime(
-        cls, bot: TheGameBot, user_id: int, value: str,
+        cls, bot: TheGameBot, user_id: int,
+        now: datetime.datetime, value: str,
         *args, **kwargs
     ):
         return await DatetimeConverter(
@@ -147,16 +148,18 @@ class DatetimeTransformer(app_commands.Transformer):
         cls, interaction: discord.Interaction, value: str
     ) -> list[app_commands.Choice[str]]:
         bot = cast(TheGameBot, interaction.client)
+        now = interaction.created_at.replace(microsecond=0)
+        # microsecond is removed for simpler ISO output
+
         choices = []
 
         if cls.AUTOCOMPLETE_CURRENT_TIME:
-            now = discord.utils.utcnow().replace(microsecond=0).isoformat()
             choices.append(app_commands.Choice(
-                name='Current time', value=now
+                name='Current time', value=now.isoformat()
             ))
 
         try:
-            dt = await cls.parse_datetime(bot, interaction.user.id, value)
+            dt = await cls.parse_datetime(bot, interaction.user.id, now, value)
         except commands.BadArgument:
             return choices
 
@@ -169,8 +172,9 @@ class DatetimeTransformer(app_commands.Transformer):
     @classmethod
     async def transform(cls, interaction: discord.Interaction, value: str):
         bot = cast(TheGameBot, interaction.client)
+        now = interaction.created_at.replace(microsecond=0)
         try:
-            return await cls.parse_datetime(bot, interaction.user.id, value)
+            return await cls.parse_datetime(bot, interaction.user.id, now, value)
         except commands.BadArgument as e:
             raise app_commands.AppCommandError(*e.args) from None
 
@@ -195,12 +199,9 @@ class FutureDatetimeTransformer(DatetimeTransformer):
 
     @classmethod
     async def parse_datetime(
-        cls, bot: TheGameBot, user_id: int, value: str,
+        cls, bot: TheGameBot, user_id: int, now: datetime.datetime, value: str,
         *args, **kwargs
     ):
-        # Skip microsecond for simpler timedelta
-        now = discord.utils.utcnow().replace(microsecond=0)
-
         # A timezone is needed so we first check the string for one.
         # If no TZ is provided then the user's timezone is used.
         tz: datetime.tzinfo
