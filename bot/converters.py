@@ -216,10 +216,16 @@ class FutureDatetimeTransformer(DatetimeTransformer):
         settings['RELATIVE_BASE'] = tz_now
         settings['TIMEZONE'] = tz_now.tzname()
 
-        return await super().parse_datetime(
+        dt = await super().parse_datetime(
             bot, user_id, value,
             *args, settings=settings, **kwargs
         )
+
+        delta = dt - now
+        if delta.total_seconds() <= 0:
+            raise app_commands.AppCommandError('A date in the future must be selected!')
+
+        return dt
 
     @classmethod
     async def autocomplete(cls, interaction: discord.Interaction, value: str):

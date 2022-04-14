@@ -270,12 +270,7 @@ class Reminders(commands.Cog, app_commands.Group):
             )
 
         td = when - interaction.created_at
-        if td.total_seconds() < 0:
-            return await interaction.response.send_message(
-                'You cannot create a reminder for the past.',
-                ephemeral=True
-            )
-        elif td.total_seconds() < self.MINIMUM_REMINDER_TIME:
+        if td.total_seconds() < self.MINIMUM_REMINDER_TIME:
             return await interaction.response.send_message(
                 'You must set a reminder lasting for at '
                 f'least {self.MINIMUM_REMINDER_TIME} seconds.',
