@@ -217,7 +217,7 @@ class FutureDatetimeTransformer(DatetimeTransformer):
         settings['TIMEZONE'] = tz_now.tzname()
 
         dt = await super().parse_datetime(
-            bot, user_id, value,
+            bot, user_id, now, value,
             *args, settings=settings, **kwargs
         )
 
