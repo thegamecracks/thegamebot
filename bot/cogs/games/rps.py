@@ -10,7 +10,7 @@ from typing import Callable, Iterable, Optional, Union, Coroutine, Any
 import discord
 from discord.ext import commands
 
-from main import Context
+from main import Context, TheGameBot
 from . import Games
 
 UM = Union[discord.User, discord.Member]
@@ -221,7 +221,7 @@ class _RPS(commands.Cog):
         (0, {'emoji': '\N{BLACK SCISSORS}', 'style': discord.ButtonStyle.primary})
     )
 
-    def __init__(self, bot, base: Games):
+    def __init__(self, bot: TheGameBot, base: Games):
         self.bot = bot
         self.base = base
 

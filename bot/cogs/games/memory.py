@@ -30,7 +30,7 @@ import discord
 from discord.ext import commands
 
 from bot import errors
-from main import Context
+from main import Context, TheGameBot
 from . import EditViewMixin, Games, TimeoutView
 
 
@@ -175,7 +175,7 @@ class MemoryFlags(commands.FlagConverter):
 
 
 class _Memory(commands.Cog):
-    def __init__(self, bot, base: Games):
+    def __init__(self, bot: TheGameBot, base: Games):
         self.bot = bot
         self.base = base
 

@@ -12,7 +12,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from main import Context
+from main import Context, TheGameBot
 from . import Games
 
 
@@ -265,7 +265,7 @@ class _Hangman(commands.Cog):
         r'(?P<word>.+):(?P<guesses>\d+)'
     )
 
-    def __init__(self, bot, base: Games):
+    def __init__(self, bot: TheGameBot, base: Games):
         self.bot = bot
         self.base = base
 
