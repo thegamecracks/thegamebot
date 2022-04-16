@@ -19,6 +19,8 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import inflect
+import matplotlib
+import matplotlib.style as mplstyle
 
 from bot import database, errors
 
@@ -28,6 +30,7 @@ EXT_LIST = [
         'dbevents',
         'eh',
         'games',
+        'graphing',
         'helpcommand',
         'info',
         'notes',
@@ -268,6 +271,10 @@ async def main():
         s = 'Could not get token from environment.'
         logger.error(s)
         return print(s)
+
+    # Use a non-GUI based backend for matplotlib
+    matplotlib.use('Agg')
+    mplstyle.use(['data/discord.mplstyle', 'fast'])
 
     intents = discord.Intents(
         bans=False,
