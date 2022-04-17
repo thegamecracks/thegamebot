@@ -60,10 +60,10 @@ async def set_user_timezone(
     async with bot.db.connect(writing=True) as conn:
         query = """
         INSERT INTO user (user_id, timezone) VALUES (?, ?)
-        ON CONFLICT (user_id) DO UPDATE SET timezone = ?
+        ON CONFLICT (user_id) DO UPDATE SET timezone = excluded.timezone
         """
         timezone_str = str(timezone) if timezone is not None else None
-        await conn.execute(query, user_id, timezone_str, timezone_str)
+        await conn.execute(query, user_id, timezone_str)
 
 
 class Timezone(app_commands.Group):

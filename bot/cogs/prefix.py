@@ -59,8 +59,8 @@ class Prefix(commands.Cog):
         async with self.bot.db.connect(writing=True) as conn:
             await conn.execute(
                 'INSERT INTO guild (guild_id, prefix) VALUES (?, ?) '
-                'ON CONFLICT (guild_id) DO UPDATE SET prefix=?',
-                guild_id, prefix, prefix
+                'ON CONFLICT (guild_id) DO UPDATE SET prefix = excluded.prefix',
+                guild_id, prefix
             )
 
         self.cache[guild_id] = prefix
