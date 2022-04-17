@@ -198,7 +198,7 @@ class Database:
             allowing access to the connection. This prevents attempts to
             concurrently write to the database which may result in mixing
             of transactions.
-        :return:
+        :returns:
             A connector that can be opened with `async with` to retrieve
             an :class:`asqlite.Connection` object.
         :raises RuntimeError: The connection pool is closed.
@@ -218,8 +218,7 @@ class Database:
         :param ignore:
             If True, any conflicts that occur when inserting will be ignored.
             Note that the last row id will not be updated in this case.
-
-        :return: The last row id of the query.
+        :returns: The last row id of the query.
 
         """
         keys, placeholders, values = self.placeholder_insert(row)
@@ -283,7 +282,7 @@ class Database:
             If no columns are provided, returns all columns.
             This should only come from a trusted source.
         :param where: An optional dictionary of values to match.
-        :return: A list of rows selected.
+        :returns: A list of rows that were selected.
 
         """
         return await self._get_rows(table, *columns, where=where)
@@ -301,7 +300,7 @@ class Database:
             If no columns are provided, returns all columns.
             This should only come from a trusted source.
         :param where: A dictionary of values to match.
-        :return: The row that was selected or `None` if not found.
+        :returns: The row that was selected or `None` if not found.
 
         """
         rows = await self._get_rows(table, *columns, where=where, limit=1)
@@ -340,7 +339,7 @@ class Database:
             If no columns are provided, returns all columns.
             This should only come from a trusted source.
         :param where: A dictionary of values to match.
-        :return: An async generator yielding :class:`sqlite3.Row` objects.
+        :returns: An async generator yielding :class:`sqlite3.Row` objects.
 
         """
         query, values = self._get_rows_query(table, *columns, where=where)
@@ -392,7 +391,7 @@ class Database:
         :param use_assignment:
             If True, uses the "=" operator, suitable for UPDATE queries.
             Else, uses the "IS" operator which will match nulls correctly.
-        :return: A string of placeholders for the WHERE clause
+        :returns: A string of placeholders for the WHERE clause
             along with a list of values for each placeholder.
 
         """

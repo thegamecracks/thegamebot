@@ -81,7 +81,7 @@ def paginate_message(message: str, max_size: int = 2000) -> str:
 
     :param message: The message to paginate.
     :param max_size: The maximum size per page.
-    :return: An iterator yielding parts of the string.
+    :returns: An iterator yielding parts of the string.
 
     """
     for i in range(0, len(message), max_size):
@@ -220,7 +220,7 @@ def truncate_simple(message: str, width: int, placeholder: str = '[...]') -> str
     :param message: The message to truncate.
     :param width: The max number of characters.
     :param placeholder: The suffix to indicate that the message is truncated.
-    :return: The truncated string.
+    :returns: The truncated string.
 
     """
     if len(message) <= width:

@@ -50,7 +50,7 @@ def splitext_all(path: str) -> tuple[str, list[str]]:
 
     :param path:
         The path to split extensions on.
-    :return:
+    :returns:
         The path root and its list of extensions such that
         the following is true: `root + ''.join(exts) == path`
 
@@ -108,7 +108,7 @@ class Settings(commands.Cog):
 
         :param val: The string to parse.
         :param eval: Attempt parsing using ast.literal_eval.
-        :return: A value or the same string if it could not be parsed.
+        :returns: A value or the same string if it could not be parsed.
 
         """
         # Boolean
@@ -155,7 +155,7 @@ class Settings(commands.Cog):
         :param section: The section to look up.
         :param key: The key within the section to look up.
         :param default: An optional default value if the lookup fails.
-        :return: The value stored in the key.
+        :returns: The value stored in the key.
         :raises KeyError:
             No default value was provided and the section
             or key does not exist.
@@ -184,7 +184,7 @@ class Settings(commands.Cog):
             Calls `self.setup()` when the settings need to be read.
         :param eval:
             Allows Python literals to be parsed when reading the settings.
-        :return: A dictionary of dictionaries where the top-level
+        :returns: A dictionary of dictionaries where the top-level
             is each section and the nested dictionary are the keys.
         :raises FileNotFoundError:
             The settings file was not set up beforehand and `autosetup`
@@ -244,7 +244,7 @@ class Settings(commands.Cog):
         :param check_corrupt:
             If it fails to load the config file, copies the default
             settings instead of raising configparser.Error.
-        :return: The cached settings.
+        :returns: The cached settings.
         :raises FileNotFoundError:
             The settings file was not present and
             `check_existing` was set to False.

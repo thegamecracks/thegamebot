@@ -97,7 +97,7 @@ async def delete_and_reply(
 async def try_delete_message(ctx: Context, m: discord.Message = None) -> bool:
     """Tries deleting the given message.
 
-    :return: a boolean indicating if it was successful.
+    :returns: a boolean indicating if it was successful.
 
     """
     m = m or ctx.message
