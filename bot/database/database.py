@@ -232,9 +232,7 @@ class Database:
                 )
                 return c._cursor.lastrowid
 
-    async def delete_rows(
-        self, table: str, where: dict, *, pop=False
-    ) -> list[sqlite3.Row] | None:
+    async def delete_rows(self, table: str, where: dict) -> int:
         """Delete rows matching a dictionary of values.
 
         Column names are trusted to be safe.
@@ -242,22 +240,14 @@ class Database:
         :param table: The table name to delete from.
             This should only come from a trusted source.
         :param where: A dictionary of values to match.
-        :param pop: If True, queries all the affected rows before deletion.
-
-        :return: `None` if pop is False, else a list of :class:`sqlite3.Row`.
+        :returns: The number of rows that were deleted.
 
         """
         keys, values = self.escape_row(where, ' AND ')
-        rows = None
         async with self.connect(writing=True) as conn:
             async with conn.cursor() as c:
-                if pop:
-                    await c.execute(f'SELECT * FROM {table} WHERE {keys}', *values)
-                    rows = await c.fetchall()
-
-                if not pop or rows:
-                    await c.execute(f'DELETE FROM {table} WHERE {keys}', *values)
-        return rows
+                await c.execute(f'DELETE FROM {table} WHERE {keys}', *values)
+                return c._cursor.rowcount
 
     def _get_rows_query(
             self, table: str, *columns: str,
@@ -317,9 +307,7 @@ class Database:
         rows = await self._get_rows(table, *columns, where=where, limit=1)
         return rows[0] if rows else None
 
-    async def update_rows(
-        self, table: str, row: dict, *, where: dict, pop=False
-    ):
+    async def update_rows(self, table: str, row: dict, *, where: dict) -> int:
         """Update rows with new values.
 
         :param table: The table name to update.
@@ -327,29 +315,19 @@ class Database:
         :param row: A dictionary of new values to update.
             The column names should only come from a trusted source.
         :param where: A dictionary of values to match.
-        :param pop: If True, queries all the affected rows before modification.
-        :return: `None` if pop is False, else a list of :class:`sqlite3.Row`.
+        :returns: The number of rows that were updated.
 
         """
         row_keys, row_values = self.escape_row(row, ', ', use_assignment=True)
         where_keys, where_values = self.escape_row(where, ' AND ')
-        rows = None
 
         async with self.connect(writing=True) as conn:
             async with conn.cursor() as c:
-                if pop:
-                    await c.execute(
-                        f'SELECT * FROM {table} WHERE {where_keys}',
-                        *where_values
-                    )
-                    rows = await c.fetchall()
-
                 await c.execute(
                     f'UPDATE {table} SET {row_keys} WHERE {where_keys}',
                     *(row_values + where_values)
                 )
-
-        return rows
+                return c._cursor.rowcount
 
     async def yield_rows(
         self, table: str, *columns: str, where: dict = None
