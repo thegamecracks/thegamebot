@@ -117,8 +117,6 @@ def has_pending_reminder():
 
 
 async def query_reminder_count(conn: asqlite.Connection, user_id: int) -> int:
-    # NOTE: because guild_id can be None, the query has
-    # to use "IS" to correctly match nulls
     query = 'SELECT COUNT(*) AS length FROM reminder WHERE user_id = ?'
     async with conn.execute(query, user_id) as c:
         row = await c.fetchone()
