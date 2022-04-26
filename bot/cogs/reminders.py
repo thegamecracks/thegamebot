@@ -308,7 +308,7 @@ class Reminders(commands.Cog, app_commands.Group):
 
         user_only = mode == 'personal'
         if not user_only and not interaction.permissions.manage_messages:
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 'You must have the Manage Messages permission to clear '
                 'reminders from other members!',
                 ephemeral=True
