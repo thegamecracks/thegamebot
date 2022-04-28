@@ -808,8 +808,7 @@ To see the different methods you can use to provide text, check the help message
             return await ctx.send(
                 'Unfortunately the file is too large to upload.')
 
-        with open(path, 'rb') as f:
-            await ctx.send(file=discord.File(f, '3D Graph Animation Test.gif'))
+        await ctx.send(file=discord.File(path, '3D Graph Animation Test.gif'))
 
 
 async def setup(bot: TheGameBot):

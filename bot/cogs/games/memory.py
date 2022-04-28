@@ -87,10 +87,10 @@ class MemoryView(TimeoutView, EditViewMixin):
         for i, e in enumerate(emojis):
             self.add_item(MemoryButton(*divmod(i, 5), e))  # type: ignore
 
-    async def on_error(self, error, item, interaction):
+    async def on_error(self, interaction, error, item):
         ignored_exc = (errors.SkipInteractionResponse, asyncio.QueueFull)
         if not isinstance(error, ignored_exc):
-            return await super().on_error(error, item, interaction)
+            return await super().on_error(interaction, error, item)
 
     async def on_timeout(self):
         if self.worker is not None:

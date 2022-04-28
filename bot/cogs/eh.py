@@ -613,7 +613,6 @@ class EventHandlers(commands.Cog):
 
     async def on_slash_error(
         self, interaction: discord.Interaction,
-        command: app_commands.Command | app_commands.ContextMenu | None,
         error: app_commands.AppCommandError
     ):
         if getattr(error, 'handled', False):

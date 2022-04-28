@@ -78,9 +78,9 @@ class ConfirmationView(discord.ui.View):
     async def interaction_check(self, interaction):
         return interaction.user == self.author
 
-    async def on_error(self, error, item, interaction):
+    async def on_error(self, interaction, error, item):
         if not isinstance(error, errors.SkipInteractionResponse):
-            await super().on_error(error, item, interaction)
+            await super().on_error(interaction, error, item)
 
     async def start(
         self, channel: discord.abc.Messageable,
