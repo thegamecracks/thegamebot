@@ -615,26 +615,22 @@ class _SignalHill_Status(commands.Cog):
     def __init__(self, bot, base: SignalHill):
         self.bot = bot
         self.base = base
-        self.server_statuses = [
-            BMServerStatus(
-                bot=bot,
-                channel_id=819632332896993360,
-                message_id=842228691077431296,
-                line_color=0xF54F33,
-                bm_client=base.bm_client,
-                server_id=base.BM_SERVER_ID_INA,
-                **self.create_server_status_params()
-            ),
-            BMServerStatus(
-                bot=bot,
-                channel_id=891139561265168384,
-                message_id=891139679209001001,
-                line_color=0x2FE4BF,
-                bm_client=base.bm_client,
-                server_id=base.BM_SERVER_ID_DAYZ,
-                **self.create_server_status_params()
+        self.server_statuses = []
+        for channel_id, message_id in (
+            (819632332896993360, 842228691077431296),
+            (940162362684620800, 941050807728615444)
+        ):
+            self.server_statuses.append(
+                BMServerStatus(
+                    bot=bot,
+                    channel_id=channel_id,
+                    message_id=message_id,
+                    line_color=0xF54F33,
+                    bm_client=base.bm_client,
+                    server_id=base.BM_SERVER_ID_INA,
+                    **self.create_server_status_params()
+                )
             )
-        ]
         self.server_status_toggle()
 
     def cog_unload(self):

@@ -12,7 +12,6 @@ IF EXIST "SHUTDOWN" (
 :: ".venv\Scripts\pip.exe" "install" "-U" "discord.py"
 ".venv\Scripts\python.exe" "main.py" %*
 IF NOT EXIST "SHUTDOWN" (
-	TIMEOUT /T 10
 	GOTO run
 ) ELSE (
 	DEL "SHUTDOWN"
