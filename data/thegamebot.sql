@@ -197,8 +197,8 @@ CREATE TRIGGER no_tag_alias_if_name
             ON tag_alias
           WHEN EXISTS (
     SELECT *
-      FROM Tags
-     WHERE name = NEW.alias
+      FROM tag
+     WHERE tag_name = NEW.alias_name
 )
 BEGIN
     SELECT RAISE(ABORT, "a tag with the same name already exists");
