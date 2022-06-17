@@ -290,7 +290,7 @@ class HelpCommand(commands.HelpCommand):
 
         # Append injected commands to corresponding cogs
         for c, injected_cog in to_inject:
-            cog = self.context.bot.get_cog(injected_cog)
+            cog = bot.get_cog(injected_cog)
             mapping[cog].append(c)
 
         # Remove empty cogs
@@ -358,7 +358,10 @@ class HelpCommand(commands.HelpCommand):
         if isinstance(obj, (commands.Cog, type(None))):
             sources.append(await get_cog_source(obj))
         elif isinstance(obj, commands.Command):
-            sources.append(await get_cog_source(obj.cog))
+            cog = obj.cog
+            if hasattr(obj, 'injected_cog'):
+                cog = self.context.bot.get_cog(obj.injected_cog)
+            sources.append(await get_cog_source(cog))
 
             for parent in reversed(obj.parents):
                 sources.append(get_group_source(parent))
