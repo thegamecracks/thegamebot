@@ -98,10 +98,6 @@ class Settings(commands.Cog):
     async def cog_check(self, ctx):
         return await ctx.bot.is_owner(ctx.author)
 
-    def cog_unload(self):
-        """Save the settings on unload."""
-        self.save()
-
     def _load_parse(self, val: str, *, eval=False):
         """Try parsing a string value to either a boolean,
         float, integer, or optionally a Python literal.
@@ -274,7 +270,7 @@ class Settings(commands.Cog):
 
     @cache_group.command(name='wipe', aliases=('dump', 'clear', 'refresh'))
     @commands.max_concurrency(1)
-    async def cache_wipe(self, ctx: Context, save: int = 1):
+    async def cache_wipe(self, ctx: Context, save: int = 0):
         """Clear the settings cache.
 
 save:
