@@ -123,7 +123,7 @@ async def query_reminder_count(conn: asqlite.Connection, user_id: int) -> int:
         return row['length']
 
 
-class Reminders(commands.Cog, app_commands.Group):
+class Reminders(commands.GroupCog):
     """Manage your reminders sent out by thegamebot."""
 
     MAXIMUM_REMINDERS = 10

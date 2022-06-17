@@ -83,15 +83,15 @@ class TagPageSource(paging.AsyncIteratorPageSource[sqlite3.Row, None, paging.Pag
 
 
 async def delete_and_reply(
-    ctx: Context, content='', *args, **kwargs
+    ctx: Context, content='', **kwargs
 ) -> discord.Message:
     """Deletes the author's message if possible, then (correspondingly)
     mentions or replies to them.
     """
     if await try_delete_message(ctx):
-        return await ctx.send(f'{ctx.author.mention} {content}', *args, **kwargs)
+        return await ctx.send(f'{ctx.author.mention} {content}', **kwargs)
     else:
-        return await ctx.reply(content, *args, **kwargs)
+        return await ctx.reply(content, **kwargs)
 
 
 async def try_delete_message(ctx: Context, m: discord.Message = None) -> bool:

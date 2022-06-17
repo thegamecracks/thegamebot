@@ -379,7 +379,7 @@ This only counts channels that both you and the bot can see."""
 
         task_database = asyncio.create_task(time_ms(poll_database()))
         task_message = asyncio.create_task(time_ms(poll_message()))
-        task_typing = asyncio.create_task(time_ms(ctx.trigger_typing()))
+        task_typing = asyncio.create_task(time_ms(ctx.typing()))
         await asyncio.wait((task_typing, task_message, task_database))
 
         latency_database_ms = task_database.result()
