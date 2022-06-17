@@ -123,7 +123,7 @@ async def query_reminder_count(conn: asqlite.Connection, user_id: int) -> int:
         return row['length']
 
 
-class Reminders(commands.GroupCog):
+class Reminders(commands.GroupCog, name='reminder'):
     """Manage your reminders sent out by thegamebot."""
 
     MAXIMUM_REMINDERS = 10
@@ -134,7 +134,6 @@ class Reminders(commands.GroupCog):
     # NOTE: should be just a bit longer than task loop
 
     def __init__(self, bot: TheGameBot):
-        super().__init__(name='reminder')
         self.bot = bot
         self.reminder_tasks = {}  # reminder_id: Task
         self.send_reminders.start()
