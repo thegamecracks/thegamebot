@@ -15,6 +15,7 @@ import time
 import typing
 import zoneinfo
 
+import aiohttp
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -31,6 +32,7 @@ EXT_LIST = [
         'eh',
         'games',
         'graphing',
+        'guildsignal',
         'helpcommand',
         'info',
         'notes',
@@ -93,6 +95,7 @@ class TheGameBot(commands.Bot):
         self.dbevents_cleaned_up = False
         self.info_bootup_time = 0
         self.info_processed_commands = collections.defaultdict(int)
+        self.session = aiohttp.ClientSession()
         self.uptime_downtimes = collections.deque()
         self.uptime_last_connect = datetime.datetime.now().astimezone()
         self.uptime_last_connect_adjusted = self.uptime_last_connect
@@ -304,7 +307,7 @@ async def main():
     bot.setup_db()
     print('Initialized database')
 
-    async with bot, bot.dbpool:
+    async with bot, bot.dbpool, bot.session:
         n_extensions = len(EXT_LIST)
         for i, name in enumerate(EXT_LIST, start=1):
             state = f'Loading extension {i}/{n_extensions}\r'
