@@ -35,6 +35,7 @@ EXT_LIST = [
         'guildsignal',
         'helpcommand',
         'info',
+        'moderation',
         'notes',
         'owner',
         'prefix',
