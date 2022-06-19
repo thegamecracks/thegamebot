@@ -19,6 +19,10 @@ def filter_ascii(s: str):
     return ''.join(c for c in s if c.isascii())
 
 
+def timestamp_now(style):
+    return discord.utils.format_dt(discord.utils.utcnow(), style)
+
+
 class MessageTransformer(app_commands.Transformer):
     MAX_LENGTH = 140
     @classmethod
@@ -99,7 +103,8 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
             return
 
         message = discord.utils.escape_markdown(message)
-        self.messages.append(f'`({channel}) {player.name}`: {message}')
+        ts = timestamp_now('T')
+        self.messages.append(f"{ts} `({channel}) {player.name}`: {message}")
         self.messages_has_updated = True
 
     @tasks.loop(seconds=MESSAGE_LOG_UPDATE_RATE)
@@ -114,9 +119,9 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         channel = self.base.guild.get_channel(channel_id)
         message = channel.get_partial_message(message_id)
 
-        now = discord.utils.utcnow()
+        ts = timestamp_now('R')
         lines = [
-            f"Last updated: {discord.utils.format_dt(now, 'R')}",
+            f'Last updated: {ts}',
             ''
         ]
         lines.extend(self.messages)
@@ -137,8 +142,9 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
     ):
         """Send a message to the Invade and Annex server."""
         name = filter_ascii(interaction.user.display_name)
+        ts = timestamp_now('T')
         announcement = f'{name} (Telephone): {message}'
-        logged_message = f'`(Telephone) {name}`: {message}'
+        logged_message = f'{ts} `(Telephone) {name}`: {message}'
 
         try:
             await self.rcon_client.send(announcement)
