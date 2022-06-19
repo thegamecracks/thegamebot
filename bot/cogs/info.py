@@ -48,6 +48,22 @@ def count_channel_types(
     return counter
 
 
+def extend_optional(seq: list, *items):
+    for i in items:
+        if i is not None:
+            seq.append(i)
+
+
+def tryattr(p: psutil.Process, attr: str, *args, **kwargs):
+    f = getattr(p, attr, None)
+    if f is None:
+        return
+
+    if callable(f):
+        return f(*args, **kwargs)
+    return f
+
+
 class Informative(commands.Cog):
     """Informative commands."""
     qualified_name = 'Informative'
@@ -159,21 +175,35 @@ Optional settings:
         if args.system:
             # Add system information
             p = self.process
+            platform_ = sys.platform
             with p.oneshot():
                 memory_info = p.memory_full_info()
                 mem_phys = humanize.naturalsize(memory_info.uss)
                 mem_virt = humanize.naturalsize(memory_info.vms)
-                num_threads = p.num_threads()
-                num_handles = p.num_handles()
+                num_threads = tryattr(p, 'num_threads')
+                num_handles = tryattr(p, 'num_handles')
                 cpu = p.cpu_percent(interval=0.1)
 
-            field_statistics.extend((
+            if num_threads is not None:
+                num_threads = f'> Threads: {num_threads}'
+            if num_handles is not None:
+                num_handles = f'> Handles: {num_handles}'
+
+            cpu_temp = None
+            if platform_ == 'linux':
+                with open('/sys/class/thermal/thermal_zone0/temp') as f:
+                    cpu_temp = int(f.read()) / 1000
+                    cpu_temp = f'> CPU temp: {cpu_temp:.1f}°C'
+
+            extend_optional(
+                field_statistics,
                 f'> Bootup time: {self.bot.info_bootup_time:.3g} seconds',
                 f'> CPU usage: {cpu:.3g}%',
+                cpu_temp,
                 f'> Memory usage: {mem_phys} (virtual: {mem_virt})',
-                f'> Threads: {num_threads}',
-                f'> Handles: {num_handles}'
-            ))
+                num_threads,
+                num_handles
+            )
 
         embed.add_field(
             name='Statistics',
