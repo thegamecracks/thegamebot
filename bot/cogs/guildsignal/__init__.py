@@ -37,8 +37,9 @@ class SignalHill(commands.Cog):
     qualified_name = 'Signal Hill'
 
     # HACK: filled in setup() so we can have a class attribute
-    GUILD_ID: int
     BM_SERVER_ID_INA: int
+    GUILD_ID: int
+    STAFF_ROLE_ID: int
 
     def __init__(self, bot: TheGameBot):
         self.bot = bot
@@ -71,6 +72,7 @@ async def setup(bot: TheGameBot):
     settings = bot.get_settings()
     SignalHill.GUILD_ID = settings.get('signal_hill', 'guild_id')
     SignalHill.BM_SERVER_ID_INA = settings.get('signal_hill', 'ina_server_id')
+    SignalHill.STAFF_ROLE_ID = settings.get('signal_hill', 'staff_role_id')
 
     from . import status, giveaway, rcon
 

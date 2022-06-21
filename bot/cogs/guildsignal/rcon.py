@@ -85,6 +85,10 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         self.bot = bot
         self.base = base
 
+        settings = self.bot.get_settings()
+        self.telephone_channel_id: int = settings.get('signal_hill', 'telephone_channel_id')
+        self.telephone_message_id: int = settings.get('signal_hill', 'telephone_message_id')
+
         self.messages = collections.deque([], self.MESSAGE_LOG_SIZE)
         self.rcon_client.add_listener('on_player_message', self.log_player_message)
 
@@ -97,6 +101,26 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
     @property
     def rcon_client(self):
         return self.base.rcon_client
+
+    @property
+    def telephone_partial_message(self) -> discord.PartialMessage:
+        channel = self.base.guild.get_channel(self.telephone_channel_id)
+        return channel.get_partial_message(self.telephone_message_id)
+
+    @commands.Cog.listener('on_message')
+    async def remove_message_in_telephone(self, message: discord.Message):
+        if message.channel.id != self.telephone_channel_id:
+            return
+        elif message.author == message.guild.me:
+            return
+        elif message.author._roles.get(self.base.STAFF_ROLE_ID):
+            return
+
+        permissions = message.channel.permissions_for(message.guild.me)
+        if not permissions.manage_messages:
+            return
+
+        await message.delete()
 
     async def log_player_message(self, player: rcon.Player, channel: str, message: str):
         if channel not in ('Side', 'Group'):
@@ -112,13 +136,6 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         if not self.messages_has_updated:
             return
 
-        settings = self.bot.get_settings()
-        channel_id = settings.get('signal_hill', 'telephone_channel_id')
-        message_id = settings.get('signal_hill', 'telephone_message_id')
-
-        channel = self.base.guild.get_channel(channel_id)
-        message = channel.get_partial_message(message_id)
-
         ts = timestamp_now('R')
         lines = [
             f'Last updated: {ts}',
@@ -126,7 +143,7 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         ]
         lines.extend(self.messages)
 
-        await message.edit(content='\n'.join(lines))
+        await self.telephone_partial_message.edit(content='\n'.join(lines))
         self.messages_has_updated = False
 
     @app_commands.command()
