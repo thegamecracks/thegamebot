@@ -20,6 +20,23 @@ from main import TheGameBot
 logger = logging.getLogger('discord')
 
 
+def bot_can_send_messages():
+    """Checks if the bot is able to send messages.
+
+    As of d.py b69b426, the builtin bot_has_permissions() check
+    will return an empty permissions object in DMs unlike
+    an actual DMChannel.permissions_for().
+
+    """
+    async def predicate(interaction: discord.Interaction):
+        if interaction.channel.type == discord.ChannelType.private:
+            return True
+        elif not interaction.permissions.send_messages:
+            raise app_commands.BotMissingPermissions(['send_messages'])
+
+    return app_commands.check(predicate)
+
+
 class ReminderContentTransformer(app_commands.Transformer):
     """Ensures the content is within the maximum length allowed."""
     @classmethod
@@ -245,7 +262,7 @@ class Reminders(commands.GroupCog, name='reminder'):
         await interaction.response.send_message(content, ephemeral=True)
 
     @app_commands.command()
-    @app_commands.checks.bot_has_permissions(send_messages=True)
+    @bot_can_send_messages()
     @app_commands.describe(
         when='The time at which this reminder should be sent.',
         content='The message to send with your reminder.'
