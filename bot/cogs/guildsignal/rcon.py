@@ -111,6 +111,9 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
     async def remove_message_in_telephone(self, message: discord.Message):
         if message.channel.id != self.telephone_channel_id:
             return
+        elif message.flags.ephemeral:
+            # guild will be None in this case
+            return
         elif message.author == message.guild.me:
             return
         elif message.author._roles.get(self.base.STAFF_ROLE_ID):
