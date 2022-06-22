@@ -197,7 +197,7 @@ langdetect = ["langdetect"]
 
 [[package]]
 name = "discord.py"
-version = "2.0.0a4367+g64849ebc"
+version = "2.0.0a4372+g1be36c9c"
 description = "A Python wrapper for the Discord API"
 category = "main"
 optional = false
@@ -217,7 +217,7 @@ voice = ["PyNaCl (>=1.3.0,<1.6)"]
 type = "git"
 url = "https://github.com/Rapptz/discord.py"
 reference = "master"
-resolved_reference = "64849ebcc84c38c305f2ade21b6e8212b2e42090"
+resolved_reference = "1be36c9c3ede72eaa2262dfa0e62cbd8b8929e66"
 
 [[package]]
 name = "dnspython"
@@ -331,7 +331,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "jishaku"
-version = "2.5.0a419+gb3a49d7.master"
+version = "2.5.0a431+g717f654.master"
 description = "A discord.py extension including useful tools for bot development and debugging."
 category = "main"
 optional = false
@@ -355,7 +355,7 @@ voice = ["yt-dlp (>=2022.3.8)"]
 type = "git"
 url = "https://github.com/Gorialis/jishaku"
 reference = "master"
-resolved_reference = "b3a49d7ba58617b5c214b30c5c02459a8230cb5b"
+resolved_reference = "717f6543bdc99758b6aee5a00231ad4f4f27de7e"
 
 [[package]]
 name = "kiwisolver"
