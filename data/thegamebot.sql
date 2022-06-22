@@ -19,7 +19,7 @@ CREATE TABLE Blackjack (
 );
 
 
-CREATE TABLE CSClubSuggestions (
+CREATE TABLE csclub_suggestion (
     thread_id INTEGER PRIMARY KEY
                       NOT NULL,
     user_id   INTEGER NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE Currency (
 CREATE TABLE guild (
     guild_id INTEGER NOT NULL
                      PRIMARY KEY,
-    prefix   TEXT    CHECK (LENGTH(prefix) <= 20) 
+    prefix   TEXT    CHECK (LENGTH(prefix) <= 20)
 );
 
 
@@ -70,7 +70,7 @@ CREATE TABLE note (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES user (user_id) 
+    REFERENCES user (user_id)
 );
 
 
@@ -85,7 +85,7 @@ CREATE TABLE reminder (
     FOREIGN KEY (
         user_id
     )
-    REFERENCES user (user_id) 
+    REFERENCES user (user_id)
 );
 
 
@@ -131,8 +131,7 @@ CREATE TABLE tag_alias (
         guild_id,
         tag_name
     )
-    REFERENCES tag (guild_id,
-    tag_name) ON DELETE CASCADE,
+    REFERENCES tag ON DELETE CASCADE,
     FOREIGN KEY (
         user_id
     )
