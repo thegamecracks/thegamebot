@@ -183,7 +183,10 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         channel = message.channel
 
         if self.messages_to_remove:
-            await channel.delete_messages(self.messages_to_remove)
+            try:
+                await channel.delete_messages(self.messages_to_remove)
+            except discord.NotFound:
+                pass
             self.messages_to_remove.clear()
 
         if not self.messages_has_updated:
