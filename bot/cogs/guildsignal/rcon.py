@@ -122,7 +122,6 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
             The message could not be sent to the server.
 
         """
-        name = filter_ascii(name)
         ts = timestamp_now('T')
         announcement = f'{name} (Telephone): {message}'
         logged_message = f'{ts} `(Telephone) {name}`: {message}'
@@ -149,20 +148,18 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
             return
         elif not self.bot.intents.message_content:
             return
-        elif not message.content:
-            return await message.delete(delay=0)
         elif not self.rcon_client.is_logged_in():
             # NOTE: potential race condition if IDs are not added before reaction
             return await delete_and_react(self.disconnect_emoji)
-        elif len(message.content) > 140:
+        elif not 0 < len(content := filter_ascii(message.content)) < 140:
             return await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
         elif self.message_cooldown.update_rate_limit(message):
             return await delete_and_react('\N{ALARM CLOCK}')
 
         try:
             await self.send_rcon_message(
-                message.author.display_name,
-                message.content
+                filter_ascii(message.author.display_name),
+                content
             )
         except rcon.RCONCommandError:
             await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
@@ -217,7 +214,7 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         """Send a message to the Invade and Annex server (deprecated)."""
         try:
             logged_message = await self.send_rcon_message(
-                interaction.user.display_name,
+                filter_ascii(interaction.user.display_name),
                 message
             )
         except rcon.RCONCommandError:
