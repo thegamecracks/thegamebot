@@ -88,8 +88,11 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         settings = self.bot.get_settings()
         self.telephone_channel_id: int = settings.get('signal_hill', 'telephone_channel_id')
         self.telephone_message_id: int = settings.get('signal_hill', 'telephone_message_id')
+        self.disconnect_emoji_id: int = settings.get('signal_hill', 'emoji_disconnect')
 
         self.messages = collections.deque([], self.MESSAGE_LOG_SIZE)
+        self.messages_to_remove: list[int] = []
+        self.message_cooldown = commands.CooldownMapping.from_cooldown(2, 10, commands.BucketType.user)
         self.rcon_client.add_listener('on_player_message', self.log_player_message)
 
         self.update_log_loop.start()
@@ -103,12 +106,40 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         return self.base.rcon_client
 
     @property
+    def disconnect_emoji(self):
+        return self.bot.get_emoji(self.disconnect_emoji_id)
+
+    @property
     def telephone_partial_message(self) -> discord.PartialMessage:
         channel = self.base.guild.get_channel(self.telephone_channel_id)
         return channel.get_partial_message(self.telephone_message_id)
 
+    async def send_rcon_message(self, name: str, message: str) -> str:
+        """Sends a message from a user and returns the message that will
+        be appended to the message log.
+
+        :raises rcon.RCONCommandError:
+            The message could not be sent to the server.
+
+        """
+        name = filter_ascii(name)
+        ts = timestamp_now('T')
+        announcement = f'{name} (Telephone): {message}'
+        logged_message = f'{ts} `(Telephone) {name}`: {message}'
+
+        await self.rcon_client.send(announcement)
+
+        self.messages.append(logged_message)
+        self.messages_has_updated = True
+
+        return logged_message
+
     @commands.Cog.listener('on_message')
-    async def remove_message_in_telephone(self, message: discord.Message):
+    async def on_telephone_message(self, message: discord.Message):
+        def delete_and_react(emoji):
+            self.messages_to_remove.append(message)
+            return message.add_reaction(emoji)
+
         if message.channel.id != self.telephone_channel_id:
             return
         elif message.flags.ephemeral:
@@ -116,16 +147,30 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
             return
         elif message.author == message.guild.me:
             return
-        elif message.author._roles.get(self.base.STAFF_ROLE_ID):
+        elif not self.bot.intents.message_content:
             return
+        elif not message.content:
+            return await message.delete(delay=0)
+        elif not self.rcon_client.is_logged_in():
+            # NOTE: potential race condition if IDs are not added before reaction
+            return await delete_and_react(self.disconnect_emoji)
+        elif len(message.content) > 140:
+            return await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
+        elif self.message_cooldown.update_rate_limit(message):
+            return await delete_and_react('\N{ALARM CLOCK}')
 
-        permissions = message.channel.permissions_for(message.guild.me)
-        if not permissions.manage_messages:
-            return
-
-        await message.delete()
+        try:
+            await self.send_rcon_message(
+                message.author.display_name,
+                message.content
+            )
+        except rcon.RCONCommandError:
+            await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
+        else:
+            await delete_and_react('\N{SATELLITE ANTENNA}')
 
     async def log_player_message(self, player: rcon.Player, channel: str, message: str):
+        """Logs a message sent from RCON to be displayed in the telephone."""
         if channel not in ('Side', 'Group'):
             return
 
@@ -136,6 +181,14 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
 
     @tasks.loop(seconds=MESSAGE_LOG_UPDATE_RATE)
     async def update_log_loop(self):
+        """Periodically updates the telephone message."""
+        message = self.telephone_partial_message
+        channel = message.channel
+
+        if self.messages_to_remove:
+            await channel.delete_messages(self.messages_to_remove)
+            self.messages_to_remove.clear()
+
         if not self.messages_has_updated:
             return
 
@@ -146,7 +199,8 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         ]
         lines.extend(self.messages)
 
-        await self.telephone_partial_message.edit(content='\n'.join(lines))
+        await message.edit(content='\n'.join(lines))
+
         self.messages_has_updated = False
 
     @app_commands.command()
@@ -160,18 +214,13 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
     async def send(
         self, interaction: discord.Interaction, message: MessageTransform
     ):
-        """Send a message to the Invade and Annex server."""
-        name = filter_ascii(interaction.user.display_name)
-        ts = timestamp_now('T')
-        announcement = f'{name} (Telephone): {message}'
-        logged_message = f'{ts} `(Telephone) {name}`: {message}'
-
+        """Send a message to the Invade and Annex server (deprecated)."""
         try:
-            await self.rcon_client.send(announcement)
+            logged_message = await self.send_rcon_message(
+                interaction.user.display_name,
+                message
+            )
         except rcon.RCONCommandError:
             pass  # Let the interaction fail
         else:
-            self.messages.append(logged_message)
-            self.messages_has_updated = True
-
             await interaction.response.send_message(logged_message, ephemeral=True)
