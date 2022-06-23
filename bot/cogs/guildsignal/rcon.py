@@ -5,6 +5,7 @@
 import asyncio
 import collections
 from typing import cast
+import unicodedata
 
 import berconpy as rcon
 import discord
@@ -16,7 +17,8 @@ from main import Context, TheGameBot
 
 
 def filter_ascii(s: str):
-    return ''.join(c for c in s if c.isascii())
+    decomposed_bytes = unicodedata.normalize('NFKD', s).encode()
+    return decomposed_bytes.decode('ascii', 'ignore')
 
 
 def timestamp_now(style):
