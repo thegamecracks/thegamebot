@@ -3,6 +3,7 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import functools
+import math
 from typing import TypeVar, Generic, Collection, TypedDict, Any, cast, Protocol, AsyncIterator
 
 import discord
@@ -113,7 +114,7 @@ class AsyncIteratorPageSource(PageSource[list[E], S, V]):
                 try:
                     new_items.append(await anext(self._iterator))
                 except StopAsyncIteration:
-                    max_index = (len(self._cache) + i) // self.page_size
+                    max_index = math.ceil((len(self._cache) + i) / self.page_size)
                     self._exhausted = True
                     break
             self._cache.extend(new_items)
@@ -125,7 +126,7 @@ class AsyncIteratorPageSource(PageSource[list[E], S, V]):
     def max_pages(self):
         if self._exhausted and not self._cache:
             return 0
-        return self._max_index + 1
+        return self._max_index + (not self._exhausted)
 
 
 class PaginatorView(discord.ui.View):
