@@ -3,11 +3,29 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
-from typing import Any
+from typing import Any, TypedDict
 
 import discord
 
 from bot.database import Database
+
+
+class AliasDict(TypedDict):
+    guild_id: int
+    alias_name: str
+    tag_name: str
+    user_id: int | None
+    created_at: datetime.datetime
+
+
+class TagDict(TypedDict):
+    guild_id: int
+    tag_name: str
+    content: str
+    user_id: int | None
+    uses: int
+    created_at: datetime.datetime
+    edited_at: datetime.datetime | None
 
 
 class TagQuerier:
