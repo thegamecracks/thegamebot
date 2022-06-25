@@ -245,8 +245,10 @@ class PaginatorView(discord.ui.View):
 
         if max_pages > 0 and can_interact:
             kwargs['view'] = self
-        elif not initial_response:
-            kwargs['view'] = None
+        else:
+            self.stop()
+            if not initial_response:
+                kwargs['view'] = None
 
         return kwargs
 
@@ -338,7 +340,11 @@ class PaginatorView(discord.ui.View):
         style=discord.ButtonStyle.success, row=1)
     async def stop_button(self, interaction, button):
         self.stop()
-        await interaction.message.delete()
+
+        if self.message.flags.ephemeral:
+            await interaction.response.edit_message(view=None)
+        else:
+            await interaction.message.delete()
 
     @discord.ui.button(
         emoji='\N{LEFTWARDS ARROW WITH HOOK}',
