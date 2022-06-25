@@ -83,12 +83,12 @@ class ConfirmationView(discord.ui.View):
             await super().on_error(interaction, error, item)
 
     async def start(
-        self, channel: discord.abc.Messageable,
-        *, color: int, title: str
+        self, channel: discord.abc.Messageable | discord.Interaction,
+        *, color: int, title: str, ephemeral=True
     ):
         """Generates an embed and sends a message to the given channel.
 
-        :param channel: The channel to send to.
+        :param channel: The channel or interaction to send to.
         :param color: The color of the embed.
         :param title: The title of the embed.
 
@@ -101,7 +101,11 @@ class ConfirmationView(discord.ui.View):
             icon_url=self.author.display_avatar.url
         )
 
-        self.message = await channel.send(embed=embed, view=self)
+        if isinstance(channel, discord.Interaction):
+            await channel.response.send_message(embed=embed, view=self, ephemeral=ephemeral)
+            self.message = await channel.original_message()
+        else:
+            self.message = await channel.send(embed=embed, view=self)
 
     async def wait_for_confirmation(self) -> bool | None:
         """Returns the user's choice or None if the view timed out."""
