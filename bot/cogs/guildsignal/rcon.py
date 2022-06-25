@@ -204,6 +204,10 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
 
         self.messages_has_updated = False
 
+    @update_log_loop.before_loop
+    async def before_update_log_loop(self):
+        await self.bot.wait_until_ready()
+
     @app_commands.command()
     @app_commands.describe(
         message=f'Your message to send. Must be no longer than '
