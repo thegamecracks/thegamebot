@@ -223,21 +223,31 @@ class PaginatorView(discord.ui.View):
 
         self._refresh_components()
 
-    async def start(self, channel: discord.abc.Messageable):
+    async def start(self, channel: discord.abc.Messageable | discord.Interaction, ephemeral=True):
         await self.show_page(self.current_source.current_index)
-        self.message = await channel.send(**self._get_message_kwargs())
+        if isinstance(channel, discord.Interaction):
+            await channel.response.send_message(ephemeral=ephemeral, **self._get_message_kwargs(initial_response=True))
+            self.message = await channel.original_message()
+        else:
+            self.message = await channel.send(**self._get_message_kwargs())
 
     async def interaction_check(self, interaction):
         if self.allowed_users is not None:
             return interaction.user.id in self.allowed_users
         return True
 
-    def _get_message_kwargs(self) -> dict[str, Any]:
-        kwargs = {'view': None, **self.page}
+    def _get_message_kwargs(self, *, initial_response=False) -> dict[str, Any]:
+        # initial_response indicates if we can use view=None, necessary as
+        # InteractionResponse.send_message() does not accept view=None
+        kwargs = dict(self.page)
         max_pages = self.current_source.max_pages
         can_interact = self.can_navigate or self.can_paginate or self.can_go_back
+
         if max_pages > 0 and can_interact:
             kwargs['view'] = self
+        elif not initial_response:
+            kwargs['view'] = None
+
         return kwargs
 
     async def _respond(self, interaction: discord.Interaction):
