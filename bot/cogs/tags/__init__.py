@@ -7,53 +7,128 @@ import sqlite3
 from typing import cast
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from bot.utils import ConfirmationView, paging
 from bot import utils
-from main import Context, TheGameBot
-from .querier import TagQuerier
+from main import TheGameBot
+from .querier import TagDict, TagQuerier
+
+TAG_MAX_NAME_LENGTH = 50
 
 
-class TagContentConverter(commands.Converter):
-    """Ensure a string is suitable for content of a tag."""
-    TAG_MAX_CONTENT_LENGTH = 2000
+async def assert_tag_availability(querier: TagQuerier, guild_id: int, name: str):
+    """Asserts that the given name can be used for a tag or an alias.
 
-    async def convert(self, ctx, arg):
-        param = ctx.current_parameter.name
+    :raises ValueError: The name is either too long or already exists.
 
-        raw_arg = utils.rawify_content(arg)
-        diff = len(raw_arg) - self.TAG_MAX_CONTENT_LENGTH
-        if diff > 0:
-            raise commands.BadArgument(
-                f'`{param}` parameter is {diff:,} characters too long.')
+    """
+    name = name.casefold()
 
-        return arg
+    diff = len(name) - TAG_MAX_NAME_LENGTH
+    if diff > 0:
+        raise ValueError(f'The given name is {diff:,} characters too long.')
+
+    tag = await querier.get_tag(guild_id, name, include_aliases=True)
+    if tag is not None:
+        ref = 'tag' if tag['tag_name'] == name else 'alias'
+        raise ValueError(f'A {ref} already exists with the given name.')
 
 
-class TagNameConverter(commands.Converter):
-    """Ensure a tag name is suitable."""
-    TAG_MAX_NAME_LENGTH = 50
+def get_querier(bot: TheGameBot):
+    return TagQuerier(bot.db)
 
-    async def convert(self, ctx, arg):
-        param = ctx.current_parameter.name
 
-        # Check length
-        diff = len(arg) - self.TAG_MAX_NAME_LENGTH
-        if diff > 0:
-            raise commands.BadArgument(
-                f'Tag parameter `{param}` is {diff:,} characters too long.')
+class VerboseTagDict(TagDict):
+    """Provides more details about a given tag.
 
-        # Check for command name collision
-        first_word, *_ = arg.split(None, 1)
-        command = cast(commands.Group, ctx.bot.get_command('tag'))
-        if first_word in command.all_commands:
-            raise commands.BadArgument(
-                f'`{param}` parameter cannot start '
-                'with a reserved command name.'
+    from_alias:
+        A boolean indicating if the tag was referenced from an alias.
+        This is a shorthand for comparing `tag_name` to `raw_name`.
+    raw_name:
+        The name of the tag typed by the user.
+
+    """
+    from_alias: bool
+    raw_name: str
+
+
+class CreateTagModal(discord.ui.Modal, title='Creating your tag...'):
+    name = discord.ui.TextInput(label='Name')
+    content = discord.ui.TextInput(label='Content', style=discord.TextStyle.paragraph, max_length=2000)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        bot = cast(TheGameBot, interaction.client)
+        querier = get_querier(bot)
+
+        tag = await querier.get_tag(interaction.guild_id, self.name, include_aliases=True)
+        if tag is not None:
+            ref = 'tag' if tag['tag_name'] == self.name else 'alias'
+            return await interaction.response.send_message(
+                '{} already exists with the name "{}".'.format(
+                    bot.inflector.a(ref).capitalize(), self.name
+                ), ephemeral=True
             )
 
-        return arg.casefold()
+        await querier.add_tag(
+            interaction.guild_id, self.name,
+            self.content, interaction.user.id
+        )
+        await interaction.response.send_message(
+            f'Created the tag "{self.name}"!',
+            ephemeral=True
+        )
+
+
+class EditTagModal(discord.ui.Modal, title='Editing your tag...'):
+    content = discord.ui.TextInput(label='Content', style=discord.TextStyle.paragraph, max_length=2000)
+
+    def __init__(self, name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.name = name
+
+    async def on_submit(self, interaction: discord.Interaction):
+        bot = cast(TheGameBot, interaction.client)
+        querier = get_querier(bot)
+
+        await querier.edit_tag(interaction.guild_id, self.name, self.content)
+        await interaction.response.send_message(
+            'Successfully edited your tag!',
+            ephemeral=True
+        )
+
+
+class ExistingTagTransformer(app_commands.Transformer):
+    """Fetches a tag from the database."""
+    @classmethod
+    async def transform(cls, interaction: discord.Interaction, value: str) -> VerboseTagDict:
+        querier = get_querier(interaction.client)
+        tag = await querier.get_tag(interaction.guild_id, value.casefold(), include_aliases=True)
+        if tag is None:
+            raise app_commands.AppCommandError(f'The tag "{value}" does not exist.')
+
+        d = dict(tag)
+        d['from_alias'] = (d['tag_name'] != value)
+        d['raw_name'] = value
+        return d
+
+
+class NewTagTransformer(app_commands.Transformer):
+    """Asserts the validity of a new tag name."""
+    @classmethod
+    async def transform(cls, interaction: discord.Interaction, value: str) -> str:
+        assert interaction.guild_id is not None
+
+        querier = get_querier(interaction.client)
+        value = value.casefold()
+
+        await assert_tag_availability(querier, interaction.guild_id, value)
+        return value
+
+
+ExistingTagTransform = app_commands.Transform[VerboseTagDict, ExistingTagTransformer]
+NewTagTransform = app_commands.Transform[str, NewTagTransformer]
 
 
 class TagPageSource(paging.AsyncIteratorPageSource[sqlite3.Row, None, paging.PaginatorView]):
@@ -62,60 +137,45 @@ class TagPageSource(paging.AsyncIteratorPageSource[sqlite3.Row, None, paging.Pag
         bot: TheGameBot,
         row_format: str,
         empty_message: str,
+        title: str = None,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.bot = bot
         self.row_format = row_format
         self.empty_message = empty_message
+        self.title = title
 
-    async def format_page(self, view: paging.PaginatorView, page: list[sqlite3.Row]):
+    async def format_page(self, view: paging.PaginatorView, page: list[TagDict]):
+        def get_extras(row: TagDict):
+            user_id = row['user_id']
+            uses = row['uses']
+            return {
+                'owned_by': f"owned by <@{user_id}>" if user_id else 'no owner',
+                'n_uses': self.bot.inflector.plural(f'used {uses:,} time', uses)
+            }
+
         if not page:
             return self.empty_message
+
         start = view.current_index * self.page_size
+        lines = [
+            self.row_format.format(
+                i=i, **get_extras(row), **row
+            )  # type: ignore
+            for i, row in enumerate(page, start=start + 1)
+        ]
+
         return discord.Embed(
             color=self.bot.get_bot_color(),
-            description=f'\n'.join([
-                self.row_format.format(i=i, **v)  # type: ignore
-                for i, v in enumerate(page, start=start + 1)
-            ])
+            description=f'\n'.join(lines),
+            title=self.title
         )
 
 
-async def delete_and_reply(
-    ctx: Context, content='', **kwargs
-) -> discord.Message:
-    """Deletes the author's message if possible, then (correspondingly)
-    mentions or replies to them.
-    """
-    if await try_delete_message(ctx):
-        return await ctx.send(f'{ctx.author.mention} {content}', **kwargs)
-    else:
-        return await ctx.reply(content, **kwargs)
-
-
-async def try_delete_message(ctx: Context, m: discord.Message = None) -> bool:
-    """Tries deleting the given message.
-
-    :returns: a boolean indicating if it was successful.
-
-    """
-    m = m or ctx.message
-    can_delete = (
-        m.author == ctx.me
-        or m.channel.permissions_for(ctx.me).manage_messages
-    )
-
-    if can_delete:
-        await m.delete()
-
-    return can_delete
-
-
-class Tags(commands.Cog):
+@app_commands.guild_only()
+class Tags(commands.GroupCog, name='tag'):
     """Store and use guild-specific tags."""
-    qualified_name = 'Tags'
-
     TAG_BY_MAX_DISPLAYED = 10
     TAG_LEADERBOARD_MAX_DISPLAYED = 10
 
@@ -128,289 +188,243 @@ class Tags(commands.Cog):
             raise commands.NoPrivateMessage()
         return True
 
-    @commands.group(name='tag', aliases=('tags',), invoke_without_command=True)
-    @commands.cooldown(1, 2, commands.BucketType.user)
-    async def tag(self, ctx: Context, *, name: TagNameConverter):
-        """Show a tag."""
-        name: str
-        tag = await self.tags.get_tag(ctx.guild.id, name, include_aliases=True)
-
-        if tag is None:
-            return await ctx.send('This tag does not exist.')
-
-        await ctx.send(
+    @app_commands.command(name='send')
+    @app_commands.checks.cooldown(1, 2)
+    @app_commands.describe(
+        tag='The name of the tag to send.'
+    )
+    async def tag(
+        self, interaction: discord.Interaction,
+        tag: ExistingTagTransform
+    ):
+        """Send a tag in the current channel."""
+        await interaction.response.send_message(
             tag['content'],
             allowed_mentions=discord.AllowedMentions.none()
         )
 
         await self.tags.edit_tag(
-            ctx.guild.id, tag['tag_name'],
+            interaction.guild_id, tag['tag_name'],
             uses=tag['uses'] + 1,
             record_time=False
         )
 
-    @tag.command(name='alias')
-    @commands.cooldown(1, 10, commands.BucketType.user)
+    @app_commands.command(name='alias')
+    @app_commands.checks.cooldown(1, 10)
+    @app_commands.describe(
+        tag='The name of the tag you are creating a new alias for.',
+        alias='The name of the alias you want to make.'
+    )
     async def tag_alias(
-            self, ctx: Context, alias: TagNameConverter,
-            *, existing: TagNameConverter):
-        """Create an alias for a tag.
-These can be deleted in the same way as normal tags, however they cannot be edited.
+        self, interaction: discord.Interaction,
+        tag: ExistingTagTransform,
+        alias: NewTagTransform
+    ):
+        """Create an alias for an existing tag."""
+        await self.tags.add_alias(
+            interaction.guild_id, alias, tag['tag_name'],
+            interaction.user.id
+        )
 
-alias: The tag's alias. When using spaces, surround it with quotes as such:
-    `tag alias "my new name" my old name`
-existing: The name of an existing tag or even another alias."""
-        alias: str
-        existing: str
-        tag = await self.tags.get_tag(
-            ctx.guild.id, existing, include_aliases=True)
-        if tag is None:
-            return await ctx.send('This tag does not exist.')
+        await interaction.response.send_message(
+            'Created your new alias!',
+            ephemeral=True
+        )
 
-        try:
-            await self.tags.add_alias(
-                ctx.guild.id, alias, tag['tag_name'], ctx.author.id)
-        except sqlite3.IntegrityError:
-            await ctx.send('A tag/alias with this name already exists!')
-        else:
-            await ctx.send('Created your new alias!')
+    @app_commands.command(name='claim')
+    @app_commands.checks.cooldown(1, 5)
+    @app_commands.describe(
+        tag='The name of the tag you want to claim.'
+    )
+    async def tag_claim(self, interaction: discord.Interaction, tag: ExistingTagTransform):
+        """Claim a tag or alias made by someone that is no longer in the server."""
+        ref = 'alias' if tag['from_alias'] else 'tag'
 
-    @tag.command(name='claim')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def tag_claim(self, ctx: Context, *, name: TagNameConverter):
-        """Claim a tag or alias made by someone that is no longer in the server.
-Note it may take some time before a tag loses their author."""
-        name: str
-        tag = await self.tags.get_tag(ctx.guild.id, name)
-        is_alias = False
-        if tag is None:
-            is_alias = True
-            tag = await self.tags.get_alias(ctx.guild.id, name)
-
-        ref = 'alias' if is_alias else 'tag'
-
-        if tag is None:
-            return await ctx.send('This tag does not exist.')
-        elif tag['user_id'] is not None:
-            return await ctx.send(
-                'This {} is already owned by <@{}>!'.format(
-                    ref, tag['user_id']
-                ), allowed_mentions=discord.AllowedMentions(users=False)
+        if tag['user_id'] is not None:
+            return await interaction.response.send_message(
+                f"This {ref} is already owned by <@{tag['user_id']}>!",
+                ephemeral=True
             )
 
-        if is_alias:
-            await self.tags.set_alias_author(ctx.guild.id, name, ctx.author.id)
+        args = (interaction.guild_id, tag['raw_name'], interaction.user.id)
+        if tag['from_alias']:
+            await self.tags.set_alias_author(*args)
         else:
-            await self.tags.set_tag_author(ctx.guild.id, name, ctx.author.id)
+            await self.tags.set_tag_author(*args)
 
-        await ctx.send('You now own the {} "{}"!'.format(ref, name))
+        await interaction.response.send_message(
+            'You now own the {} "{}"!'.format(ref, tag['raw_name']),
+            ephemeral=True
+        )
 
-    @tag.command(name='create')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def tag_create(
-            self, ctx: Context, name: TagNameConverter,
-            *, content: TagContentConverter):
-        """Create a tag.
+    @app_commands.command(name='create')
+    @app_commands.checks.cooldown(1, 10)
+    async def tag_create(self, interaction: discord.Interaction):
+        """Open a modal to fill out the new tag you want to create."""
+        await interaction.response.send_modal(CreateTagModal())
 
-name: The name of the tag. When using spaces, surround it with quotes as such:
-    `tag create "my tag name" content`
-content: The content of the tag."""
-        name: str
-        content: str
-        try:
-            await self.tags.add_tag(
-                ctx.guild.id, name, content, ctx.author.id)
-        except sqlite3.IntegrityError:
-            await ctx.send('A tag/alias with this name already exists!')
+    @app_commands.command(name='delete')
+    @app_commands.describe(
+        tag='The name of the tag you want to delete.'
+    )
+    async def tag_delete(self, interaction: discord.Interaction, tag: ExistingTagTransform):
+        """Delete one of your tags or aliases (or someone else's, if you have Manage Server permission)."""
+        if tag['user_id'] != interaction.user.id and not interaction.permissions.manage_guild:
+            return await interaction.response.send_message(
+                'You cannot delete a tag made by someone else.',
+                ephemeral=True
+            )
+
+        tag_name = tag['tag_name']
+        if tag['from_alias']:
+            await self.tags.delete_alias(interaction.guild_id, tag['raw_name'])
+            content = f'Successfully deleted an alias for "{tag_name}"!'
         else:
-            await delete_and_reply(ctx, f'Created tag "{name}"!')
+            await self.tags.delete_tag(interaction.guild_id, tag['raw_name'])
+            content = f'Successfully deleted the tag "{tag_name}"!'
 
-    @tag.command(name='delete', aliases=('remove',))
-    @commands.cooldown(1, 2, commands.BucketType.user)
-    async def tag_delete(self, ctx: Context, *, name: TagNameConverter):
-        """Delete one of your tags or aliases.
+        await interaction.response.send_message(content, ephemeral=True)
 
-If you have Manage Server permissions you can also delete other people's tags."""
-        name: str
-        perms = ctx.author.guild_permissions
-        tag = await self.tags.get_tag(ctx.guild.id, name, include_aliases=True)
-        if tag is None:
-            return await ctx.send('That tag does not exist!')
-        elif tag['user_id'] != ctx.author.id and not perms.manage_guild:
-            return await ctx.send('Cannot delete a tag made by someone else.')
+    @app_commands.command(name='edit')
+    @app_commands.describe(
+        tag='The name of the tag you want to edit.'
+    )
+    async def tag_edit(self, interaction: discord.Interaction, tag: ExistingTagTransform):
+        """Open a modal to edit one of your tags."""
+        if tag['user_id'] != interaction.user.id:
+            return await interaction.response.send_message(
+                'You cannot edit a tag made by someone else.',
+                ephemeral=True
+            )
 
-        is_alias = tag['tag_name'] != name
-        if is_alias:
-            await self.tags.delete_alias(ctx.guild.id, name)
-            await ctx.send(f'Deleted the given alias.')
-        else:
-            await self.tags.delete_tag(ctx.guild.id, name)
-            await ctx.send(f'Deleted the given tag.')
+        await interaction.response.send_modal(EditTagModal(tag['tag_name']))
 
-    @tag.command(name='edit')
-    @commands.cooldown(1, 2, commands.BucketType.user)
-    async def tag_edit(
-            self, ctx: Context, name: TagNameConverter,
-            *, content: TagContentConverter):
-        """Edit one of your tags.
-
-name: The name of the tag (aliases allowed). For names with multiple spaces, use quotes as such:
-    `tag edit "my tag name" new content`
-content: The new content to use."""
-        name: str
-        content: str
-        tag = await self.tags.get_tag(ctx.guild.id, name, include_aliases=True)
-        if tag is None:
-            return await ctx.send('That tag does not exist!')
-        elif tag['user_id'] != ctx.author.id:
-            return await ctx.send('Cannot edit a tag made by someone else.')
-
-        await self.tags.edit_tag(ctx.guild.id, tag['tag_name'], content)
-
-        await delete_and_reply(ctx, f'Edited tag "{name}"!')
-
-    @tag.command(name='info')
-    @commands.cooldown(1, 2, commands.BucketType.user)
-    async def tag_info(self, ctx: Context, *, name: TagNameConverter):
-        """Get info about a tag."""
-        name: str
-        tag = await self.tags.get_tag(ctx.guild.id, name)
-        is_alias = False
-        if tag is None:
-            is_alias = True
-            tag = await self.tags.get_alias(ctx.guild.id, name)
-
-        if tag is None:
-            return await ctx.send('That tag does not exist!')
-
-        created_at: datetime.datetime = tag['created_at']
+    @app_commands.command(name='info')
+    @app_commands.describe(
+        tag='The name of the tag you want to inspect.'
+    )
+    async def tag_info(self, interaction: discord.Interaction, tag: ExistingTagTransform):
+        """Display information about a tag."""
         owner_id = tag['user_id']
         owner_mention = f'<@{owner_id}>' if owner_id else 'No owner'
 
         embed = discord.Embed(
-            color=ctx.bot.get_bot_color()
+            color=self.bot.get_bot_color()
         ).add_field(
             name='Owner',
             value=owner_mention
         ).add_field(
             name='Time of Creation',
-            value=discord.utils.format_dt(created_at, 'F'),
+            value=discord.utils.format_dt(tag['created_at'], 'F'),
             inline=False
         )
 
-        if is_alias:
-            title = tag['alias_name']
-            footer = 'Alias requested by {}'
+        if tag['from_alias']:
+            title = tag['raw_name']
             embed.add_field(
                 name='Original',
                 value=tag['tag_name']
             )
 
         else:
-            title = tag['tag_name']
-            footer = 'Tag requested by {}'
+            title = tag['raw_name']
             embed.add_field(
                 name='Uses',
                 value=format(tag['uses'], ',')
             )
 
-            aliases = await self.tags.get_aliases(ctx.guild.id, name)
+            aliases = await self.tags.get_aliases(interaction.guild_id, tag['raw_name'])
             if aliases:
                 embed.add_field(
                     name='Aliases',
-                    value=', '.join([r['alias_name'] for r in aliases])
+                    value=', '.join(r['alias_name'] for r in aliases)
                 )
 
-            if tag['edited_at']:
-                edited_at: datetime.datetime = tag['edited_at']
+            if tag['edited_at'] is not None:
                 embed.add_field(
                     name='Last Edited',
-                    value=discord.utils.format_dt(edited_at, 'F'),
+                    value=discord.utils.format_dt(tag['edited_at'], 'F'),
                     inline=False
                 )
 
-
         embed.description = f'**{title}**'
-        embed.set_footer(
-            text=footer.format(ctx.author.display_name),
-            icon_url=ctx.author.display_avatar.url
-        )
 
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @tag.command(name='leaderboard')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.member)
-    async def tag_leaderboard(self, ctx: Context):
-        """Get a list of the top tags used in this server."""
+    @app_commands.command(name='leaderboard')
+    @app_commands.checks.cooldown(1, 10)
+    async def tag_leaderboard(self, interaction: discord.Interaction):
+        """Browse through the top tags used in this server."""
         view = paging.PaginatorView(
             sources=TagPageSource(
-                self.tags.yield_tags(ctx.guild.id, column='uses', reverse=True),
-                bot=ctx.bot,
-                row_format='**{i:,}.** {tag_name} : {uses:,} : <@{user_id}>',
+                self.tags.yield_tags(interaction.guild_id, column='uses', reverse=True),
+                bot=interaction.client,
+                row_format='**{i:,}.** {tag_name} ({n_uses}, {owned_by})',
                 empty_message='This server currently has no tags to list.',
+                title='Tag leaderboard',
                 page_size=self.TAG_LEADERBOARD_MAX_DISPLAYED
             ),
-            allowed_users={ctx.author.id},
+            allowed_users={interaction.user.id},
             timeout=60
         )
-        await view.start(ctx)
+        await view.start(interaction)
         await view.wait()
 
-    @tag.command(name='list')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    @commands.max_concurrency(1, commands.BucketType.member)
-    async def tag_list(self, ctx: Context, *, user: discord.Member = None):
+    @app_commands.command(name='list')
+    @app_commands.checks.cooldown(1, 10)
+    @app_commands.describe(
+        user='The user to list tags from. If empty, your tags will be listed.'
+    )
+    async def tag_list(self, interaction: discord.Interaction, user: discord.Member = None):
         """Get a list of the top tags you or someone else owns."""
-        user = user or ctx.author
+        user = user or interaction.user
 
         empty_message = 'This user currently has no tags to list.'
-        if user == ctx.author:
+        title = f'Tags owned by {user.display_name}'
+        if user == interaction.user:
             empty_message = 'You do not have any tags to list.'
+            title = 'Tags owned by you'
 
         view = paging.PaginatorView(
             sources=TagPageSource(
-                self.tags.yield_tags(ctx.guild.id, column='uses', where={'user_id = ?': user.id}, reverse=True),
-                bot=ctx.bot,
-                row_format='**{i:,}.** {tag_name} : {uses:,}',
+                self.tags.yield_tags(interaction.guild_id, column='uses', where={'user_id = ?': user.id}, reverse=True),
+                bot=interaction.client,
+                row_format='**{i:,}.** {tag_name}',
                 empty_message=empty_message,
+                title=title,
                 page_size=self.TAG_LEADERBOARD_MAX_DISPLAYED
             ),
-            allowed_users={ctx.author.id},
+            allowed_users={interaction.user.id},
             timeout=60
         )
-        await view.start(ctx)
+        await view.start(interaction)
         await view.wait()
 
-    @tag.command(name='raw')
-    @commands.cooldown(1, 5, commands.BucketType.user)
-    async def tag_raw(self, ctx: Context, *, name: TagNameConverter):
+    @app_commands.command(name='raw')
+    @app_commands.checks.cooldown(1, 5)
+    @app_commands.describe(
+        tag='The name of the tag you want to display. Only you will see the content.'
+    )
+    async def tag_raw(self, interaction: discord.Interaction, *, tag: ExistingTagTransform):
         """Show a tag in its raw form.
 Useful for copying a tag with any of its markdown formatting."""
-        name: str
-        tag = await self.tags.get_tag(ctx.guild.id, name, include_aliases=True)
-        if tag is None:
-            return await ctx.send('This tag does not exist.')
-
         escaped = utils.rawify_content(tag['content'])
-        await ctx.send(escaped, allowed_mentions=discord.AllowedMentions.none())
+        await interaction.response.send_message(escaped, ephemeral=True)
 
-    @tag.command(name='reset')
-    @commands.cooldown(1, 60, commands.BucketType.guild)
-    @commands.guild_only()
-    @commands.has_guild_permissions(manage_guild=True)
-    async def tag_reset(self, ctx: Context):
-        """Reset all tags in the server.
-This requires a confirmation."""
-        view = ConfirmationView(ctx.author)
+    @app_commands.command(name='reset')
+    @app_commands.checks.cooldown(1, 60, key=lambda interaction: interaction.guild_id)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def tag_reset(self, interaction: discord.Interaction):
+        """Remove all tags in the server."""
+        view = ConfirmationView(interaction.user)
         await view.start(
-            ctx,
-            color=ctx.bot.get_bot_color(),
+            interaction,
+            color=self.bot.get_bot_color(),
             title="Are you sure you want to reset the server's tags?"
         )
 
         if await view.wait_for_confirmation():
-            await self.tags.wipe(ctx.guild.id)
+            await self.tags.wipe(interaction.guild_id)
             await view.update('Wiped all tags!', color=view.YES)
         else:
             await view.update('Cancelled tag reset.', color=view.NO)
