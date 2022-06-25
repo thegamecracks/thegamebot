@@ -77,9 +77,8 @@ def is_rcon_connected():
     return app_commands.check(predicate)
 
 
+@app_commands.guilds(SignalHill.GUILD_ID)
 class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
-    __discord_app_commands_default_guilds__ = [SignalHill.GUILD_ID]
-
     MESSAGE_LOG_SIZE = 10
     MESSAGE_LOG_UPDATE_RATE = 10
 
