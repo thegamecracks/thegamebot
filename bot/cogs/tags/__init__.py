@@ -73,6 +73,15 @@ class NewTagConverter(commands.Converter[str]):
         if diff > 0:
             raise commands.BadArgument(f'The given name is {diff:,} characters too long.')
 
+        # Check for command name collision
+        first_word, *_ = arg.split(None, 1)
+        command = cast(commands.Group, ctx.bot.get_command('tag'))
+        if first_word in command.all_commands:
+            raise commands.BadArgument(
+                f'The name cannot start with "{first_word}" as it is '
+                f'reserved for a command.'
+            )
+
         tag = await querier.get_tag(ctx.guild.id, arg, include_aliases=True)
         if tag is not None:
             ref = 'tag' if tag['tag_name'] == arg else 'alias'
