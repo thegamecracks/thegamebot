@@ -185,7 +185,7 @@ class Tags(commands.Cog):
         )
 
     @tag.command(name='alias')
-    @commands.cooldown(1, 10, commands.BucketType.user)
+    @commands.cooldown(2, 10, commands.BucketType.user)
     async def tag_alias(
         self, ctx: Context,
         tag: VerboseTagDict = ExistingTag,
@@ -319,7 +319,6 @@ content: The new content to use."""
         await ctx.send(embed=embed)
 
     @tag.command(name='leaderboard')
-    @commands.cooldown(1, 10, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.member)
     async def tag_leaderboard(self, ctx: Context):
         """Browse through the top tags used in this server."""
@@ -339,7 +338,6 @@ content: The new content to use."""
         await view.wait()
 
     @tag.command(name='list')
-    @commands.cooldown(1, 10, commands.BucketType.user)
     @commands.max_concurrency(1, commands.BucketType.member)
     async def tag_list(self, ctx: Context, *, user: discord.Member = commands.Author):
         """Get a list of the top tags you or someone else owns."""
@@ -365,7 +363,6 @@ content: The new content to use."""
         await view.wait()
 
     @tag.command(name='raw')
-    @commands.cooldown(1, 5, commands.BucketType.user)
     async def tag_raw(self, ctx: Context, *, tag: VerboseTagDict = ExistingTag):
         """Show a tag in its raw form.
 
