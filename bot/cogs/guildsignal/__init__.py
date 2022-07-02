@@ -17,11 +17,16 @@ from main import TheGameBot
 abm_log = logging.getLogger('abattlemetrics')
 abm_log.setLevel(logging.INFO)
 if not abm_log.hasHandlers():
-    handler = logging.FileHandler(
-        'abattlemetrics.log', encoding='utf-8', mode='w')
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    handler = logging.FileHandler('abattlemetrics.log', encoding='utf-8', mode='w')
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
     abm_log.addHandler(handler)
+
+rcon_log = logging.getLogger('berconpy')
+rcon_log.setLevel(logging.INFO)
+if not rcon_log.hasHandlers():
+    handler = logging.FileHandler('berconpy.log', mode='w')
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    rcon_log.addHandler(handler)
 
 
 def format_hour_and_minute(seconds: Union[float, int]) -> str:
