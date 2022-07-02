@@ -33,6 +33,7 @@ def bot_can_send_messages():
             return True
         elif not interaction.permissions.send_messages:
             raise app_commands.BotMissingPermissions(['send_messages'])
+        return True
 
     return app_commands.check(predicate)
 
