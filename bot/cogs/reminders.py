@@ -173,7 +173,12 @@ class Reminders(commands.GroupCog, name='reminder'):
         entry = cast(ReminderEntry, entry)
         entry['reminder_id'] = reminder_id
 
-        return self.check_reminder(entry)
+        return self._check_reminder(entry)
+
+    def cancel_reminder(self, reminder_id: int):
+        task = self.reminder_tasks.pop(reminder_id, None)
+        if task is not None:
+            task.cancel()
 
     @app_commands.command(name='list')
     @has_pending_reminder()
@@ -254,6 +259,8 @@ class Reminders(commands.GroupCog, name='reminder'):
         await self.bot.db.delete_rows(
             'reminder', where={'reminder_id': reminder_id}
         )
+
+        self.cancel_reminder(reminder_id)
 
         content = 'Successfully deleted your {} reminder!'.format(
             self.bot.inflector.ordinal(index + 1)
@@ -340,32 +347,35 @@ class Reminders(commands.GroupCog, name='reminder'):
 
         # Check that there are any reminders in the channel to delete
         async with self.bot.db.connect() as conn:
-            query = f'SELECT COUNT(*) FROM reminder {where_conditions}'
+            query = f'SELECT reminder_id FROM reminder {where_conditions}'
             async with conn.execute(query, params) as c:
-                count: int = (await c.fetchone())[0]
+                reminder_ids: list[int] = c.fetchall()
 
-        if count == 0:
+        if not reminder_ids:
             subject = 'You have' if user_only else 'There are'
             return await interaction.response.send_message(
                 f'{subject} no reminders to delete in {channel_reference}!',
                 ephemeral=True
             )
 
-        # Actually delete the reminders
+        # Delete and unschedule the reminders
         async with self.bot.db.connect(writing=True) as conn:
             query = f'DELETE FROM reminder {where_conditions}'
             await conn.execute(query, params)
 
+        for i in reminder_ids:
+            self.cancel_reminder(i)
+
         content = 'Successfully cleared{your} {n} {reminders} from {ref}!'.format(
             your=' your' * user_only,
-            n=count,
+            n=len(reminder_ids),
             reminders=self.bot.inflector.plural('reminder', count),
             ref=channel_reference
         )
 
         await interaction.response.send_message(content, ephemeral=True)
 
-    def check_reminder(self, entry: ReminderEntry, *, now=None):
+    def _check_reminder(self, entry: ReminderEntry, *, now=None):
         """Starts an :class:`asyncio.Task` to handle sending a reminder
         if the given reminder is nearing due.
 
@@ -381,17 +391,17 @@ class Reminders(commands.GroupCog, name='reminder'):
         td = entry['due'] - now
         is_soon = td < self.NEAR_DUE
         if is_soon:
-            self.create_reminder_task(td, entry)
+            self._create_reminder_task(td, entry)
 
         return is_soon
 
-    def create_reminder_task(self, td, entry: ReminderEntry):
+    def _create_reminder_task(self, td, entry: ReminderEntry):
         """Adds a reminder task to the bot loop and logs it."""
         reminder_id = entry['reminder_id']
-        task = self.bot.loop.create_task(self.reminder_coro(entry))
+        task = self.bot.loop.create_task(self._reminder_coro(entry))
         self.reminder_tasks[reminder_id] = task
         task.add_done_callback(functools.partial(
-            self.reminder_coro_remove_task, reminder_id
+            self._reminder_coro_remove_task, reminder_id
         ))
 
         logger.debug(
@@ -403,10 +413,10 @@ class Reminders(commands.GroupCog, name='reminder'):
 
         return task
 
-    def reminder_coro_remove_task(self, reminder_id: int, task: asyncio.Task):
+    def _reminder_coro_remove_task(self, reminder_id: int, task: asyncio.Task):
         self.reminder_tasks.pop(reminder_id, None)
 
-    async def reminder_coro(self, entry: ReminderEntry):
+    async def _reminder_coro(self, entry: ReminderEntry):
         """Schedules a reminder to be sent to the user."""
         async def remove_entry(log: str):
             logger.debug(log)
@@ -491,7 +501,7 @@ class Reminders(commands.GroupCog, name='reminder'):
         async for entry in self.bot.db.yield_rows('reminder'):
             entry = cast(ReminderEntry, dict(entry))
             entry['due'] = entry['due'].replace(tzinfo=datetime.timezone.utc)
-            self.check_reminder(entry, now=now)
+            self._check_reminder(entry, now=now)
 
     @send_reminders.before_loop
     async def before_send_reminders(self):
