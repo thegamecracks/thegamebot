@@ -103,7 +103,7 @@ async def delete_and_reply(
     """
     can_delete = (
         ctx.message.author == ctx.me
-        or ctx.message.channel.permissions_for(ctx.me).manage_messages
+        or ctx.bot_permissions.manage_messages
     )
 
     if can_delete:

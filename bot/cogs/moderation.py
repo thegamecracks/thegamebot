@@ -21,7 +21,7 @@ class PurgeLimitConverter(commands.Converter):
         self.max = max or self.MAX
 
     async def convert(self, ctx: Context, arg: str):
-        if arg: 
+        if arg:
             n = int(arg)
         elif ctx.message.reference:
             # Assume they want the maximum
@@ -274,16 +274,16 @@ limit: The number of messages to look through. (max: 100)"""
         def check(m):
             return (
                 m.author == ctx.me
-                or perms.manage_messages and m.content.startswith(prefixes)
+                or ctx.bot_permissions.manage_messages
+                and m.content.startswith(prefixes)
             )
 
         limit, after = self.get_purge_replied(ctx, limit)
         if limit is None:
             return await ctx.send_help(ctx.command)
 
-        perms = ctx.channel.permissions_for(ctx.me)
         prefixes = ()
-        if perms.manage_messages:
+        if ctx.bot_permissions.manage_messages:
             prefixes = await ctx.bot.get_prefix(ctx.message)
             if isinstance(prefixes, str):
                 prefixes = (prefixes,)
@@ -293,7 +293,7 @@ limit: The number of messages to look through. (max: 100)"""
         messages = await ctx.channel.purge(
             limit=limit, check=check,
             before=ctx.message, after=after,
-            bulk=perms.manage_messages
+            bulk=ctx.bot_permissions.manage_messages
         )
 
         await self.send_purged(ctx, messages)

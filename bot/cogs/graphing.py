@@ -569,7 +569,7 @@ or using the last message that was sent."""
             4. Check the referenced message's content
             5. Check the last message's attachments (before the invokation)
             6. Check the last message's content
-        Note that steps 3-6 are done via recursion. 
+        Note that steps 3-6 are done via recursion.
 
         :param ctx: The command context.
         :param text: The text argument passed to the command.
@@ -596,7 +596,7 @@ or using the last message that was sent."""
 
             if a.size >= self.TEXT_ANALYSIS_FILESIZE_LIMIT:
                 return (
-                    False, 
+                    False,
                     'Unfortunately I cannot analyse files '
                     'over {} in size.'.format(
                         humanize.naturalsize(
@@ -617,7 +617,6 @@ or using the last message that was sent."""
                 return False, 'There is no text to analyse.'
 
         ref = ctx.message.reference
-        perms = ctx.channel.permissions_for(ctx.me)
 
         if not text and ref is not None:
             # Try recursing into the message the user replied to
@@ -630,7 +629,7 @@ or using the last message that was sent."""
             else:
                 return await self.get_text(ctx, text, message=message)
 
-        if not text and perms.read_message_history:
+        if not text and ctx.bot_permissions.read_message_history:
             # Try recursing into the last message sent
             message = await anext(
                 ctx.channel.history(limit=1, before=ctx.message)
@@ -643,7 +642,7 @@ or using the last message that was sent."""
 
         if not text:
             response = 'There is no text to analyse.'
-            if not perms.read_message_history:
+            if not ctx.bot_permissions.read_message_history:
                 if ref is not None:
                     response = (
                         'I need the Read Message History permission to '
@@ -672,7 +671,7 @@ or using the last message that was sent."""
         :type ax: matplotlib.axes.Axes
         :param ratio: The ratio of height to width,
             i.e. a ratio of 2 will make the height 2 times the width.
-        
+
         Extra arguments are passed through to `ax.set_aspect()`.
 
         """
