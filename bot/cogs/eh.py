@@ -12,6 +12,7 @@ from typing import cast
 import discord
 from discord import app_commands
 from discord.ext import commands
+import rapidfuzz
 
 from bot import errors
 from main import Context, TheGameBot
@@ -384,8 +385,30 @@ class EventHandlers(commands.Cog):
             # a local or cog error handler has managed this
             return
         elif isinstance(error, commands.CommandNotFound):
-            # too noisy to handle this error
-            return
+            # attempt autocompletion
+            names = []
+            for c in ctx.bot.commands:
+                if await c.can_run(ctx):
+                    names.append(c.name)
+
+            m = rapidfuzz.process.extractOne(ctx.invoked_with, names, score_cutoff=65)
+            if m is None:
+                return
+
+            name, score, index = m
+            return await ctx.send(
+                embed=discord.Embed(
+                    description=(
+                        'Did you mean to use the command `{n}`?\n'
+                        'For help, type `{p}help {n}`.'
+                    ).format(
+                        p=ctx.clean_prefix, n=name
+                    ),
+                    color=ctx.bot.get_bot_color()
+                ),
+                reference=ctx.message,
+                mention_author=False
+            )
 
         # Handle the first error in check_any or union converters
         if isinstance(error, (commands.CheckAnyFailure, commands.BadUnionArgument)):
