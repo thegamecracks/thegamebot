@@ -197,7 +197,7 @@ langdetect = ["langdetect"]
 
 [[package]]
 name = "discord.py"
-version = "2.0.0a4401+ga8a6bf4f"
+version = "2.0.0a4405+ge0341c9e"
 description = "A Python wrapper for the Discord API"
 category = "main"
 optional = false
@@ -217,7 +217,7 @@ voice = ["PyNaCl (>=1.3.0,<1.6)"]
 type = "git"
 url = "https://github.com/Rapptz/discord.py"
 reference = "master"
-resolved_reference = "a8a6bf4f6c9d6cb71a23bf2079c410aeb1407a8b"
+resolved_reference = "e0341c9ef25c0093bff991ff09c87dba0414e58c"
 
 [[package]]
 name = "dnspython"
@@ -438,19 +438,16 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pint"
-version = "0.18"
+version = "0.19.2"
 description = "Physical quantities module"
 category = "main"
 optional = false
-python-versions = ">=3.7"
-
-[package.dependencies]
-packaging = "*"
+python-versions = ">=3.8"
 
 [package.extras]
-numpy = ["numpy (>=1.17)"]
+numpy = ["numpy (>=1.19.5)"]
 test = ["pytest", "pytest-mpl", "pytest-cov", "pytest-subtests"]
-uncertainties = ["uncertainties (>=3.0)"]
+uncertainties = ["uncertainties (>=3.1.6)"]
 
 [[package]]
 name = "psutil"
@@ -651,7 +648,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "06950cff624cc980892047970f125a350b319dac58bb6493accd58f2478b1c86"
+content-hash = "92ef916aa02c353155bfceb595f2b42470cba69370e66f4a534c0cc31a4d5c6b"
 
 [metadata.files]
 abattlemetrics = []
@@ -1062,10 +1059,7 @@ pillow = [
     {file = "Pillow-8.4.0-pp37-pypy37_pp73-win_amd64.whl", hash = "sha256:244cf3b97802c34c41905d22810846802a3329ddcb93ccc432870243211c79fc"},
     {file = "Pillow-8.4.0.tar.gz", hash = "sha256:b8e2f83c56e141920c39464b852de3719dfbfb6e3c99a2d8da0edf4fb33176ed"},
 ]
-pint = [
-    {file = "Pint-0.18-py2.py3-none-any.whl", hash = "sha256:4b37f3c470639ea6f96b0026c3364bde30631fa737092bdaf18ad3f4f76f252f"},
-    {file = "Pint-0.18.tar.gz", hash = "sha256:8c4bce884c269051feb7abc69dbfd18403c0c764abc83da132e8a7222f8ba801"},
-]
+pint = []
 psutil = [
     {file = "psutil-5.9.1-cp27-cp27m-manylinux2010_i686.whl", hash = "sha256:799759d809c31aab5fe4579e50addf84565e71c1dc9f1c31258f159ff70d3f87"},
     {file = "psutil-5.9.1-cp27-cp27m-manylinux2010_x86_64.whl", hash = "sha256:9272167b5f5fbfe16945be3db475b3ce8d792386907e673a209da686176552af"},
