@@ -12,12 +12,37 @@ from typing import Optional, Literal
 
 from dateutil.relativedelta import relativedelta
 import discord
+from discord import app_commands
 from discord.ext import commands
 import humanize
+import pint
 import psutil
 
 from bot import converters, utils
 from main import Context, TheGameBot
+
+
+class UnitTransformer(app_commands.Transformer):
+    """Validates the name of a given unit."""
+    @classmethod
+    async def transform(cls, interaction: discord.Interaction, value: str) -> pint.Unit:
+        # Temperature capitalization corrections
+        # Pint doesn't catch these
+        if value == 'Fahrenheit':
+            value = 'fahrenheit'
+        elif value == 'Celsius':
+            value = 'celsius'
+
+        try:
+            return pint.Unit(value)
+        except pint.UndefinedUnitError as e:
+            unit = e.args[0]
+            raise app_commands.AppCommandError(
+                f'The given unit "{unit}" could not be recognized.'
+            ) from e
+
+
+UnitTransform = app_commands.Transform[pint.Unit, UnitTransformer]
 
 
 def count_channel_types(
@@ -52,6 +77,10 @@ def extend_optional(seq: list, *items):
     for i in items:
         if i is not None:
             seq.append(i)
+
+
+def rstrip_float(n: float) -> str:
+    return str(n).rstrip('0').rstrip('.')
 
 
 def tryattr(p: psutil.Process, attr: str, *args, **kwargs):
@@ -239,10 +268,6 @@ This only counts channels that both you and the bot can see."""
 
         await ctx.send(embed=embed)
 
-
-
-
-
     @commands.command(name='commandinfo')
     @commands.cooldown(3, 15, commands.BucketType.user)
     async def command_info(self, ctx: Context, *, command: converters.CommandConverter):
@@ -345,6 +370,65 @@ This only counts channels that both you and the bot can see."""
         embed.description = '\n'.join(description)
 
         await ctx.send(embed=embed)
+
+    units = app_commands.Group(
+        name='units',
+        description='Commands related to measuring units.'
+    )
+
+    @units.command(name='convert')
+    @app_commands.describe(
+        magnitude_in='The amount of the input unit.',
+        unit_in='The unit your quantity represents (grams, celsius, feet/second, etc.)',
+        unit_out='The unit you want to convert your quantity to.',
+    )
+    @app_commands.rename(
+        magnitude_in='quantity',
+        unit_in='input-unit',
+        unit_out='output-unit'
+    )
+    async def convert(
+        self, interaction: discord.Interaction,
+        magnitude_in: float,
+        unit_in: UnitTransform,
+        unit_out: UnitTransform
+    ):
+        """Converts a quantity into another unit (currencies not supported)."""
+        # Parse the measurement
+        quantity_in = pint.Quantity(magnitude_in, unit_in)
+        quantity_out = quantity_in.to(unit_out)
+
+        await interaction.response.send_message(
+            '{min}{uin:~P} ({uin})\n→ {mout}{uout:~P} ({uout})'.format(
+                min=rstrip_float(round(magnitude_in, 3)),
+                mout=rstrip_float(round(quantity_out.magnitude, 3)),
+                uin=unit_in,
+                uout=unit_out
+            )
+        )
+
+    @convert.error
+    async def convert_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        def remove_brackets(x) -> str:
+            return ''.join(c for c in str(x) if c not in '[]')
+
+        original = getattr(error, 'original', None)
+        interaction.extras['handled'] = True
+        if isinstance(original, pint.DimensionalityError):
+            await interaction.response.send_message(
+                'The input unit measuring {} cannot be converted '
+                'to a measurement of {}.'.format(
+                    remove_brackets(original.dim1), remove_brackets(original.dim2)
+                ),
+                ephemeral=True
+            )
+        elif isinstance(original, pint.OffsetUnitCalculusError):
+            await interaction.response.send_message(
+                str(original),
+                ephemeral=True
+            )
+        else:
+            interaction.extras['handled'] = False
 
     def get_invite_link(self, perms: Optional[discord.Permissions] = None):
         if perms is None:
