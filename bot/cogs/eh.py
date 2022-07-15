@@ -615,7 +615,7 @@ class EventHandlers(commands.Cog):
         self, interaction: discord.Interaction,
         error: app_commands.AppCommandError
     ):
-        if getattr(error, 'handled', False):
+        if interaction.extras.get('handled'):
             # a local error handler has managed this
             return
 
