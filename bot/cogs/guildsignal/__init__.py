@@ -52,7 +52,7 @@ class SignalHill(commands.Cog):
             self.bot.session,
             token=os.getenv('BattlemetricsToken')
         )
-        self.rcon_client = AsyncArmaRCONClient(__name__)
+        self.rcon_client = AsyncArmaRCONClient()
         self.rcon_task = asyncio.create_task(self.serve_rcon())
 
     async def serve_rcon(self):
