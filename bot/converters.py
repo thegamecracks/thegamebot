@@ -172,9 +172,7 @@ class DatetimeTransformer(app_commands.Transformer):
             ))
 
         if cls.AUTOCOMPLETE_CURRENT_TIME:
-            choices.append(app_commands.Choice(
-                name='Current time', value=now.isoformat()
-            ))
+            choices.append(app_commands.Choice(name='Current time', value='now'))
 
         return choices
 
