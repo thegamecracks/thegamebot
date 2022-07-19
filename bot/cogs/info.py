@@ -13,6 +13,7 @@ from typing import Optional, Literal
 from dateutil.relativedelta import relativedelta
 import discord
 from discord import app_commands
+from discord.app_commands import Choice
 from discord.ext import commands
 import humanize
 import pint
@@ -705,33 +706,35 @@ Format referenced from the Ayana bot."""
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='timestamp')
-    @commands.cooldown(1, 2, commands.BucketType.member)
+    @app_commands.command(name='timestamp')
+    @app_commands.describe(
+        style='The style your timestamp should be displayed in (default: short date-time).',
+        date='The date you want your timestamp to show (default: the current time).'
+    )
+    @app_commands.choices(style=[
+        Choice(name='Short time (22:57)', value='t'),
+        Choice(name='Long time (22:57:58)', value='T'),
+        Choice(name='Short date (17/05/2016)', value='d'),
+        Choice(name='Long date (17 May 2016)', value='D'),
+        Choice(name='Short date-time (17 May 2016 22:57)', value='f'),
+        Choice(name='Long date-time (Tuesday, 17 May 2016 22:57)', value='F'),
+        Choice(name='Relative time (5 years ago)', value='R')
+    ])
     async def format_timestamp(
-        self, ctx: Context,
-        style: Literal['t', 'T', 'd', 'D', 'f', 'F', 'R'] = None,
-        *, date: converters.DatetimeConverter = None
+        self, interaction: discord.Interaction,
+        date: converters.DatetimeTransform,
+        style: Literal['t', 'T', 'd', 'D', 'f', 'F', 'R'] = None
     ):
-        """Send a message with the special <t:0:f> timestamp format.
-If no date is given, uses the current date.
-
-Available styles:
-    t: Short time (22:57)
-    T: Long time (22:57:58)
-    d: Short date (17/05/2016)
-    D: Long date (17 May 2016)
-    f: Short date-time (17 May 2016 22:57)
-    F: Long date-time (Tuesday, 17 May 2016 22:57)
-    R: Relative time (5 years ago)
-The exact format of each style depends on your locale settings."""
-        date = date or datetime.datetime.now()
+        """Generate a discord timestamp that works across timezones and locales."""
         text = discord.utils.format_dt(date, style=style)
 
-        # await ctx.send('{} ({})'.format(s, discord.utils.escape_markdown(s)))
-        await ctx.send('{normal} {escaped}'.format(
-            normal=text,
-            escaped=re.sub(r'[<:>]', r'\\\g<0>', text)
-        ))
+        await interaction.response.send_message(
+            '{escaped} → {normal}'.format(
+                escaped=re.sub(r'[<:>]', r'\\\g<0>', text),
+                normal=text
+            ),
+            ephemeral=True
+        )
 
     @commands.command()
     @commands.cooldown(2, 20, commands.BucketType.user)
