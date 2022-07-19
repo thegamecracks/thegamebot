@@ -70,23 +70,26 @@ class ReminderIndexTransformer(app_commands.Transformer):
             return await query_reminder_count(conn, user_id)
 
     @classmethod
-    async def autocomplete(cls, interaction: discord.Interaction, value: int):
+    async def autocomplete(cls, interaction: discord.Interaction, value: str):
         bot = cast(TheGameBot, interaction.client)
         max_value = await cls.get_max_value(bot, interaction.user.id)
 
-        choices = [
-            app_commands.Choice(name=str(n), value=n)
-            for n in range(1, min(max_value, 25) + 1)
-            # Maximum number of choices allowed is 25
-        ]
+        choices: dict[app_commands.Choice, None] = {}
+
+        # Show selected value on top if in range
+        if value.isdecimal() and int(value) in range(1, max_value + 1):
+            choices.setdefault(app_commands.Choice(name=value, value=int(value)))
+
+        for n in range(1, min(max_value, 25) + 1):
+            choices.setdefault(app_commands.Choice(name=str(n), value=n))
 
         if not choices:
-            choices.append(app_commands.Choice(
+            choices.setdefault(app_commands.Choice(
                 name='You have no reminders to choose from.',
                 value=1
             ))
 
-        return choices
+        return list(choices)
 
     @classmethod
     async def transform(cls, interaction: discord.Interaction, value: int):

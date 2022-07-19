@@ -118,8 +118,7 @@ class DatetimeConverter(commands.Converter):
             raise commands.BadArgument('Could not parse your date.')
         elif dt.tzinfo is None:
             if self.stored_tz:
-                # Since the datetime was user inputted, if it's naive
-                # it's probably in their timezone so don't assume it's UTC
+                # Use the user's timezone if they supplied one before
                 dt = await bot.localize_datetime(user_id, dt)
             else:
                 dt = dt.replace(tzinfo=datetime.timezone.utc)
@@ -131,6 +130,7 @@ class DatetimeConverter(commands.Converter):
 
 
 class DatetimeTransformer(app_commands.Transformer):
+    """A transformer variant of the DatetimeConverter."""
     AUTOCOMPLETE_CURRENT_TIME = True
 
     @classmethod
@@ -138,7 +138,16 @@ class DatetimeTransformer(app_commands.Transformer):
         cls, bot: TheGameBot, user_id: int,
         now: datetime.datetime, value: str,
         *args, **kwargs
-    ):
+    ) -> datetime.datetime:
+        """Converts the given value to a datetime.
+
+        Normally the DatetimeConverter class is used to handle
+        parsing the value, but subclasses may override this to
+        change the behaviour.
+
+        :raises commands.BadArgument: The given input could not be parsed.
+
+        """
         return await DatetimeConverter(
             *args, **kwargs
         ).parse_datetime(bot, user_id, value)
@@ -153,19 +162,19 @@ class DatetimeTransformer(app_commands.Transformer):
 
         choices = []
 
+        try:
+            dt = await cls.parse_datetime(bot, interaction.user.id, now, value)
+        except commands.BadArgument:
+            pass
+        else:
+            choices.append(app_commands.Choice(
+                name=dt.strftime(f'%A, {dt.day} %B %Y, %H:%M (%Z)'), value=value
+            ))
+
         if cls.AUTOCOMPLETE_CURRENT_TIME:
             choices.append(app_commands.Choice(
                 name='Current time', value=now.isoformat()
             ))
-
-        try:
-            dt = await cls.parse_datetime(bot, interaction.user.id, now, value)
-        except commands.BadArgument:
-            return choices
-
-        choices.append(app_commands.Choice(
-            name=dt.strftime(f'%A, {dt.day} %B %Y, %H:%M (%Z)'), value=value
-        ))
 
         return choices
 
@@ -202,6 +211,16 @@ class FutureDatetimeTransformer(DatetimeTransformer):
         cls, bot: TheGameBot, user_id: int, now: datetime.datetime, value: str,
         *args, **kwargs
     ):
+        """Converts a value to a datetime, requiring that the datetime
+        is in the future.
+
+        :raises commands.BadArgument: The given input could not be parsed.
+        :raises app_commands.AppCommandError:
+            The given date must be in the future.
+
+        """
+        # NOTE: This parsing logic may be movable to DatetimeConverter
+
         # A timezone is needed so we first check the string for one.
         # If no TZ is provided then the user's timezone is used.
         tz: datetime.tzinfo
@@ -229,13 +248,12 @@ class FutureDatetimeTransformer(DatetimeTransformer):
 
     @classmethod
     async def autocomplete(cls, interaction: discord.Interaction, value: str):
-        original = await super().autocomplete(interaction, value)
+        choices = await super().autocomplete(interaction, value)
 
-        choices = [
+        choices.extend(
             app_commands.Choice(name=choice.capitalize(), value=choice)
             for choice in cls.AUTOCOMPLETE_DEFAULTS
-        ]
-        choices.extend(original)
+        )
 
         return choices
 
