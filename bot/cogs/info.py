@@ -405,7 +405,8 @@ This only counts channels that both you and the bot can see."""
                 mout=rstrip_float(round(quantity_out.magnitude, 3)),
                 uin=unit_in,
                 uout=unit_out
-            )
+            ),
+            ephemeral=True
         )
 
     @convert.error
