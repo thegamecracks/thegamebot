@@ -7,7 +7,6 @@ import unicodedata
 
 import berconpy as rcon
 import discord
-from discord import app_commands
 from discord.ext import commands, tasks
 
 from . import SignalHill
@@ -24,8 +23,7 @@ def timestamp_now(style):
     return discord.utils.format_dt(discord.utils.utcnow(), style)
 
 
-@app_commands.guilds(SignalHill.GUILD_ID)
-class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
+class _SignalHill_RCON(commands.Cog):
     MESSAGE_LOG_SIZE = 10
     MESSAGE_LOG_UPDATE_RATE = 10
 
