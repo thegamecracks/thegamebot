@@ -2,9 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
-import asyncio
 import collections
-from typing import cast
 import unicodedata
 
 import berconpy as rcon
@@ -13,7 +11,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from . import SignalHill
-from main import Context, TheGameBot
+from main import TheGameBot
 
 
 def filter_ascii(s: str):
@@ -23,58 +21,6 @@ def filter_ascii(s: str):
 
 def timestamp_now(style):
     return discord.utils.format_dt(discord.utils.utcnow(), style)
-
-
-class MessageTransformer(app_commands.Transformer):
-    MAX_LENGTH = 140
-    @classmethod
-    async def transform(cls, interaction, value: str):
-        bot = cast(TheGameBot, interaction.client)
-        value = filter_ascii(value)
-
-        if (over := len(value) - cls.MAX_LENGTH) > 0:
-            raise app_commands.AppCommandError(
-                'Your message is too long! Please shorten it by {} {}.'.format(
-                    over, bot.inflector.plural('character', over)
-                )
-            )
-
-        return value
-
-
-MessageTransform = app_commands.Transform[str, MessageTransformer]
-
-
-def in_telephone_channel():
-    async def predicate(interaction: discord.Interaction):
-        bot = cast(TheGameBot, interaction.client)
-        settings = bot.get_settings()
-        channel_id = settings.get('signal_hill', 'telephone_channel_id')
-
-        if interaction.channel_id != channel_id:
-            raise app_commands.AppCommandError(
-                f'You must be in <#{channel_id}> to use this command!'
-            )
-
-        return True
-
-    return app_commands.check(predicate)
-
-
-def is_rcon_connected():
-    async def predicate(interaction: discord.Interaction):
-        bot = cast(TheGameBot, interaction.client)
-        cog: SignalHill = bot.get_cog('SignalHill')
-
-        if not cog.rcon_client.is_logged_in():
-            raise app_commands.AppCommandError(
-                'I am currently unable to communicate with the server '
-                'at this time.'
-            )
-
-        return True
-
-    return app_commands.check(predicate)
 
 
 @app_commands.guilds(SignalHill.GUILD_ID)
@@ -207,25 +153,3 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
     @update_log_loop.before_loop
     async def before_update_log_loop(self):
         await self.bot.wait_until_ready()
-
-    @app_commands.command()
-    @app_commands.describe(
-        message=f'Your message to send. Must be no longer than '
-                f'{MessageTransformer.MAX_LENGTH} characters.'
-    )
-    @is_rcon_connected()
-    @in_telephone_channel()
-    @app_commands.checks.cooldown(2, 15)
-    async def send(
-        self, interaction: discord.Interaction, message: MessageTransform
-    ):
-        """Send a message to the Invade and Annex server (deprecated)."""
-        try:
-            logged_message = await self.send_rcon_message(
-                filter_ascii(interaction.user.display_name),
-                message
-            )
-        except rcon.RCONCommandError:
-            pass  # Let the interaction fail
-        else:
-            await interaction.response.send_message(logged_message, ephemeral=True)
