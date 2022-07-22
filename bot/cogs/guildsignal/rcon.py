@@ -14,7 +14,8 @@ from . import SignalHill
 from main import TheGameBot
 
 
-def filter_ascii(s: str):
+def filter_ascii(s: str) -> str:
+    """Removes diacritics and drops any non-ascii characters from the given string."""
     decomposed_bytes = unicodedata.normalize('NFKD', s).encode()
     return decomposed_bytes.decode('ascii', 'ignore')
 
@@ -83,6 +84,10 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
     @commands.Cog.listener('on_message')
     async def on_telephone_message(self, message: discord.Message):
         def delete_and_react(emoji):
+            # This function is intentionally synchronous so the message
+            # can be appended before attempting to add the reaction.
+            # If the reaction fails or is ratelimited,
+            # the `update_log_loop` can still delete the message.
             self.messages_to_remove.append(message)
             return message.add_reaction(emoji)
 
@@ -96,7 +101,6 @@ class _SignalHill_RCON(commands.GroupCog, name='signal-hill'):
         elif not self.bot.intents.message_content:
             return
         elif not self.rcon_client.is_logged_in():
-            # NOTE: potential race condition if IDs are not added before reaction
             return await delete_and_react(self.disconnect_emoji)
         elif not 0 < len(content := filter_ascii(message.content)) < 140:
             return await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
