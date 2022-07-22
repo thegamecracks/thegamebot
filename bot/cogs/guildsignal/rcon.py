@@ -37,7 +37,7 @@ class _SignalHill_RCON(commands.Cog):
         self.disconnect_emoji_id: int = settings.get('signal_hill', 'emoji_disconnect')
 
         self.messages = collections.deque([], self.MESSAGE_LOG_SIZE)
-        self.messages_to_remove: list[int] = []
+        self.messages_to_remove: list[discord.Message] = []
         self.message_cooldown = commands.CooldownMapping.from_cooldown(2, 10, commands.BucketType.user)
         self.rcon_client.add_listener('on_player_message', self.log_player_message)
 
