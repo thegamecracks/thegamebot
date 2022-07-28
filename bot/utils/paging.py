@@ -66,7 +66,7 @@ class PageSourceProto(Protocol[T, S, V]):
 # noinspection PyAbstractClass
 class PageSource(PageSourceProto, Generic[T, S, V]):
     """The base page source class."""
-    def __init__(self, current_index: int = 0):
+    def __init__(self, *, current_index: int = 0):
         self.current_index = current_index
 
 
