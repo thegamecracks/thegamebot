@@ -2,6 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from enum import Enum, auto
 import functools
 import math
 from typing import TypeVar, Generic, Collection, TypedDict, Any, cast, Protocol, AsyncIterator
@@ -129,6 +130,19 @@ class AsyncIteratorPageSource(PageSource[list[E], S, V]):
         return self._max_index + (not self._exhausted)
 
 
+class TimeoutAction(Enum):
+    """Specifies what action should be taken when the view times out."""
+
+    NONE = auto()
+    """On timeout, no action will occur on the message."""
+    DISABLE = auto()
+    """On timeout, all components will be disabled."""
+    CLEAR = auto()
+    """On timeout, all components will be removed from the message."""
+    DELETE = auto()
+    """On timeout, the message will be deleted."""
+
+
 class PaginatorView(discord.ui.View):
     """A view that handles pagination and recursive levels of pages.
 
@@ -151,12 +165,16 @@ class PaginatorView(discord.ui.View):
     :param sources: The current stack of page sources.
     :param allowed_users: A collection of user IDs that are allowed
         to interact with this paginator. If None, any user can interact.
+    :param timeout_action:
+        The action to do when the view times out. This may not have any
+        effect if a subclass overrides the `on_timeout()` method.
 
     """
     def __init__(
         self, *args,
         sources: list[PageSource] | PageSource,
         allowed_users: Collection[int] = None,
+        timeout_action = TimeoutAction.CLEAR,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -166,6 +184,7 @@ class PaginatorView(discord.ui.View):
             raise ValueError('must provide at least one page source')
         self.sources = sources
         self.allowed_users = allowed_users
+        self.timeout_action = timeout_action
 
         self.message: discord.Message | None = None
         self.page: PageParams = {}
@@ -236,6 +255,25 @@ class PaginatorView(discord.ui.View):
         if self.allowed_users is not None:
             return interaction.user.id in self.allowed_users
         return True
+
+    async def on_timeout(self):
+        action = self.timeout_action
+        if self.message is None or action is TimeoutAction.NONE:
+            return
+
+        ephemeral = self.message.flags.ephemeral
+
+        if action is TimeoutAction.CLEAR:
+            await self.message.edit(view=None)
+        elif action is TimeoutAction.DELETE and not ephemeral:
+            await self.message.delete()
+        elif action is TimeoutAction.DISABLE:
+            for item in self.children:
+                item.disabled = True
+
+            await self.message.edit(view=self)
+        else:
+            raise TypeError(f'unknown timeout action: {action!r}')
 
     def _get_message_kwargs(self, *, initial_response=False) -> dict[str, Any]:
         # initial_response indicates if we can use view=None, necessary as
