@@ -127,7 +127,7 @@ class Settings(commands.Cog):
         if eval:
             try:
                 return ast.literal_eval(val)
-            except SyntaxError:
+            except (SyntaxError, ValueError):
                 pass
 
         # String
