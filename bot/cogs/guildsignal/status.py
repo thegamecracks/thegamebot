@@ -30,7 +30,8 @@ V = TypeVar('V', bound='ServerStatusView')
 @dataclass
 class ServerStatus(Protocol[T, V]):
     bot: commands.Bot
-    # The channel and message ID of the message to edit
+    # The guild-channel-message ID of the message to edit
+    guild_id: int
     channel_id: int
     message_id: int
     # The ID of the channel to upload the graph to
@@ -63,11 +64,14 @@ class ServerStatus(Protocol[T, V]):
         return hex(self.line_color).replace('0x', '#', 1)
 
     @property
-    def partial_message(self) -> Optional[discord.PartialMessage]:
+    def partial_message(self) -> discord.PartialMessage:
         """Return a PartialMessage to the server status message."""
-        channel = self.bot.get_channel(self.channel_id)
-        if channel:
-            return channel.get_partial_message(self.message_id)  # type: ignore
+        channel = self.bot.get_partial_messageable(
+            self.channel_id,
+            guild_id=self.guild_id,
+            type=discord.ChannelType.text
+        )
+        return channel.get_partial_message(self.message_id)
 
     @staticmethod
     def add_fields(
@@ -623,6 +627,7 @@ class _SignalHill_Status(commands.Cog):
         self.server_statuses = [
             BMServerStatus(
                 bot=bot,
+                guild_id=guild_id,
                 channel_id=channel_id,
                 message_id=message_id,
                 line_color=line_color,
@@ -630,7 +635,7 @@ class _SignalHill_Status(commands.Cog):
                 server_id=server_id,
                 **self.create_server_status_params()
             )
-            for channel_id, message_id, line_color, server_id
+            for guild_id, channel_id, message_id, line_color, server_id
             in settings.get('signal_hill', 'statuses')
         ]
 
