@@ -388,8 +388,11 @@ class EventHandlers(commands.Cog):
             # attempt autocompletion
             names = []
             for c in ctx.bot.commands:
-                if await c.can_run(ctx):
-                    names.append(c.name)
+                try:
+                    if await c.can_run(ctx):
+                        names.append(c.name)
+                except commands.CommandError:
+                    pass
 
             m = rapidfuzz.process.extractOne(ctx.invoked_with, names, score_cutoff=65)
             if m is None:
