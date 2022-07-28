@@ -2,6 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
 import datetime
 import functools
 import itertools
@@ -9,7 +10,7 @@ import zoneinfo
 
 import discord
 from discord import app_commands
-import rapidfuzz
+import thefuzz.process
 
 from main import TheGameBot
 
@@ -24,14 +25,15 @@ def available_timezones():
 class TimezoneTransformer(app_commands.Transformer):
     @classmethod
     async def autocomplete(cls, interaction, value: str):
-        matches = rapidfuzz.process.extract_iter(
+        matches = await asyncio.to_thread(
+            thefuzz.process.extractBests,
             value, available_timezones(), score_cutoff=80
         )
 
         # return the first 5 matches
         return [
             app_commands.Choice(name=name, value=name)
-            for name, score, index in itertools.islice(matches, 5)
+            for name, score in itertools.islice(matches, 5)
         ]
 
     @classmethod

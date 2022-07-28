@@ -2,6 +2,7 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import asyncio
 import logging
 import random
 import sys
@@ -12,7 +13,7 @@ from typing import cast
 import discord
 from discord import app_commands
 from discord.ext import commands
-import rapidfuzz
+import thefuzz.process
 
 from bot import errors
 from main import Context, TheGameBot
@@ -394,11 +395,14 @@ class EventHandlers(commands.Cog):
                 except commands.CommandError:
                     pass
 
-            m = rapidfuzz.process.extractOne(ctx.invoked_with, names, score_cutoff=65)
+            m = await asyncio.to_thread(
+                thefuzz.process.extractOne,
+                ctx.invoked_with, names, score_cutoff=65
+            )
             if m is None:
                 return
 
-            name, score, index = m
+            name, score = m
             return await ctx.send(
                 embed=discord.Embed(
                     description=(
