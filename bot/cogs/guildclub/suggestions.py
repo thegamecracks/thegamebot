@@ -174,7 +174,7 @@ class SuggestionsView(discord.ui.View):
         # Make sure button isn't deadlocked
         if item.disabled and interaction.response.is_done():
             item.disabled = False
-            await interaction.edit_original_message(view=self)
+            await interaction.edit_original_response(view=self)
 
         raise error
 
@@ -244,7 +244,7 @@ class SuggestionsView(discord.ui.View):
             embed = suggestions.to_embed()
 
             button.disabled = False
-            await interaction.edit_original_message(embed=embed, view=self)
+            await interaction.edit_original_response(embed=embed, view=self)
 
         # Send initial message
         await thread.send(

@@ -23,8 +23,7 @@ def available_timezones():
 
 
 class TimezoneTransformer(app_commands.Transformer):
-    @classmethod
-    async def autocomplete(cls, interaction, value: str):
+    async def autocomplete(self, interaction, value: str):
         matches = await asyncio.to_thread(
             thefuzz.process.extractBests,
             value, available_timezones(), score_cutoff=80
@@ -36,8 +35,7 @@ class TimezoneTransformer(app_commands.Transformer):
             for name, score in itertools.islice(matches, 5)
         ]
 
-    @classmethod
-    async def transform(cls, interaction, value):
+    async def transform(self, interaction, value):
         try:
             return zoneinfo.ZoneInfo(value)
         except zoneinfo.ZoneInfoNotFoundError:

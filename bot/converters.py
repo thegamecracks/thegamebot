@@ -133,9 +133,8 @@ class DatetimeTransformer(app_commands.Transformer):
     """A transformer variant of the DatetimeConverter."""
     AUTOCOMPLETE_CURRENT_TIME = True
 
-    @classmethod
     async def parse_datetime(
-        cls, bot: TheGameBot, user_id: int,
+        self, bot: TheGameBot, user_id: int,
         now: datetime.datetime, value: str,
         *args, **kwargs
     ) -> datetime.datetime:
@@ -152,9 +151,8 @@ class DatetimeTransformer(app_commands.Transformer):
             *args, **kwargs
         ).parse_datetime(bot, user_id, value)
 
-    @classmethod
     async def autocomplete(
-        cls, interaction: discord.Interaction, value: str
+        self, interaction: discord.Interaction, value: str
     ) -> list[app_commands.Choice[str]]:
         bot = cast(TheGameBot, interaction.client)
         now = interaction.created_at.replace(microsecond=0)
@@ -163,7 +161,7 @@ class DatetimeTransformer(app_commands.Transformer):
         choices = []
 
         try:
-            dt = await cls.parse_datetime(bot, interaction.user.id, now, value)
+            dt = await self.parse_datetime(bot, interaction.user.id, now, value)
         except commands.BadArgument:
             pass
         else:
@@ -171,17 +169,16 @@ class DatetimeTransformer(app_commands.Transformer):
                 name=dt.strftime(f'%A, {dt.day} %B %Y, %H:%M (%Z)'), value=value
             ))
 
-        if cls.AUTOCOMPLETE_CURRENT_TIME:
+        if self.AUTOCOMPLETE_CURRENT_TIME:
             choices.append(app_commands.Choice(name='Current time', value='now'))
 
         return choices
 
-    @classmethod
-    async def transform(cls, interaction: discord.Interaction, value: str):
+    async def transform(self, interaction: discord.Interaction, value: str):
         bot = cast(TheGameBot, interaction.client)
         now = interaction.created_at.replace(microsecond=0)
         try:
-            return await cls.parse_datetime(bot, interaction.user.id, now, value)
+            return await self.parse_datetime(bot, interaction.user.id, now, value)
         except commands.BadArgument as e:
             raise app_commands.AppCommandError(*e.args) from None
 
@@ -204,9 +201,8 @@ class FutureDatetimeTransformer(DatetimeTransformer):
         'TIMEZONE': 'UTC',
     }
 
-    @classmethod
     async def parse_datetime(
-        cls, bot: TheGameBot, user_id: int, now: datetime.datetime, value: str,
+        self, bot: TheGameBot, user_id: int, now: datetime.datetime, value: str,
         *args, **kwargs
     ):
         """Converts a value to a datetime, requiring that the datetime
@@ -228,7 +224,7 @@ class FutureDatetimeTransformer(DatetimeTransformer):
             tz = dt.tzinfo
 
         # Parse the user's string relative to the timezone
-        settings = cls.DEFAULT_SETTINGS.copy()
+        settings = self.DEFAULT_SETTINGS.copy()
         tz_now = now.astimezone(tz)
         settings['RELATIVE_BASE'] = tz_now
         settings['TIMEZONE'] = tz_now.tzname()
@@ -244,13 +240,12 @@ class FutureDatetimeTransformer(DatetimeTransformer):
 
         return dt
 
-    @classmethod
-    async def autocomplete(cls, interaction: discord.Interaction, value: str):
+    async def autocomplete(self, interaction: discord.Interaction, value: str):
         choices = await super().autocomplete(interaction, value)
 
         choices.extend(
             app_commands.Choice(name=choice.capitalize(), value=choice)
-            for choice in cls.AUTOCOMPLETE_DEFAULTS
+            for choice in self.AUTOCOMPLETE_DEFAULTS
         )
 
         return choices

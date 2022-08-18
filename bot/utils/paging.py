@@ -247,7 +247,7 @@ class PaginatorView(discord.ui.View):
         await self.show_page(self.current_source.current_index)
         if isinstance(channel, discord.Interaction):
             await channel.response.send_message(ephemeral=ephemeral, **self._get_message_kwargs(initial_response=True))
-            self.message = await channel.original_message()
+            self.message = await channel.original_response()
         else:
             self.message = await channel.send(**self._get_message_kwargs())
 

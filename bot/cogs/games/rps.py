@@ -75,7 +75,7 @@ class BaseRPSView(discord.ui.View, abc.ABC):
 
         try:
             if interaction.response.is_done():
-                await interaction.edit_original_message(
+                await interaction.edit_original_response(
                     content=content, view=self, **kwargs)
             else:
                 await interaction.response.edit_message(

@@ -40,8 +40,7 @@ def bot_can_send_messages():
 
 class ReminderContentTransformer(app_commands.Transformer):
     """Ensures the content is within the maximum length allowed."""
-    @classmethod
-    async def transform(cls, interaction: discord.Interaction, value: str):
+    async def transform(self, interaction: discord.Interaction, value: str):
         max_length = Reminders.MAXIMUM_REMINDER_CONTENT
         over_size = len(value) - max_length
 
@@ -56,23 +55,21 @@ class ReminderContentTransformer(app_commands.Transformer):
 
 class ReminderIndexTransformer(app_commands.Transformer):
     """Verifies the index given for a reminder."""
-    @classmethod
-    def type(cls):
+    @property
+    def type(self):
         return discord.AppCommandOptionType.integer
 
-    @classmethod
-    def min_value(cls):
+    @property
+    def min_value(self):
         return 1
 
-    @classmethod
-    async def get_max_value(cls, bot: TheGameBot, user_id: int):
+    async def get_max_value(self, bot: TheGameBot, user_id: int):
         async with bot.db.connect() as conn:
             return await query_reminder_count(conn, user_id)
 
-    @classmethod
-    async def autocomplete(cls, interaction: discord.Interaction, value: str):
+    async def autocomplete(self, interaction: discord.Interaction, value: str):
         bot = cast(TheGameBot, interaction.client)
-        max_value = await cls.get_max_value(bot, interaction.user.id)
+        max_value = await self.get_max_value(bot, interaction.user.id)
 
         choices: dict[app_commands.Choice, None] = {}
 
@@ -91,10 +88,9 @@ class ReminderIndexTransformer(app_commands.Transformer):
 
         return list(choices)
 
-    @classmethod
-    async def transform(cls, interaction: discord.Interaction, value: int):
+    async def transform(self, interaction: discord.Interaction, value: int):
         bot = cast(TheGameBot, interaction.client)
-        max_value = await cls.get_max_value(bot, interaction.user.id)
+        max_value = await self.get_max_value(bot, interaction.user.id)
 
         if max_value == 0:
             raise app_commands.AppCommandError(

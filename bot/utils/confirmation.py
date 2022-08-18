@@ -103,7 +103,7 @@ class ConfirmationView(discord.ui.View):
 
         if isinstance(channel, discord.Interaction):
             await channel.response.send_message(embed=embed, view=self, ephemeral=ephemeral)
-            self.message = await channel.original_message()
+            self.message = await channel.original_response()
         else:
             self.message = await channel.send(embed=embed, view=self)
 
@@ -144,7 +144,7 @@ class ConfirmationView(discord.ui.View):
 
         try:
             if interaction.response.is_done():
-                await interaction.edit_original_message(embed=embed, view=self)
+                await interaction.edit_original_response(embed=embed, view=self)
             else:
                 await interaction.response.edit_message(embed=embed, view=self)
         except discord.HTTPException:

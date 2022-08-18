@@ -26,7 +26,7 @@ class EditViewMixin:
         if interaction is None:
             await self.message.edit(*args, **kwargs)
         elif interaction.response.is_done():
-            await interaction.edit_original_message(*args, **kwargs)
+            await interaction.edit_original_response(*args, **kwargs)
         else:
             await interaction.response.edit_message(*args, **kwargs)
 

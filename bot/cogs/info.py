@@ -25,8 +25,7 @@ from main import Context, TheGameBot
 
 class UnitTransformer(app_commands.Transformer):
     """Validates the name of a given unit."""
-    @classmethod
-    async def transform(cls, interaction: discord.Interaction, value: str) -> pint.Unit:
+    async def transform(self, interaction: discord.Interaction, value: str) -> pint.Unit:
         # Temperature capitalization corrections
         # Pint doesn't catch these
         if value == 'Fahrenheit':
