@@ -1,37 +1,46 @@
-## thegamebot
-A bot that does plenty of random things such as arithmetic/unit conversions,
-timezone translations, storage and recall of user-provided text, image generation,
-and of course, games.
+# thegamebot
 
-### Invitation
+A personal bot with several random features such as unit conversions,
+reminders, note taking, graphing, and of course, games.
 
-Since this bot is written for personal use, the bot will not be available
-for public invitations. However, if you would like to host this yourself,
-the instructions for doing so are listed below.
+## Hosting
 
-### Instructions to set up
+My bot instance will not be available for public invitations, but you are
+free to host this yourself and use the source code as the repository's
+[license](LICENSE) permits.
 
-1. Have Python 3.10 or above installed
+### Prerequisites
 
-2. Create a virtual environment, specifically with the folder name ".venv"
+- Python 3.10+
+- [Poetry][1] for dependency management
 
-3. Install dependencies in your environment:
+### Setup instructions
 
-```shell
-pip install -r requirements.txt
+1. Clone this repository
+
+2. Create a virtual environment however you would like
+   ([venv][2], [virtualenv][3], [pyenv][4], [PyCharm][5], etc.)
+
+3. Install the bot's dependencies using poetry the `poetry install` command
+
+4. Create a .env file and add the following entry:
+
 ```
-
-4. Create a .env file and add the following entries:
-
-```
-BotToken=[your discord bot token, retrieved from discord.com/developers/applications]
-CatAPIKey=[optional: your api key for thecatapi.com, used in the Images cog]
-DogAPIKey=[optional: your api key for thedogapi.com, used in the Images cog]
+BotToken=[your discord bot token from discord.com/developers/applications]
 ```
 
 5. Disable the guild-specific cogs in main.py
     1. Find where the extension list is specified
     2. Remove any lines starting with "guild"
 
+6. Start the bot through the `main.py` script
+
 ## License
-This project is licensed under [MPL-2.0](https://choosealicense.com/licenses/mpl-2.0/).
+This project is licensed under [MPL-2.0][10].
+
+[1]: https://python-poetry.org/
+[2]: https://docs.python.org/3/library/venv.html
+[3]: https://virtualenv.pypa.io/en/latest/index.html
+[4]: https://github.com/pyenv/pyenv
+[5]: https://www.jetbrains.com/help/pycharm/creating-virtual-environment.html
+[10]: https://choosealicense.com/licenses/mpl-2.0/
