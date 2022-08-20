@@ -23,7 +23,7 @@ python-dotenv = "^0.19.2"
 qrcode = "^7.3.1"
 asqlite = {git = "https://github.com/Rapptz/asqlite", rev = "ffc55a5b3d1b5e9c440c01620148be7fa6493ef5"}
 abattlemetrics = {git = "https://github.com/thegamecracks/abattlemetrics", rev = "de7d75fbf306ee61279ac1503a24766cd23ceaaf"}
-berconpy = {git = "https://github.com/thegamecracks/berconpy", rev = "3a37ca0e0e76e5de8dd065946db36427b9e7905a"}
+berconpy = "^1.1.0"
 "discord.py" = "^2.0.0"
 jishaku = {git = "https://github.com/Gorialis/jishaku"}
 thefuzz = {extras = ["speedup"], version = "^0.19.0"}
