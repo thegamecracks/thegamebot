@@ -344,7 +344,13 @@ content: The new content to use."""
         empty_message = 'This user currently has no tags to list.'
         title = f'Tags owned by {user.display_name}'
         if user == ctx.author:
-            empty_message = 'You do not have any tags to list.'
+            empty_message = (
+                'You do not have any tags to list.\n'
+                '(Server tags can be checked with `{p}{n}`)'.format(
+                    p=ctx.clean_prefix,
+                    n=self.tag_leaderboard.qualified_name
+                )
+            )
             title = 'Tags owned by you'
 
         view = paging.PaginatorView(
