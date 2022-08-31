@@ -597,10 +597,9 @@ Format referenced from the Ayana bot."""
         # the bot is in can be accessed in DMs.
         if user is None:
             user = ctx.author
-        elif ctx.guild is None:
-            if not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS:
-                return await ctx.send('Cannot search for members in DMs.')
-
+        elif ctx.guild is None and not self.ALLOW_DISPLAYING_GUILD_MEMBERS_IN_DMS:
+            return await ctx.send('Cannot search for members in DMs.')
+        else:
             user = await commands.MemberConverter().convert(ctx, user)
 
             if user.id == self.bot.user.id:
