@@ -602,10 +602,6 @@ Format referenced from the Ayana bot."""
         else:
             user = await commands.MemberConverter().convert(ctx, user)
 
-            if user.id == self.bot.user.id:
-                # Hide guild-related information
-                user = self.bot.user
-
         # Extract attributes based on whether it's a Member or User
         author = (
             f'{user} (Bot)' if user.bot
@@ -620,7 +616,10 @@ Format referenced from the Ayana bot."""
         roles = None
         status = None
 
-        if isinstance(user, discord.Member):
+        if user == self.bot.user:
+            # Skip guild-related information
+            description = ''
+        elif isinstance(user, discord.Member):
             description = ''
             activity = user.activity  # None if members/presences intent is disabled
             guild = user.guild
