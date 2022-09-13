@@ -152,6 +152,8 @@ class _SignalHill_RCON(commands.Cog):
 
         self.messages_has_updated = False
 
+    update_log_loop.add_exception_type(discord.DiscordServerError)
+
     @update_log_loop.before_loop
     async def before_update_log_loop(self):
         await self.bot.wait_until_ready()
