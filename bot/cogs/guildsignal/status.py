@@ -57,8 +57,6 @@ class ServerStatus(Protocol[T, V]):
         # Make the view start listening for events
         self.bot.add_view(self.view, message_id=self.message_id)
 
-        self.update_loop.add_exception_type(discord.DiscordServerError)
-
     @functools.cached_property
     def line_color_hex(self) -> str:
         return hex(self.line_color).replace('0x', '#', 1)
@@ -241,6 +239,8 @@ class ServerStatus(Protocol[T, V]):
         elif self.is_online(server):
             next_period = self._get_next_period()
         await asyncio.sleep(next_period)
+
+    update_loop.add_exception_type(discord.DiscordServerError)
 
     @update_loop.before_loop
     async def before_update_loop(self):
