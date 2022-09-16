@@ -25,6 +25,9 @@ import matplotlib.style as mplstyle
 
 from bot import database, errors
 
+if typing.TYPE_CHECKING:
+    import bot.cogs.settings
+
 EXT_LIST = [
     'bot.cogs.' + c for c in (
         'settings',  # dependency
@@ -175,7 +178,7 @@ class TheGameBot(commands.Bot):
             return wrap(self.get_default_prefix())
         return wrap(await cog.fetch_prefix(message.guild.id))
 
-    def get_settings(self):
+    def get_settings(self) -> "bot.cogs.settings.Settings":
         """ Retrieves the Settings cog.
 
         :rtype: :class:`bot.cogs.settings.Settings`
