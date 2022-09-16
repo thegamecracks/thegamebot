@@ -271,7 +271,7 @@ class _Hangman(commands.Cog):
 
 
     @commands.Cog.listener()
-    async def on_message_interaction(self, interaction: discord.Interaction):
+    async def on_interaction(self, interaction: discord.Interaction):
         """Handle an interaction for a hangman game.
 
         This bypasses the existing message tracking to implement its own
