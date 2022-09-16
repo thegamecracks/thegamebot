@@ -41,6 +41,7 @@ class _SignalHill_RCON(commands.Cog):
         self.message_cooldown = commands.CooldownMapping.from_cooldown(2, 10, commands.BucketType.user)
         self.rcon_client.add_listener('on_player_message', self.log_player_message)
 
+        self.update_log_loop.add_exception_type(discord.DiscordServerError)
         self.update_log_loop.start()
         self.messages_has_updated = False
 
@@ -151,8 +152,6 @@ class _SignalHill_RCON(commands.Cog):
         await message.edit(content='\n'.join(lines))
 
         self.messages_has_updated = False
-
-    update_log_loop.add_exception_type(discord.DiscordServerError)
 
     @update_log_loop.before_loop
     async def before_update_log_loop(self):
