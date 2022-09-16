@@ -22,15 +22,15 @@ class CSClub(commands.Cog):
 
 
 # noinspection PyProtectedMember
-async def setup(bot):
+async def setup(bot: TheGameBot):
     from . import (
         roles,
-        suggestions
+        # suggestions
     )
 
     cogs = (
         roles._CSClub_Roles,
-        suggestions._CSClub_Suggestions,
+        # suggestions._CSClub_Suggestions,
     )
 
     base = CSClub(bot)
