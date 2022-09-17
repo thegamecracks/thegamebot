@@ -110,30 +110,35 @@ class TagQuerier:
             }
         )
 
-    async def get_alias(self, guild_id: int, alias: str):
+    async def get_alias(self, guild_id: int, alias: str) -> AliasDict | None:
         guild_id, alias = int(guild_id), str(alias)
 
-        return await self.db.get_one(
+        row = await self.db.get_one(
             'tag_alias', where={
                 'guild_id': guild_id,
                 'alias_name': alias
             }
         )
 
-    async def get_aliases(self, guild_id: int, name: str):
+        if row is not None:
+            return dict(row)
+
+    async def get_aliases(self, guild_id: int, name: str) -> list[AliasDict]:
         """Gets all of a tag's aliases."""
         guild_id, name = int(guild_id), str(name)
 
-        return await self.db.get_rows(
+        rows = await self.db.get_rows(
             'tag_alias', where={
                 'guild_id': guild_id,
                 'tag_name': name
             }
         )
 
+        return [dict(r) for r in rows]
+
     async def get_tag(
         self, guild_id: int, name: str, *, include_aliases=False
-    ):
+    ) -> TagDict | None:
         """Gets a tag from a guild.
 
         :param guild_id: The guild id that the tag is in.
@@ -155,7 +160,9 @@ class TagQuerier:
 
         async with self.db.connect() as conn:
             async with conn.execute(query, params) as c:
-                return await c.fetchone()
+                row = await c.fetchone()
+                if row is not None:
+                    return dict(row)
 
     async def set_alias_author(self, guild_id: int, alias: str, user_id: int | None):
         """Sets the author of an alias.
