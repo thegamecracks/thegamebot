@@ -3,7 +3,7 @@
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import datetime
-from typing import Any, TypedDict
+from typing import Any, AsyncIterator, TypedDict
 
 import discord
 
@@ -18,6 +18,12 @@ class AliasDict(TypedDict):
     created_at: datetime.datetime
 
 
+class FTSTagDict(TypedDict):
+    guild_id: int
+    tag_name: str
+    alias_name: str | None
+
+
 class TagDict(TypedDict):
     guild_id: int
     tag_name: str
@@ -26,6 +32,29 @@ class TagDict(TypedDict):
     uses: int
     created_at: datetime.datetime
     edited_at: datetime.datetime | None
+
+
+def fts5_escape(s: str) -> str:
+    """Escapes a string for use in an SQLite FTS5 query.
+
+    Escape rules are defined by the following documentation:
+    https://sqlite.org/fts5.html#fts5_strings
+
+    """
+    return '"{}"'.format(s.replace('"', '""'))
+
+
+def fts5_split(s: str) -> str:
+    """Splits the given string into words, escapes them, and joins
+    the words with "OR" FTS5 keywords.
+
+    Useful for searching one of any tokens in an untrusted string.
+
+    """
+    return ' OR '.join(
+        fts5_escape(word)
+        for word in s.split()
+    )
 
 
 class TagQuerier:
@@ -163,6 +192,32 @@ class TagQuerier:
                 row = await c.fetchone()
                 if row is not None:
                     return dict(row)
+
+    async def search_tag_names(
+        self, guild_id: int, query: str, *, maximum: int
+    ) -> AsyncIterator[FTSTagDict]:
+        """Performs a full-text search on tag names and aliases
+        and yields rows ordered by relevance.
+
+        The "alias_name" key will be None for rows matched in the
+        tag_fts5 table.
+
+        """
+        query = fts5_split(query)
+        sql_query = """
+            SELECT guild_id, NULL AS alias_name, tag_name, rank FROM tag_fts5
+                WHERE tag_fts5 MATCH 'tag_name : ' || ?1
+                AND guild_id = ?2
+            UNION SELECT guild_id, alias_name, tag_name, rank FROM tag_alias_fts5
+                WHERE tag_alias_fts5 MATCH 'alias_name : ' || ?1
+                AND guild_id = ?2
+            ORDER BY rank
+            LIMIT ?3
+        """
+        async with self.db.connect() as conn:
+            async with conn.execute(sql_query, query, guild_id, maximum) as c:
+                while row := await c.fetchone():
+                    yield dict(row)
 
     async def set_alias_author(self, guild_id: int, alias: str, user_id: int | None):
         """Sets the author of an alias.

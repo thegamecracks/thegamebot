@@ -18,6 +18,13 @@ def get_querier(bot: TheGameBot):
     return TagQuerier(bot.db)
 
 
+class TagNotFoundError(commands.BadArgument):
+    """Raised when a tag could not be found in the database."""
+    def __init__(self, name: str) -> None:
+        super().__init__(f'Could not find the tag "{name}".')
+        self.name = name
+
+
 class VerboseTagDict(TagDict):
     """Provides more details about a given tag.
 
@@ -38,7 +45,7 @@ class ExistingTagConverter(commands.Converter[VerboseTagDict]):
         querier = get_querier(ctx.bot)
         tag = await querier.get_tag(ctx.guild.id, arg.casefold(), include_aliases=True)
         if tag is None:
-            raise commands.BadArgument(f'The tag "{arg}" does not exist.')
+            raise TagNotFoundError(arg)
 
         d = dict(tag)
         d['from_alias'] = (d['tag_name'] != arg)
@@ -168,6 +175,31 @@ class Tags(commands.Cog):
         if ctx.guild is None:
             raise commands.NoPrivateMessage()
         return True
+
+    async def cog_command_error(self, ctx: Context, error: commands.CommandError):
+        ctx.handled = True
+        if isinstance(error, TagNotFoundError):
+            similar = [
+                row['alias_name'] or row['tag_name']
+                async for row in self.tags.search_tag_names(
+                    ctx.guild.id, error.name, maximum=5
+                )
+            ]
+
+            content = ['I could not find that tag.']
+            if len(similar) > 1:
+                content.append('Perhaps you meant one of these?')
+                content.extend(similar)
+            elif similar:
+                content[0] += f' Perhaps you meant "{similar[0]}"?'
+
+            await ctx.send(
+                '\n'.join(content),
+                allowed_mentions=discord.AllowedMentions.none(),
+                suppress_embeds=True
+            )
+        else:
+            ctx.handled = False
 
     @commands.group(name='tag', aliases=('tags',), invoke_without_command=True)
     @commands.cooldown(1, 2, commands.BucketType.user)

@@ -113,6 +113,36 @@ CREATE TABLE tag (
 );
 
 
+CREATE VIRTUAL TABLE tag_fts5 USING fts5 (
+    guild_id UNINDEXED,
+    tag_name,
+    -- content,
+    content=tag,
+    tokenize = 'porter unicode61 remove_diacritics 2'
+);
+-- INSERT INTO tag_fts5 (tag_fts5) VALUES ('rebuild');
+
+
+CREATE TRIGGER tag_fts5_ai AFTER INSERT ON tag BEGIN
+  INSERT INTO tag_fts5
+    (rowid, guild_id, tag_name, content) VALUES
+    (new.rowid, new.guild_id, new.tag_name, new.content);
+END;
+CREATE TRIGGER tag_fts5_ad AFTER DELETE ON tag BEGIN
+  INSERT INTO tag_fts5
+    (tag_fts5, rowid, guild_id, tag_name, content) VALUES
+    ('delete', old.rowid, old.guild_id, old.tag_name, old.content);
+END;
+CREATE TRIGGER tag_fts5_au AFTER UPDATE ON tag BEGIN
+  INSERT INTO tag_fts5
+    (tag_fts5, rowid, guild_id, tag_name, content) VALUES
+    ('delete', old.rowid, old.guild_id, old.tag_name, old.content);
+  INSERT INTO tag_fts5
+    (rowid, guild_id, tag_name, content) VALUES
+    (new.rowid, new.guild_id, new.tag_name, new.content);
+END;
+
+
 CREATE TABLE tag_alias (
     guild_id   INTEGER      NOT NULL,
     alias_name VARCHAR (50) NOT NULL,
@@ -137,6 +167,36 @@ CREATE TABLE tag_alias (
     )
     REFERENCES user (user_id) ON DELETE SET NULL
 );
+
+
+CREATE VIRTUAL TABLE tag_alias_fts5 USING fts5 (
+    guild_id UNINDEXED,
+    alias_name,
+    tag_name UNINDEXED,
+    content=tag_alias,
+    tokenize = 'porter unicode61 remove_diacritics 2'
+);
+-- INSERT INTO tag_alias_fts5 (tag_alias_fts5) VALUES ('rebuild');
+
+
+CREATE TRIGGER tag_alias_fts5_ai AFTER INSERT ON tag_alias BEGIN
+  INSERT INTO tag_alias_fts5
+    (rowid, guild_id, alias_name, tag_name) VALUES
+    (new.rowid, new.guild_id, new.alias_name, new.tag_name);
+END;
+CREATE TRIGGER tag_alias_fts5_ad AFTER DELETE ON tag_alias BEGIN
+  INSERT INTO tag_alias_fts5
+    (tag_alias_fts5, rowid, guild_id, alias_name, tag_name) VALUES
+    ('delete', old.rowid, old.guild_id, old.alias_name, old.tag_name);
+END;
+CREATE TRIGGER tag_alias_fts5_au AFTER UPDATE ON tag_alias BEGIN
+  INSERT INTO tag_alias_fts5
+    (tag_alias_fts5, rowid, guild_id, alias_name, tag_name) VALUES
+    ('delete', old.rowid, old.guild_id, old.alias_name, old.tag_name);
+  INSERT INTO tag_alias_fts5
+    (rowid, guild_id, alias_name, tag_name) VALUES
+    (new.rowid, new.guild_id, new.alias_name, new.tag_name);
+END;
 
 
 CREATE TABLE user (
