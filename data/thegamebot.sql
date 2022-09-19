@@ -125,21 +125,21 @@ CREATE VIRTUAL TABLE tag_fts5 USING fts5 (
 
 CREATE TRIGGER tag_fts5_ai AFTER INSERT ON tag BEGIN
   INSERT INTO tag_fts5
-    (rowid, guild_id, tag_name, content) VALUES
-    (new.rowid, new.guild_id, new.tag_name, new.content);
+    (rowid, guild_id, tag_name) VALUES
+    (new.rowid, new.guild_id, new.tag_name);
 END;
 CREATE TRIGGER tag_fts5_ad AFTER DELETE ON tag BEGIN
   INSERT INTO tag_fts5
-    (tag_fts5, rowid, guild_id, tag_name, content) VALUES
-    ('delete', old.rowid, old.guild_id, old.tag_name, old.content);
+    (tag_fts5, rowid, guild_id, tag_name) VALUES
+    ('delete', old.rowid, old.guild_id, old.tag_name);
 END;
 CREATE TRIGGER tag_fts5_au AFTER UPDATE ON tag BEGIN
   INSERT INTO tag_fts5
-    (tag_fts5, rowid, guild_id, tag_name, content) VALUES
-    ('delete', old.rowid, old.guild_id, old.tag_name, old.content);
+    (tag_fts5, rowid, guild_id, tag_name) VALUES
+    ('delete', old.rowid, old.guild_id, old.tag_name);
   INSERT INTO tag_fts5
-    (rowid, guild_id, tag_name, content) VALUES
-    (new.rowid, new.guild_id, new.tag_name, new.content);
+    (rowid, guild_id, tag_name) VALUES
+    (new.rowid, new.guild_id, new.tag_name);
 END;
 
 
