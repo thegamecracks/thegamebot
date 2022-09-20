@@ -133,7 +133,9 @@ CREATE TRIGGER tag_fts5_ad AFTER DELETE ON tag BEGIN
     (tag_fts5, rowid, guild_id, tag_name) VALUES
     ('delete', old.rowid, old.guild_id, old.tag_name);
 END;
-CREATE TRIGGER tag_fts5_au AFTER UPDATE ON tag BEGIN
+CREATE TRIGGER tag_fts5_au
+AFTER UPDATE OF rowid, guild_id, tag_name ON tag
+BEGIN
   INSERT INTO tag_fts5
     (tag_fts5, rowid, guild_id, tag_name) VALUES
     ('delete', old.rowid, old.guild_id, old.tag_name);
@@ -189,7 +191,9 @@ CREATE TRIGGER tag_alias_fts5_ad AFTER DELETE ON tag_alias BEGIN
     (tag_alias_fts5, rowid, guild_id, alias_name, tag_name) VALUES
     ('delete', old.rowid, old.guild_id, old.alias_name, old.tag_name);
 END;
-CREATE TRIGGER tag_alias_fts5_au AFTER UPDATE ON tag_alias BEGIN
+CREATE TRIGGER tag_alias_fts5_au
+AFTER UPDATE OF rowid, guild_id, alias_name, tag_name ON tag_alias
+BEGIN
   INSERT INTO tag_alias_fts5
     (tag_alias_fts5, rowid, guild_id, alias_name, tag_name) VALUES
     ('delete', old.rowid, old.guild_id, old.alias_name, old.tag_name);
