@@ -1,4 +1,5 @@
 #!/bin/sh
+# Script has been deprecated; use system to manage restarting
 
 if [ -e RESTART ]; then
     rm RESTART

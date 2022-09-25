@@ -1,4 +1,5 @@
-﻿$host.UI.RawUI.WindowTitle = "thegamebot"
+﻿# Script has been deprecated; use system to manage restarting
+$host.UI.RawUI.WindowTitle = "thegamebot"
 
 function Raise-Number {
     param (

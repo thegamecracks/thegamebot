@@ -1,3 +1,4 @@
+:: Script has been deprecated; use system to manage restarting
 @echo off
 
 TITLE thegamebot
