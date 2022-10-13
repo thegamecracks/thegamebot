@@ -280,6 +280,9 @@ class _Hangman(commands.Cog):
 
         """
         # NOTE: referenced from ConnectionState.parse_interaction_create
+        if interaction.type is not discord.InteractionType.component:
+            return
+
         custom_id = interaction.data['custom_id']
         m = self.CUSTOM_ID_REGEX.match(custom_id)
         if m is None:
