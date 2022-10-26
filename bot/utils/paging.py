@@ -52,7 +52,7 @@ class PageSource(ABC, Generic[T, S_co, V_contra]):
     def max_pages(self) -> int:
         """The max number of pages the page source can return.
 
-        Can return zero to disable the view entirely.
+        Can return 0 to disable the view entirely.
 
         """
         return 1
@@ -249,7 +249,8 @@ class PaginatorView(discord.ui.View, Generic[T, S_co, V_contra]):
     async def start(self, channel: discord.abc.Messageable | discord.Interaction, ephemeral=True):
         await self.show_page(self.current_source.current_index)
         if isinstance(channel, discord.Interaction):
-            await channel.response.send_message(ephemeral=ephemeral, **self._get_message_kwargs(initial_response=True))
+            kwargs = self._get_message_kwargs(initial_response=True)
+            await channel.response.send_message(ephemeral=ephemeral, **kwargs)
             self.message = await channel.original_response()
         else:
             self.message = await channel.send(**self._get_message_kwargs())
