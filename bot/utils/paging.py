@@ -95,7 +95,7 @@ class ListPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[E, S_co, 
 class AsyncIteratorPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[E, S_co, V_contra]):
     """Paginates an async iterator."""
     def __init__(self, iterator: AsyncIterator[E], *args, page_size: int, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self._cache: list[E] = []
         self._iterator = iterator
         self._max_index = 0
