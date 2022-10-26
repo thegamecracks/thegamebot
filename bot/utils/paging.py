@@ -91,7 +91,6 @@ class ListPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[E, S_co, 
         return pages + bool(remainder)
 
 
-# noinspection PyAbstractClass
 class AsyncIteratorPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[E, S_co, V_contra]):
     """Paginates an async iterator."""
     def __init__(self, iterator: AsyncIterator[E], *args, page_size: int, **kwargs):
