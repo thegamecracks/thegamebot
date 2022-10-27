@@ -174,7 +174,7 @@ class PaginatorView(discord.ui.View, Generic[T, S_co, V_contra]):
     """
     def __init__(
         self, *args,
-        sources: list[PageSource[T, S_co, V_contra]] | PageSource[T, S_co, V_contra],
+        sources: Sequence[PageSource[T, S_co, V_contra]] | PageSource[T, S_co, V_contra],
         allowed_users: Collection[int] = None,
         timeout_action = TimeoutAction.CLEAR,
         **kwargs
@@ -184,7 +184,7 @@ class PaginatorView(discord.ui.View, Generic[T, S_co, V_contra]):
             sources = [sources]
         elif len(sources) == 0:
             raise ValueError('must provide at least one page source')
-        self.sources = sources
+        self.sources = cast(Sequence[PageSource[T, S_co, V_contra]], sources)
         self.allowed_users = allowed_users
         self.timeout_action = timeout_action
 
