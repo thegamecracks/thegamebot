@@ -13,7 +13,7 @@ from typing import cast
 import discord
 from discord import app_commands
 from discord.ext import commands
-import thefuzz.process
+import rapidfuzz
 
 from bot import errors
 from main import Context, TheGameBot
@@ -395,14 +395,11 @@ class EventHandlers(commands.Cog):
                 except commands.CommandError:
                     pass
 
-            m = await asyncio.to_thread(
-                thefuzz.process.extractOne,
-                ctx.invoked_with, names, score_cutoff=65
-            )
+            m = rapidfuzz.process.extractOne(ctx.invoked_with, names, score_cutoff=65)
             if m is None:
                 return
 
-            name, score = m
+            name, score, index = m
             return await ctx.send(
                 embed=discord.Embed(
                     description=(

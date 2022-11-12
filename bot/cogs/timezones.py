@@ -10,7 +10,7 @@ import zoneinfo
 
 import discord
 from discord import app_commands
-import thefuzz.process
+import rapidfuzz
 
 from main import TheGameBot
 
@@ -24,15 +24,14 @@ def available_timezones():
 
 class TimezoneTransformer(app_commands.Transformer):
     async def autocomplete(self, interaction, value: str):
-        matches = await asyncio.to_thread(
-            thefuzz.process.extractBests,
+        matches = rapidfuzz.process.extract_iter(
             value, available_timezones(), score_cutoff=80
         )
 
         # return the first 5 matches
         return [
             app_commands.Choice(name=name, value=name)
-            for name, score in itertools.islice(matches, 5)
+            for name, score, index in itertools.islice(matches, 5)
         ]
 
     async def transform(self, interaction, value):
