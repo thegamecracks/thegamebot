@@ -2,17 +2,23 @@
 #  This Source Code Form is subject to the terms of the Mozilla Public
 #  License, v. 2.0. If a copy of the MPL was not distributed with this
 #  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+from abc import ABC, abstractmethod
 from enum import Enum, auto
 import functools
 import math
-from typing import TypeVar, Generic, Collection, TypedDict, Any, cast, Protocol, AsyncIterator
+from typing import (
+    Any, AsyncIterator, Collection, Coroutine, Generic, Sequence,
+    TypeAlias, TypedDict, TypeVar, cast
+)
 
 import discord
 
 E = TypeVar('E')
-S = TypeVar('S', bound='PageSource')
 T = TypeVar('T')
-V = TypeVar('V', bound=discord.ui.View)
+S_co = TypeVar('S_co', bound="PageSource", covariant=True)
+V_contra = TypeVar('V_contra', bound="PaginatorView", contravariant=True)
+FP: TypeAlias = "PageParams | str | discord.Embed"
+PO: TypeAlias = "Sequence[PageOption[S_co]]"
 
 
 class PageParams(TypedDict, total=False):
@@ -20,17 +26,22 @@ class PageParams(TypedDict, total=False):
     embed: discord.Embed
 
 
-class PageOption(discord.SelectOption, Generic[S]):
+class PageOption(discord.SelectOption, Generic[S_co]):
     """A select option that can store a nested page
     through the added `source=` kwarg.
     """
-    def __init__(self, *args, source: S, **kwargs):
+    def __init__(self, *args, source: S_co, **kwargs):
         super().__init__(*args, **kwargs)
         self.source = source
 
 
-class PageSourceProto(Protocol[T, S, V]):
-    def get_page(self, index: int) -> T:
+class PageSource(ABC, Generic[T, S_co, V_contra]):
+    """The base page source class."""
+    def __init__(self, *, current_index: int = 0):
+        self.current_index = current_index
+
+    @abstractmethod
+    def get_page(self, index: int) -> T | Coroutine[None, None, T]:
         """Returns a page based on the given index.
 
         This method may be asynchronous.
@@ -41,12 +52,12 @@ class PageSourceProto(Protocol[T, S, V]):
     def max_pages(self) -> int:
         """The max number of pages the page source can return.
 
-        Can return zero to disable the view entirely.
+        Can return 0 to disable the view entirely.
 
         """
         return 1
 
-    def get_page_options(self, view: V, page: T) -> list[PageOption[S]]:
+    def get_page_options(self, view: V_contra, page: T) -> PO | Coroutine[None, None, PO]:
         """Returns a list of page options for the user to select.
 
         This method may be asynchronous.
@@ -54,24 +65,16 @@ class PageSourceProto(Protocol[T, S, V]):
         """
         return []
 
-    def format_page(self, view: V, page: T) -> PageParams | str | discord.Embed:
+    @abstractmethod
+    def format_page(self, view: V_contra, page: T) -> FP | Coroutine[None, None, FP]:
         """Returns a dictionary presenting the items in the page.
 
         This method may be asynchronous.
 
         """
-        raise NotImplementedError
 
 
-# noinspection PyAbstractClass
-class PageSource(PageSourceProto, Generic[T, S, V]):
-    """The base page source class."""
-    def __init__(self, *, current_index: int = 0):
-        self.current_index = current_index
-
-
-# noinspection PyAbstractClass
-class ListPageSource(PageSource[list[E], S, V]):
+class ListPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[E, S_co, V_contra]):
     """Paginates a list of elements."""
     def __init__(self, items: list[E], *args, page_size: int, **kwargs):
         super().__init__(*args, **kwargs)
@@ -88,11 +91,10 @@ class ListPageSource(PageSource[list[E], S, V]):
         return pages + bool(remainder)
 
 
-# noinspection PyAbstractClass
-class AsyncIteratorPageSource(PageSource[list[E], S, V]):
+class AsyncIteratorPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[E, S_co, V_contra]):
     """Paginates an async iterator."""
     def __init__(self, iterator: AsyncIterator[E], *args, page_size: int, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self._cache: list[E] = []
         self._iterator = iterator
         self._max_index = 0
@@ -143,7 +145,7 @@ class TimeoutAction(Enum):
     """On timeout, the message will be deleted."""
 
 
-class PaginatorView(discord.ui.View):
+class PaginatorView(discord.ui.View, Generic[T, S_co, V_contra]):
     """A view that handles pagination and recursive levels of pages.
 
     To use this view, pass a PageSource or list of PageSources
@@ -172,7 +174,7 @@ class PaginatorView(discord.ui.View):
     """
     def __init__(
         self, *args,
-        sources: list[PageSource] | PageSource,
+        sources: Sequence[PageSource[T, S_co, V_contra]] | PageSource[T, S_co, V_contra],
         allowed_users: Collection[int] = None,
         timeout_action = TimeoutAction.CLEAR,
         **kwargs
@@ -182,13 +184,13 @@ class PaginatorView(discord.ui.View):
             sources = [sources]
         elif len(sources) == 0:
             raise ValueError('must provide at least one page source')
-        self.sources = sources
+        self.sources = cast(Sequence[PageSource[T, S_co, V_contra]], sources)
         self.allowed_users = allowed_users
         self.timeout_action = timeout_action
 
         self.message: discord.Message | None = None
         self.page: PageParams = {}
-        self.options: list[discord.SelectOption] = []
+        self.options: Sequence[PageOption[S_co]] = []
         self.option_sources: dict[str, PageSource] = {}
 
     @property
@@ -231,7 +233,7 @@ class PaginatorView(discord.ui.View):
             params = {'embed': params}
         elif not isinstance(params, dict):
             raise TypeError('format_page() must return a dict, str, or Embed')
-        self.page = cast(dict, params)
+        self.page = cast(PageParams, params)
 
         options: list[PageOption] = await maybe_coro(self.current_source.get_page_options, self, page)
         option_sources = {}
@@ -246,7 +248,8 @@ class PaginatorView(discord.ui.View):
     async def start(self, channel: discord.abc.Messageable | discord.Interaction, ephemeral=True):
         await self.show_page(self.current_source.current_index)
         if isinstance(channel, discord.Interaction):
-            await channel.response.send_message(ephemeral=ephemeral, **self._get_message_kwargs(initial_response=True))
+            kwargs = self._get_message_kwargs(initial_response=True)
+            await channel.response.send_message(ephemeral=ephemeral, **kwargs)
             self.message = await channel.original_response()
         else:
             self.message = await channel.send(**self._get_message_kwargs())
