@@ -127,8 +127,6 @@ class AsyncIteratorPageSource(PageSource[list[E], S_co, V_contra], ABC, Generic[
 
     @property
     def max_pages(self):
-        if self._exhausted and not self._cache:
-            return 0
         return self._max_index + (not self._exhausted)
 
 
