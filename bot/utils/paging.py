@@ -264,11 +264,9 @@ class PaginatorView(discord.ui.View, Generic[T, S_co, V_contra]):
         if self.message is None or action is TimeoutAction.NONE:
             return
 
-        ephemeral = self.message.flags.ephemeral
-
         if action is TimeoutAction.CLEAR:
             await self.message.edit(view=None)
-        elif action is TimeoutAction.DELETE and not ephemeral:
+        elif action is TimeoutAction.DELETE:
             await self.message.delete()
         elif action is TimeoutAction.DISABLE:
             for item in self.children:
@@ -382,11 +380,7 @@ class PaginatorView(discord.ui.View, Generic[T, S_co, V_contra]):
         style=discord.ButtonStyle.success, row=1)
     async def stop_button(self, interaction, button):
         self.stop()
-
-        if self.message.flags.ephemeral:
-            await interaction.response.edit_message(view=None)
-        else:
-            await interaction.message.delete()
+        await interaction.message.delete()
 
     @discord.ui.button(
         emoji='\N{LEFTWARDS ARROW WITH HOOK}',
