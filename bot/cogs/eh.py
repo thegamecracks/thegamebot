@@ -687,7 +687,7 @@ class EventHandlers(commands.Cog):
             logger.warning(
                 'Application command %r (%s) not found',
                 error.name,
-                error.type.name  # type: ignore # this enum does have a name attribute
+                error.type.name
             )
             await send(interaction, content)
         elif isinstance(error, app_commands.CommandInvokeError):
