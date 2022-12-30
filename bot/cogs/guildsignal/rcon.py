@@ -36,6 +36,15 @@ class _SignalHill_RCON(commands.Cog):
         self.telephone_message_id: int = settings.get('signal_hill', 'telephone_message_id')
         self.disconnect_emoji_id: int = settings.get('signal_hill', 'emoji_disconnect')
 
+        self.telephone_webhook: discord.Webhook | None = None
+        self.telephone_webhook_thread: discord.Object | None = None
+        webhook_url: str | None = settings.get('signal_hill', 'telephone_webhook')
+        thread_id: int | None = settings.get('signal_hill', 'telephone_webhook_thread')
+        if webhook_url is not None:
+            self.telephone_webhook = discord.Webhook.from_url(webhook_url, session=self.bot.session)
+        if thread_id is not None:
+            self.telephone_webhook_thread = discord.Object(thread_id)
+
         self.messages = collections.deque([], self.MESSAGE_LOG_SIZE)
         self.messages_to_remove: list[discord.Message] = []
         self.message_cooldown = commands.CooldownMapping.from_cooldown(2, 10, commands.BucketType.user)
@@ -61,10 +70,21 @@ class _SignalHill_RCON(commands.Cog):
         channel = self.base.guild.get_channel(self.telephone_channel_id)
         return channel.get_partial_message(self.telephone_message_id)
 
-    async def send_rcon_message(self, name: str, message: str) -> str:
+    async def send_rcon_message(
+        self,
+        name: str,
+        message: str,
+        *,
+        mention: str = "no mention",
+    ) -> str:
         """Sends a message from a user and returns the message that will
         be appended to the message log.
 
+        This will also send the message to the telephone webhook
+        (if available) alongside the provided mention for logging.
+
+        :raises discord.HTTPException:
+            An error occurred while sending a message to the webhook.
         :raises rcon.RCONCommandError:
             The message could not be sent to the server.
 
@@ -72,6 +92,14 @@ class _SignalHill_RCON(commands.Cog):
         ts = timestamp_now('T')
         announcement = f'{name} (Telephone): {message}'
         logged_message = f'{ts} `(Telephone) {name}`: {message}'
+
+        if self.telephone_webhook is not None:
+            thread = self.telephone_webhook_thread or discord.utils.MISSING
+            await self.telephone_webhook.send(
+                f"{name} ({mention}): {message}",
+                allowed_mentions=discord.AllowedMentions.none(),
+                thread=thread,
+            )
 
         await self.rcon_client.send(announcement)
 
@@ -106,15 +134,22 @@ class _SignalHill_RCON(commands.Cog):
         elif self.message_cooldown.update_rate_limit(message):
             return await delete_and_react('\N{ALARM CLOCK}')
 
+        success = False
         try:
             await self.send_rcon_message(
                 filter_ascii(message.author.display_name),
-                content
+                content,
+                mention=message.author.mention,
             )
+            success = True
         except rcon.RCONCommandError:
-            await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
-        else:
-            await delete_and_react('\N{SATELLITE ANTENNA}')
+            pass
+        # NOTE: don't catch discord.HTTPException so it's logged in stderr
+        finally:
+            if success:
+                await delete_and_react('\N{SATELLITE ANTENNA}')
+            else:
+                await delete_and_react('\N{HEAVY EXCLAMATION MARK SYMBOL}')
 
     async def log_player_message(self, player: rcon.Player, channel: str, message: str):
         """Logs a message sent from RCON to be displayed in the telephone."""
