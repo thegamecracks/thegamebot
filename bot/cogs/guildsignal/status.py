@@ -477,6 +477,7 @@ class BMServerStatus(ServerStatus[abm.Server, BMServerStatusView]):
         #     pass
 
         # Plot player counts
+        # pre-condition: len(datapoints) >= 2
         x, y = zip(*((d.timestamp, d.value) for d in datapoints))
         x_min, x_max = mdates.date2num(min(x)), mdates.date2num(max(x))
         lines = ax.plot(x, y, self.line_color_hex)  # , marker='.')
@@ -544,6 +545,11 @@ class BMServerStatus(ServerStatus[abm.Server, BMServerStatusView]):
             if e.status >= 500 or e.status == 409:
                 return None
             raise e
+
+        if len(datapoints) < 2:
+            # Graph generation requires at least two datapoints
+            return None
+
         return datapoints, server.max_players
 
     def is_online(self, server: abm.Server) -> bool:
