@@ -10,7 +10,7 @@ python = "^3.10"
 abattlemetrics = "^0.6.0"
 asqlite = {git = "https://github.com/Rapptz/asqlite", rev = "cbe4ebb86c6d5c60f96576c27cc6e4edcf4618cd"}
 autopep8 = "^1.6.0"
-berconpy = "2.0.0b1"
+berconpy = "^2.0.0"
 dateparser = "^1.1.0"
 "discord.py" = "^2.0.0"
 emoji = "^1.6.3"
