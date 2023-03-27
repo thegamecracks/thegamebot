@@ -1,4 +1,5 @@
 desktop.ini
+poetry.lock
 run_venv.bat
 settings.ini
 *.db-shm
