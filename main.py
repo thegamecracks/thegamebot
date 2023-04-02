@@ -266,6 +266,10 @@ async def main():
         help='Enable privileged members intent.'
     )
     parser.add_argument(
+        '--message-content', action='store_true',
+        help='Enable privileged message content intent.'
+    )
+    parser.add_argument(
         '-P', '--presences', action='store_true',
         help='Enable privileged presences intent.'
     )
@@ -289,7 +293,7 @@ async def main():
         integrations=False,
         invites=False,
         members=args.members,
-        message_content=True,
+        message_content=args.message_content,
         messages=True,
         presences=args.presences,
         reactions=True,
