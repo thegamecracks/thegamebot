@@ -36,7 +36,6 @@ EXT_LIST = [
         'games',
         'graphing',
         'guildclub',
-        'guildsignal',
         'helpcommand',
         'info',
         'moderation',
