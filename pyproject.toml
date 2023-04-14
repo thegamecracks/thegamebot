@@ -8,7 +8,6 @@ license = "MPLv2.0"
 [tool.poetry.dependencies]
 python = "^3.10"
 asqlite = {git = "https://github.com/Rapptz/asqlite", rev = "cbe4ebb86c6d5c60f96576c27cc6e4edcf4618cd"}
-autopep8 = "^1.6.0"
 dateparser = "^1.1.0"
 "discord.py" = "^2.0.0"
 emoji = "^1.6.3"
@@ -17,12 +16,10 @@ inflect = "^5.4.0"
 jishaku = {git = "https://github.com/Gorialis/jishaku"}
 matplotlib = "^3.5.1"
 numpy = "^1.22.2"
-Pillow = "^9.0.0"
 Pint = "^0.19"
 psutil = "^5.8.0"
 python-dateutil = "^2.8.2"
 python-dotenv = "^0.19.2"
-qrcode = "^7.3.1"
 rapidfuzz = "^2.13.2"
 
 [tool.poetry.dev-dependencies]
