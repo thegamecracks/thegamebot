@@ -10,7 +10,6 @@ python = "^3.10"
 asqlite = {git = "https://github.com/Rapptz/asqlite", rev = "cbe4ebb86c6d5c60f96576c27cc6e4edcf4618cd"}
 dateparser = "^1.1.0"
 "discord.py" = "^2.0.0"
-emoji = "^2.2.0"
 humanize = "^4.6.0"
 inflect = "^6.0.4"
 jishaku = {git = "https://github.com/Gorialis/jishaku"}
