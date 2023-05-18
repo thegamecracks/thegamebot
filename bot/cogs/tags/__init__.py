@@ -265,7 +265,7 @@ content: The content of the tag."""
         await delete_and_reply(ctx, f'Created your new tag "{name}"!')
 
     @tag.command(name='delete', aliases=('remove',))
-    async def tag_delete(self, ctx: Context, tag: VerboseTagDict = ExistingTag):
+    async def tag_delete(self, ctx: Context, *, tag: VerboseTagDict = ExistingTag):
         """Delete one of your tags or aliases (or someone else's, if you have Manage Server permission)."""
         perms = ctx.author.guild_permissions
         if tag['user_id'] != ctx.author.id and not perms.manage_guild:
