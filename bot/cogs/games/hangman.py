@@ -7,7 +7,7 @@ import enum
 import random
 import re
 import string
-from typing import Optional
+from typing import Any, Optional, cast
 
 import discord
 from discord.ext import commands
@@ -158,9 +158,8 @@ class HangmanView(discord.ui.View):
 
     @staticmethod
     def decode_guesses(guesses: str) -> set[str]:
-        # noinspection PyUnresolvedReferences
-        members, uncovered = enum._decompose(CharFlag, int(guesses))
-        return {m._name_.lower() for m in members}
+        flags = CharFlag(int(guesses))
+        return {m._name_.lower() for m in flags}  # type: ignore  # _name_ is not None
 
     @staticmethod
     def decode_word(word: str) -> str:
@@ -283,8 +282,9 @@ class _Hangman(commands.Cog):
         if interaction.type is not discord.InteractionType.component:
             return
 
-        custom_id = interaction.data['custom_id']
-        m = self.CUSTOM_ID_REGEX.match(custom_id)
+        data = cast(dict[str, Any], interaction.data)
+
+        m = self.CUSTOM_ID_REGEX.match(data['custom_id'])
         if m is None:
             return
 
@@ -292,7 +292,7 @@ class _Hangman(commands.Cog):
         view = HangmanView.from_match(m)
         item = view.children[int(m.group('keyboard'))]
         # NOTE: referenced from ViewStore.dispatch
-        item._refresh_state(interaction.data)
+        item._refresh_state(interaction, data)
         view._dispatch_item(item, interaction)
         view.stop()
 
